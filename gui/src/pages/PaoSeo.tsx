@@ -32,6 +32,17 @@ interface SeoRecommendation {
   requiresApproval: boolean;
 }
 
+interface GeoAuditResult {
+  runId: string;
+  heuristicscore: number;
+  verificationSummary: { verified: number; unverified: number; conflict: number; suppressed: number };
+  findings: Array<{ title: string; verification: string; basis: string; impact: string; detail: string }>;
+  crawlerPolicy: Array<{ crawlerId: string; displayName: string; category: string; access: string; evidenceLines: string[] }>;
+  llmsTxt: { state: string; url: string; issues: string[] };
+  schema: { blocksFound: number; families: string[] };
+  citability: { overallScore: number; strongCount: number; weakCount: number; topIssues: string[] } | null;
+}
+
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 export default function PaoSeo({ apiBase }: { apiBase: string }) {
@@ -44,6 +55,9 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
   const [recommendations, setRecommendations] = useState<SeoRecommendation[]>([]);
   const [recsState, setRecsState] = useState<LoadState>("idle");
   const [analyzing, setAnalyzing] = useState(false);
+  const [geoAudit, setGeoAudit] = useState<GeoAuditResult | null>(null);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formDomain, setFormDomain] = useState("");
   const [formName, setFormName] = useState("");
@@ -114,6 +128,24 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
       setError("network");
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const runGeoAuditAction = async () => {
+    if (!selected || geoBusy) return;
+    setGeoBusy(true);
+    setGeoError(null);
+    try {
+      const res = await fetch(`${apiBase}/api/agent-os/seo/geo/projects/${encodeURIComponent(selected)}/audit`, { method: "POST" });
+      if (!res.ok) {
+        setGeoError(String(res.status));
+        return;
+      }
+      setGeoAudit(await res.json());
+    } catch {
+      setGeoError("network");
+    } finally {
+      setGeoBusy(false);
     }
   };
 
@@ -239,6 +271,61 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+        </section>
+
+        <section className="seo-card">
+          <h3>{t("seo.geoTitle")}</h3>
+          <p className="muted">{t("seo.geoHint")}</p>
+          {selected === null && <p className="muted">{t("seo.selectProject")}</p>}
+          {selected !== null && (
+            <>
+              <div className="seo-actions">
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => void runGeoAuditAction()} disabled={geoBusy}>
+                  {geoBusy ? t("seo.analyzing") : t("seo.geoRun")}
+                </button>
+              </div>
+              {geoError && <p className="seo-err">{t("seo.runFailed")} ({geoError})</p>}
+              {geoAudit && (
+                <div className="seo-geo-grid">
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoScore")}: {geoAudit.heuristicscore}/100</strong>
+                    <span className="muted">{t("seo.geoHeuristic")}</span>
+                  </div>
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoCitability")}: {geoAudit.citability ? `${geoAudit.citability.overallScore}/100` : "—"}</strong>
+                    <span className="muted">{geoAudit.citability ? `${geoAudit.citability.strongCount} / ${geoAudit.citability.weakCount}` : "—"}</span>
+                  </div>
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoSchema")}: {geoAudit.schema.blocksFound}</strong>
+                    <span className="muted">{geoAudit.schema.families.join(", ") || "—"}</span>
+                  </div>
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoLlms")}: {geoAudit.llmsTxt.state}</strong>
+                    <span className="muted">{geoAudit.llmsTxt.issues.join("; ") || "—"}</span>
+                  </div>
+                </div>
+              )}
+              {geoAudit && (
+                <ul className="seo-rec-list">
+                  {geoAudit.crawlerPolicy.map(crawler => (
+                    <li key={crawler.crawlerId} className="seo-rec">
+                      <div className="seo-rec-head">
+                        <span className={`seo-impact seo-impact--${crawler.access === "allowed" ? "low" : crawler.access === "blocked" ? "high" : "medium"}`}>{crawler.access}</span>
+                        <strong>{crawler.displayName}</strong>
+                        <span className="seo-badge">{crawler.category}</span>
+                      </div>
+                      {crawler.evidenceLines.length > 0 && <p className="muted">{crawler.evidenceLines.join(" · ")}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {geoAudit && (
+                <div className="seo-geo-verify">
+                  <span className="muted">{t("seo.geoVerify")}: {geoAudit.verificationSummary.verified} ✓ · {geoAudit.verificationSummary.unverified} ? · {geoAudit.verificationSummary.conflict} ⚠ · {geoAudit.verificationSummary.suppressed} ⊘</span>
+                </div>
+              )}
             </>
           )}
         </section>

@@ -6,6 +6,7 @@ import { closeAgentOsDbForTests, openAgentOsDb } from "../src/agent-os/db";
 import { createSeoProject, listSeoRecommendations, listSeoRuns } from "../src/agent-os/seo/seo-models";
 import { runGeoAudit } from "../src/agent-os/seo/geo/geo-orchestrator";
 import { parseRobotsTxt, extractJsonLdBlocks } from "../src/agent-os/seo/geo/analyzers";
+import { analyzeCitability, segmentPassages, scorePassage } from "../src/agent-os/seo/geo/citability";
 import { geoFetch } from "../src/agent-os/seo/geo/geo-fetch";
 
 let tempDir = "";
@@ -111,5 +112,47 @@ describe("Phase 18.1 — GEO orchestrator", () => {
     // Fixture audit produces no recommendations (nothing verified) — the inbox
     // stays clean, which is itself the honest behavior under test.
     expect(recs).toHaveLength(0);
+  });
+});
+
+describe("Phase 18.1 — citability (heuristic, passage-level)", () => {
+  const doc = `
+    <h2>What is a smart CCTV?</h2>
+    <p>A smart CCTV is a camera system that records 24 hours a day and sends alerts within 5 seconds of motion detection.</p>
+    <h2>Our amazing services</h2>
+    <p>We are the world-class leading provider of unmatched premier solutions for every customer need imaginable with the best quality.</p>
+    <h3>Pricing</h3>
+    <table><tr><td>Plan</td><td>1999 baht per year</td></tr></table>
+  `;
+
+  test("segments headings into qa/table/paragraph passages", () => {
+    const segments = segmentPassages(doc);
+    expect(segments.length).toBeGreaterThanOrEqual(3);
+    expect(segments.some(s => s.type === "qa")).toBe(true);
+    expect(segments.some(s => s.type === "table")).toBe(true);
+  });
+
+  test("answer-first specific passage outscores marketing fluff", () => {
+    const segments = segmentPassages(doc);
+    const qa = segments.find(s => s.type === "qa")!;
+    const fluff = segments.find(s => s.text.includes("world-class"))!;
+    const qaScore = scorePassage(qa).citability;
+    const fluffScore = scorePassage(fluff).citability;
+    expect(qaScore).toBeGreaterThan(fluffScore);
+  });
+
+  test("document assessment reports weak passages with labeled heuristic issues", () => {
+    const assessment = analyzeCitability(doc);
+    expect(assessment.passages.length).toBeGreaterThan(0);
+    expect(assessment.weakCount).toBeGreaterThanOrEqual(1);
+    expect(assessment.topIssues.length).toBeGreaterThan(0);
+  });
+
+  test("orchestrator includes citability block in fixture mode and flags weak passages", async () => {
+    const project = createSeoProject({ domain: "cit.test" });
+    const result = await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: doc } });
+    expect(result.citability).not.toBeNull();
+    expect(result.citability!.overallScore).toBeGreaterThan(0);
+    expect(result.findings.some(f => f.agent === "citability" && f.basis === "heuristic")).toBe(true);
   });
 });

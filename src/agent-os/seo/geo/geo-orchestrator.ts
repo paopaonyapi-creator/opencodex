@@ -10,6 +10,8 @@ import type { SeoProjectContext } from "../types";
 import { addSeoRecommendation } from "../seo-models";
 import type { GeoAuditResult, GeoEvidence, GeoFinding, GeoRecommendation } from "./types";
 import { checkCrawlerPolicy, checkLlmsTxt, checkSchema, type CrawlersCheck, type LlmsTxtCheck, type SchemaCheck } from "./analyzers";
+import { analyzeCitability, type CitabilityAssessment } from "./citability";
+import { geoFetch } from "./geo-fetch";
 
 export class GeoDisabledError extends Error {
   constructor() { super("GEO engine is disabled for this project"); this.name = "GeoDisabledError"; }
@@ -18,6 +20,8 @@ export class GeoDisabledError extends Error {
 export interface GeoAuditOptions {
   /** Default true; tests/air-gapped runs can disable the network lane. */
   fetchLive?: boolean;
+  /** Test/fixture seam: score citability against this document instead of fetching. */
+  fixtureHtml?: string;
 }
 
 /**
@@ -77,6 +81,23 @@ export async function runGeoAudit(input: {
     });
   }
 
+  // Citability (heuristic, passage-level): scored against caller-supplied HTML
+  // (tests/fixtures) or the live homepage when the network lane is enabled.
+  let citability: CitabilityAssessment | null = null;
+  if (input.options?.fixtureHtml) {
+    citability = analyzeCitability(input.options.fixtureHtml);
+  } else if (live) {
+    const home = await geoFetch(`https://${domain}/`);
+    if (home.ok && home.body) citability = analyzeCitability(home.body);
+  }
+  if (citability && citability.weakCount > 0) {
+    findings.push({
+      id: `f_${randomUUID().slice(0, 8)}`, agent: "citability",
+      title: `${citability.weakCount} low-citability passages detected`,
+      detail: `HEURISTIC passage scores (not platform rankings). Top issues: ${citability.topIssues.join("; ") || "none"}.`,
+      basis: "heuristic", verification: "verified", evidence: [], impact: citability.weakCount >= 3 ? "medium" : "low", confidence: 0.7,
+    });
+  }
   const { kept, suppressed } = suppressContradicted(findings);
   const verifiedCount = kept.filter(finding => finding.verification === "verified").length;
   const conflictCount = kept.filter(finding => finding.verification === "conflict").length;
@@ -139,5 +160,12 @@ export async function runGeoAudit(input: {
     crawlerPolicy,
     llmsTxt,
     schema,
+    citability: citability ? {
+      overallScore: citability.overallScore,
+      strongCount: citability.strongCount,
+      weakCount: citability.weakCount,
+      topIssues: citability.topIssues,
+      passages: citability.passages.slice(0, 10).map(({ type, heading, text, citability: score, strengths, issues }) => ({ type, heading, text: text.slice(0, 240), citability: score, strengths, issues })),
+    } : null,
   };
 }

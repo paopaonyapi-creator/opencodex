@@ -87,4 +87,11 @@ export interface GeoAuditResult {
   crawlerPolicy: GeoCrawlerPolicyStatus[];
   llmsTxt: { state: LlmsTxtState; url: string; httpStatus?: number | null; issues: string[] };
   schema: { blocksFound: number; families: string[] };
+  citability: {
+    overallScore: number;
+    strongCount: number;
+    weakCount: number;
+    topIssues: string[];
+    passages: Array<{ type: string; heading: string | null; text: string; citability: number; strengths: string[]; issues: string[] }>;
+  } | null;
 }

@@ -32,6 +32,9 @@
 .seo-badge { font-size: var(--text-caption); color: var(--muted); border: 1px solid var(--border-soft); border-radius: var(--radius-xs); padding: 1px 6px; }
 .seo-rec-actions { display: flex; gap: 6px; margin-top: 6px; }
 .seo-err { color: var(--red); font-size: var(--text-label); }
+.seo-geo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.seo-geo-tile { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--radius-xs); }
+.seo-geo-verify { margin-top: 4px; }
 
 @media (max-width: 760px) {
   .seo-new-project { grid-template-columns: 1fr; }

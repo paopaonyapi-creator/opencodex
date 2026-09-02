@@ -1,4 +1,4 @@
-# Phase 18.1 Checklist — Slice 1
+# Phase 18.1 Checklist — Through Slice 4
 
 - [x] Phase 18 implementation inspected; no duplicate SEO infrastructure created
 - [x] GEO module integrated into Phase 18 architecture (same project/inbox/run ledger)
@@ -24,8 +24,8 @@ Deferred to slice 2+ (contract-ready, not yet implemented):
 - [x] Brand authority + entity consistency analyzers (slice 3, geo/entity.ts)
 - [x] Platform readiness agent (slice 3, geo/platform.ts, basis=general_retrieval_principle)
 - [x] Content / E-E-A-T agent (slice 3, geo/eeat.ts)
-- [ ] llms.txt proposal generation
-- [ ] GEO technical agent (sitemap/canonical/freshness)
+- [x] llms.txt proposal generation (same-domain/https validation, sensitive paths excluded, copy-only UI, no deploy route)
+- [x] GEO technical agent (direct sitemap.xml, raw canonical, JSON-LD freshness; deterministic fetch seam)
 - [ ] Reviewer Council auto-invocation + fix planner
-- [x] Dashboard GEO section (slice 2-3: score tiles, crawler list, entity/EEAT tiles, platform readiness)
+- [x] Dashboard GEO section (score tiles, crawler list, entity/EEAT/platform readiness, technical state, llms.txt preview/copy)
 - [ ] MCP GEO read tools

@@ -11,10 +11,12 @@ import { addSeoRecommendation } from "../seo-models";
 import type { GeoAuditResult, GeoEvidence, GeoFinding, GeoRecommendation } from "./types";
 import { checkCrawlerPolicy, checkLlmsTxt, checkSchema, type CrawlersCheck, type LlmsTxtCheck, type SchemaCheck } from "./analyzers";
 import { analyzeCitability, type CitabilityAssessment } from "./citability";
-import { geoFetch } from "./geo-fetch";
+import { geoFetch, type GeoFetchResult } from "./geo-fetch";
 import { analyzeEntity } from "./entity";
 import { analyzeEeat } from "./eeat";
 import { assessPlatformReadiness } from "./platform";
+import { checkTechnical } from "./technical";
+import { generateLlmsTxtProposal } from "./llms-proposal";
 
 export class GeoDisabledError extends Error {
   constructor() { super("GEO engine is disabled for this project"); this.name = "GeoDisabledError"; }
@@ -59,23 +61,26 @@ export async function runGeoAudit(input: {
   const findings: GeoFinding[] = [];
   const evidence: GeoEvidence[] = [];
   let crawlerPolicy: GeoAuditResult["crawlerPolicy"] = [];
+  let technical: Awaited<ReturnType<typeof checkTechnical>> | null = null;
   let llmsTxt: GeoAuditResult["llmsTxt"] = { state: "unknown", url: `https://${domain}/llms.txt`, httpStatus: null, issues: [] };
   let schema: GeoAuditResult["schema"] = { blocksFound: 0, families: [] };
+  let homepage: GeoFetchResult | null = null;
 
   if (live) {
-    const [crawlers, llms, schemaCheck] = await Promise.all([
+    const [crawlers, llms, home] = await Promise.all([
       checkCrawlerPolicy(domain),
       checkLlmsTxt(domain),
-      checkSchema(domain),
+      geoFetch(`https://${domain}/`),
     ] as const);
+    homepage = home;
+    const schemaCheck = await checkSchema(domain, home);
+    technical = await checkTechnical(domain, { ok: home.ok, body: home.body, status: home.status ?? null });
     crawlerPolicy = (crawlers as CrawlersCheck).statuses;
     findings.push(...(crawlers as CrawlersCheck).findings, ...(llms as LlmsTxtCheck).findings, ...(schemaCheck as SchemaCheck).findings);
     evidence.push(...crawlers.evidence, ...llms.evidence, ...schemaCheck.evidence);
-    llmsTxt = { state: (llms as LlmsTxtCheck).state, url: (llms as LlmsTxtCheck).url, httpStatus: (llms as LlmsTxtCheck).httpStatus, issues: (llms as LlmsTxtCheck).issues };
-    schema = { blocksFound: (schemaCheck as SchemaCheck).blocksFound, families: (schemaCheck as SchemaCheck).families };
+    llmsTxt = { state: llms.state, url: llms.url, httpStatus: llms.httpStatus, issues: llms.issues };
+    schema = { blocksFound: schemaCheck.blocksFound, families: schemaCheck.families };
   } else {
-    // Fixture/air-gapped mode: all network findings are explicitly unverified,
-    // never fabricated — the report says what could NOT be checked.
     findings.push({
       id: `f_${randomUUID().slice(0, 8)}`, agent: "geo-orchestrator",
       title: "Network verification skipped for this domain",
@@ -84,15 +89,31 @@ export async function runGeoAudit(input: {
     });
   }
 
-  // Citability (heuristic, passage-level): scored against caller-supplied HTML
-  // (tests/fixtures) or the live homepage when the network lane is enabled.
-  let citability: CitabilityAssessment | null = null;
-  if (input.options?.fixtureHtml) {
-    citability = analyzeCitability(input.options.fixtureHtml);
-  } else if (live) {
-    const home = await geoFetch(`https://${domain}/`);
-    if (home.ok && home.body) citability = analyzeCitability(home.body);
+  const rawHtml = input.options?.fixtureHtml ?? (homepage?.ok ? homepage.body : null);
+  if (!technical && rawHtml) {
+    const skippedSitemapFetch = async (url: string): Promise<GeoFetchResult> => ({
+      ok: false, status: null, finalUrl: url, body: null, bodyHash: null,
+      contentType: null, error: "network verification disabled", durationMs: 0,
+    });
+    technical = await checkTechnical(
+      domain,
+      { ok: true, body: rawHtml, status: 200 },
+      skippedSitemapFetch,
+    );
   }
+  if (technical) {
+    for (const finding of technical.findings) {
+      findings.push({
+        id: `f_${randomUUID().slice(0, 8)}`, agent: "geo-technical",
+        title: finding.title, detail: finding.detail,
+        basis: finding.basis as GeoFinding["basis"], verification: finding.verification,
+        evidence: [], impact: finding.impact, confidence: 0.9,
+      });
+    }
+  }
+
+  let citability: CitabilityAssessment | null = null;
+  if (rawHtml) citability = analyzeCitability(rawHtml);
   if (citability && citability.weakCount > 0) {
     findings.push({
       id: `f_${randomUUID().slice(0, 8)}`, agent: "citability",
@@ -101,18 +122,9 @@ export async function runGeoAudit(input: {
       basis: "heuristic", verification: "verified", evidence: [], impact: citability.weakCount >= 3 ? "medium" : "low", confidence: 0.7,
     });
   }
-  const { kept, suppressed } = suppressContradicted(findings);
-  const verifiedCount = kept.filter(finding => finding.verification === "verified").length;
-  const conflictCount = kept.filter(finding => finding.verification === "conflict").length;
-  const unverifiedCount = kept.filter(finding => finding.verification === "unverified" || finding.verification === "unverifiable").length;
 
-  // Brand/entity consistency + E-E-A-T: only scored when raw HTML is available
-  // (fixture document). Findings flow through the same suppress/verify path,
-  // and absence of signals is reported as absence — nothing is inferred.
-  const rawHtml = input.options?.fixtureHtml ?? null;
   let entitySummary: { consistent: boolean; score: number } | null = null;
   let eeatScore: number | null = null;
-  let platformReadiness: ReturnType<typeof assessPlatformReadiness> = [];
   if (rawHtml) {
     const entity = analyzeEntity(rawHtml, { brandName: project.displayName });
     entitySummary = entity.summary;
@@ -135,15 +147,29 @@ export async function runGeoAudit(input: {
       });
     }
   }
-  platformReadiness = assessPlatformReadiness({
+
+  const llmsProposal = llmsTxt.state === "missing"
+    ? generateLlmsTxtProposal({
+        domain,
+        displayName: project.displayName,
+        businessDescription: project.businessDescription,
+        keyPages: project.keyPages,
+        primaryTopics: project.primaryTopics,
+      })
+    : null;
+  const platformReadiness = assessPlatformReadiness({
     crawlerPolicy,
     llmsTxtState: llmsTxt.state,
     schemaFamilies: schema.families,
-    citabilityScore: citability ? citability.overallScore : null,
+    citabilityScore: citability?.overallScore ?? null,
   });
 
-  // Transparent heuristic score: start neutral, subtract for verified problems.
-  // Explicitly a HEURISTIC SCORE — never a platform ranking prediction.
+  // All analyzers have now contributed; only now verify/suppress/score them.
+  const { kept, suppressed } = suppressContradicted(findings);
+  const verifiedCount = kept.filter(finding => finding.verification === "verified").length;
+  const conflictCount = kept.filter(finding => finding.verification === "conflict").length;
+  const unverifiedCount = kept.filter(finding => finding.verification === "unverified" || finding.verification === "unverifiable").length;
+
   let heuristicscore = 100;
   for (const finding of kept) {
     if (finding.verification !== "verified") continue;
@@ -158,9 +184,14 @@ export async function runGeoAudit(input: {
       area: finding.agent === "ai-crawler-policy" ? "crawlers" as const
         : finding.agent === "llms-txt" ? "llms_txt" as const
         : finding.agent === "schema-intelligence" ? "schema" as const
+        : finding.agent === "citability" ? "citability" as const
+        : finding.agent === "entity-consistency" ? "brand" as const
+        : finding.agent === "eeat" ? "content" as const
         : "technical" as const,
       effort: "medium" as const,
-      requiresApproval: finding.title.toLowerCase().includes("blocked") || finding.agent === "schema-intelligence",
+      // A recommendation may be read, dismissed, or approved, but executing its
+      // proposed website change always crosses the existing human approval gate.
+      requiresApproval: true,
     }));
 
   // Persist recommendations into the Phase 18 inbox (same store, same lifecycle).
@@ -209,5 +240,7 @@ export async function runGeoAudit(input: {
     entity: entitySummary,
     eeatScore,
     platformReadiness,
+    technical,
+    llmsProposal,
   };
 }

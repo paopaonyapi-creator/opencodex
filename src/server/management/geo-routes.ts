@@ -7,6 +7,7 @@ import { jsonResponse } from "../auth-cors";
 import type { ManagementContext } from "./context";
 import { getSeoProject, listSeoRecommendations } from "../../agent-os/seo/seo-models";
 import { runGeoAudit, GeoDisabledError } from "../../agent-os/seo/geo/geo-orchestrator";
+import { generateLlmsTxtProposal } from "../../agent-os/seo/geo/llms-proposal";
 
 export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
@@ -33,6 +34,26 @@ export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response 
     if (!getSeoProject(recsMatch[1]!)) return jsonResponse({ error: { code: "not_found", message: "unknown project" } }, 404, req, {});
     const all = listSeoRecommendations(recsMatch[1]!);
     return jsonResponse({ recommendations: all.filter(rec => rec.title.startsWith("[GEO]")) }, 200, req, {});
+  }
+
+  const proposalMatch = subPath.match(/^projects\/([^/]+)\/llms-txt\/proposal$/);
+  if (proposalMatch) {
+    if (req.method !== "GET") {
+      return jsonResponse({ error: { code: "method_not_allowed", message: "llms.txt proposal is read-only; deployment requires a separate approved workflow" } }, 405, req, {});
+    }
+    const project = getSeoProject(proposalMatch[1]!);
+    if (!project) return jsonResponse({ error: { code: "not_found", message: "unknown project" } }, 404, req, {});
+    const proposal = generateLlmsTxtProposal({
+      domain: project.domain,
+      displayName: project.displayName,
+      businessDescription: project.businessDescription,
+      keyPages: project.keyPages,
+      primaryTopics: project.primaryTopics,
+    });
+    return jsonResponse({
+      proposal,
+      policy: { deploymentAllowed: false, humanApprovalRequired: true },
+    }, 200, req, {});
   }
 
   return jsonResponse({ error: { code: "not_found", message: "unknown GEO endpoint" } }, 404, req, {});

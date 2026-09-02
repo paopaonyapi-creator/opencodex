@@ -1,11 +1,11 @@
-# Phase 18.1 Completion Report — Slice 1
+# Phase 18.1 Completion Report — Through Slice 4
 
 ## Status
 
-PARTIAL (slice 1 complete and verified: crawler policy, llms.txt, schema,
-evidence verification, false-positive suppression, orchestrator, routes,
-tests. Heavier reasoning agents are contract-ready and listed in the
-checklist as slice 2+).
+PARTIAL (slices 1–4 complete and verified: crawler policy, llms.txt,
+schema, passage-level citability, brand/entity consistency, E-E-A-T,
+platform readiness, GEO technical checks, proposal generation, evidence
+verification, false-positive suppression, orchestrator, routes, and dashboard).
 
 ## Architecture changes
 
@@ -24,8 +24,18 @@ checklist as slice 2+).
   llms.txt state machine, JSON-LD extraction/schema verification.
 - `src/agent-os/seo/geo/geo-orchestrator.ts` — audit orchestration,
   false-positive suppression, heuristic scoring, inbox emission.
+- `src/agent-os/seo/geo/citability.ts` — passage segmentation and transparent
+  heuristic citation-readiness scoring.
+- `src/agent-os/seo/geo/entity.ts`, `eeat.ts`, `platform.ts` — verified
+  entity/E-E-A-T signals and retrieval-principle platform projections.
+- `src/agent-os/seo/geo/technical.ts` — direct sitemap, canonical, and
+  freshness checks with an injectable fetch boundary.
+- `src/agent-os/seo/geo/llms-proposal.ts` — safe same-domain proposal builder;
+  no deployment behavior.
 - `src/server/management/geo-routes.ts` — GEO API endpoints.
-- `tests/geo-phase18-1.test.ts` — 8 tests.
+- `tests/geo-phase18-1.test.ts` — 23 tests.
+- `tests/geo-phase18-1-routes.test.ts` — 3 proposal-route safety tests.
+- `gui/tests/pao-seo-geo-technical.test.tsx` — technical/proposal UI test.
 - `docs/PHASE_18_1_*.md` — spec doc, checklist, this report.
 
 ## Files modified
@@ -46,16 +56,18 @@ checklist as slice 2+).
 
 ## Tests executed
 
-- `bun test tests/geo-phase18-1.test.ts` — 8 pass.
+- `bun test tests/geo-phase18-1.test.ts` — 23 pass.
+- `bun test tests/geo-phase18-1-routes.test.ts` — 3 pass.
+- GUI technical/proposal component test — 1 pass.
 - Phase 18 regression: seo-phase18-core (10) + seo-phase18-routes (7) +
   agent-os-routes — 30 pass, 0 fail.
 - `bun x tsc --noEmit` — clean.
 
 ## Known limitations
 
-- Citability/brand/entity/platform-readiness/E-E-A-T agents: slice 2+.
-- llms.txt proposal generation: slice 2+.
-- Dashboard GEO tab: audit available via API; UI integration next.
+- Reviewer Council automatic review and the approval-bound fix planner remain.
+- MCP/WebMCP read tools remain; the authenticated management API is complete
+  for the current read/audit/proposal surface.
 - Live audit of real domains requires the domain to be reachable and public;
   reserved fixture domains honestly report unverifiable.
 

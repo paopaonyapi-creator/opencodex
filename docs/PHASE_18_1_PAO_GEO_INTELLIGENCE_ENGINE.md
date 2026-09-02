@@ -66,9 +66,15 @@ malformed blocks, SSRF refusals (loopback/private/metadata/invalid), the
 honest fixture-mode audit, and inbox integration. Phase 18 regression tests
 stay green.
 
-## Deferred to slice 2+ (contract-ready)
+## Additional slices implemented
 
-Citability passage scoring, brand/entity consistency, platform-readiness
-scoring, E-E-A-T content analysis, llms.txt proposal generation, fix
-planner + Reviewer Council auto-invocation, dashboard GEO tab (audit is
-available via API now).
+- Slice 2: passage-level citability and dashboard GEO score/crawler evidence.
+- Slice 3: brand/entity consistency, E-E-A-T, and per-platform readiness.
+- Slice 4: direct sitemap/canonical/freshness checks and safe llms.txt proposal
+  generation. Proposals include only validated same-domain HTTPS URLs, exclude
+  sensitive/admin paths, are preview/copy-only, and have no deploy endpoint.
+
+## Deferred (contract-ready)
+
+Reviewer Council auto-invocation, approval-bound fix planner, and MCP/WebMCP
+read tools. No website write or deployment path exists yet.

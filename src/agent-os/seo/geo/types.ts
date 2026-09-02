@@ -97,4 +97,10 @@ export interface GeoAuditResult {
   entity: { consistent: boolean; score: number } | null;
   eeatScore: number | null;
   platformReadiness: Array<{ platform: string; score: number; blockers: string[]; basis: string }>;
+  technical: {
+    sitemap: { state: string; urls: number | null };
+    canonical: { present: boolean; url: string | null };
+    freshness: { hasDate: boolean; datePublished: string | null };
+  } | null;
+  llmsProposal: { content: string; includedUrls: string[]; excludedCount: number; warnings: string[] } | null;
 }

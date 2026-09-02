@@ -10,6 +10,8 @@ import { analyzeCitability, segmentPassages, scorePassage } from "../src/agent-o
 import { analyzeEntity } from "../src/agent-os/seo/geo/entity";
 import { analyzeEeat } from "../src/agent-os/seo/geo/eeat";
 import { assessPlatformReadiness } from "../src/agent-os/seo/geo/platform";
+import { generateLlmsTxtProposal } from "../src/agent-os/seo/geo/llms-proposal";
+import { checkTechnical } from "../src/agent-os/seo/geo/technical";
 import { geoFetch } from "../src/agent-os/seo/geo/geo-fetch";
 
 let tempDir = "";
@@ -224,5 +226,81 @@ describe("Phase 18.1 — platform readiness", () => {
     expect(result.entity!.consistent).toBe(true);
     expect(result.eeatScore).toBeGreaterThan(40);
     expect(result.platformReadiness).toHaveLength(6);
+  });
+});
+
+describe("Phase 18.1 — llms.txt proposal generation", () => {
+  test("includes only validated same-domain https URLs", () => {
+    const proposal = generateLlmsTxtProposal({
+      domain: "worpao.example",
+      displayName: "Wor-Pao Group",
+      businessDescription: "Digital services group.",
+      keyPages: [
+        { url: "/services", label: "Services" },
+        { url: "https://worpao.example/about", label: "About" },
+        { url: "https://evil.example/steal", label: "bad" },
+        { url: "/admin", label: "admin" },
+        { url: "http://worpao.example/insecure", label: "insecure" },
+      ],
+    });
+    expect(proposal.includedUrls).toEqual(["https://worpao.example/", "https://worpao.example/services", "https://worpao.example/about"]);
+    expect(proposal.excludedCount).toBe(3);
+    expect(proposal.content).toContain("# Wor-Pao Group");
+    expect(proposal.content).toContain("Human approval required");
+  });
+
+  test("warns when no key pages exist instead of fabricating URLs", () => {
+    const proposal = generateLlmsTxtProposal({ domain: "empty.example", displayName: "Empty" });
+    expect(proposal.warnings.some(warning => warning.includes("no keyPages"))).toBe(true);
+    expect(proposal.includedUrls).toEqual(["https://empty.example/"]);
+  });
+});
+
+describe("Phase 18.1 — GEO technical (sitemap/canonical/freshness)", () => {
+  test("verifies sitemap, canonical, and freshness from direct raw responses", async () => {
+    const homepage = { ok: true, body: '<html><head><link rel="canonical" href="https://x.example/"></head><body><script type="application/ld+json">{"@type":"Article","datePublished":"2026-09-01"}</script></body></html>', status: 200 };
+    const check = await checkTechnical("x.example", homepage, async () => ({
+      ok: true,
+      status: 200,
+      finalUrl: "https://x.example/sitemap.xml",
+      body: "<urlset><url><loc>https://x.example/</loc></url><url><loc>https://x.example/about</loc></url></urlset>",
+      bodyHash: "fixture-hash",
+      contentType: "application/xml",
+      durationMs: 1,
+    }));
+    expect(check.sitemap).toEqual({ state: "present", urls: 2 });
+    expect(check.canonical.present).toBe(true);
+    expect(check.canonical.url).toBe("https://x.example/");
+    expect(check.freshness.hasDate).toBe(true);
+    expect(check.freshness.datePublished).toBe("2026-09-01");
+  });
+
+  test("reports verified missing sitemap, canonical, and freshness", async () => {
+    const check = await checkTechnical("bare.example", { ok: true, body: "<html><head></head><body>plain</body></html>", status: 200 }, async () => ({
+      ok: false,
+      status: 404,
+      finalUrl: "https://bare.example/sitemap.xml",
+      body: "not found",
+      bodyHash: "fixture-hash",
+      contentType: "text/plain",
+      durationMs: 1,
+    }));
+    expect(check.sitemap.state).toBe("missing");
+    expect(check.canonical.present).toBe(false);
+    expect(check.findings.some(f => f.title.includes("canonical"))).toBe(true);
+    expect(check.findings.some(f => f.title.includes("freshness"))).toBe(true);
+  });
+});
+
+describe("Phase 18.1 — orchestrator finding integration", () => {
+  test("entity and E-E-A-T findings affect the final result, recommendations, and score", async () => {
+    const project = createSeoProject({ domain: "integration.test", displayName: "Expected Brand" });
+    const html = `<html><head><title>Different Brand</title><script type="application/ld+json">{"@type":"Organization","name":"Another Company"}</script></head><body><p>Plain page without author or date.</p></body></html>`;
+    const result = await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: html } });
+
+    expect(result.findings.some(finding => finding.agent === "entity-consistency" && finding.impact === "high")).toBe(true);
+    expect(result.findings.some(finding => finding.agent === "eeat")).toBe(true);
+    expect(result.recommendations.some(recommendation => recommendation.agent === "entity-consistency")).toBe(true);
+    expect(result.heuristicscore).toBeLessThan(100);
   });
 });

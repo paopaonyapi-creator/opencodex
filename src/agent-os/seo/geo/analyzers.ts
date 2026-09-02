@@ -4,7 +4,7 @@
  * markdown), attach evidence, and mark anything unverifiable as unverified.
  */
 import { createHash } from "node:crypto";
-import { geoFetch, makeEvidence } from "./geo-fetch";
+import { geoFetch, makeEvidence, type GeoFetchResult } from "./geo-fetch";
 import type { GeoCrawlerPolicyStatus, GeoEvidence, GeoFinding, LlmsTxtState } from "./types";
 
 // --- AI crawler registry (config-style data, not logic) -------------------
@@ -204,9 +204,9 @@ export function extractJsonLdBlocks(html: string): Array<{ family: string; raw: 
   return blocks;
 }
 
-export async function checkSchema(domain: string): Promise<SchemaCheck> {
+export async function checkSchema(domain: string, suppliedFetch?: GeoFetchResult): Promise<SchemaCheck> {
   const url = `https://${domain}/`;
-  const fetchResult = await geoFetch(url);
+  const fetchResult = suppliedFetch ?? await geoFetch(url);
   const evidence: GeoEvidence[] = [];
   if (!fetchResult.ok || fetchResult.body === null) {
     evidence.push(makeEvidence({ url, kind: "html_head", fetch: { ...fetchResult, status: fetchResult.status ?? null }, excerpt: fetchResult.error ?? null }));

@@ -44,6 +44,12 @@ interface GeoAuditResult {
   entity: { consistent: boolean; score: number } | null;
   eeatScore: number | null;
   platformReadiness: Array<{ platform: string; score: number; blockers: string[]; basis: string }>;
+  technical: {
+    sitemap: { state: string; urls: number | null };
+    canonical: { present: boolean; url: string | null };
+    freshness: { hasDate: boolean; datePublished: string | null };
+  } | null;
+  llmsProposal: { content: string; includedUrls: string[]; excludedCount: number; warnings: string[] } | null;
 }
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -61,6 +67,7 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
   const [geoAudit, setGeoAudit] = useState<GeoAuditResult | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [proposalCopied, setProposalCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formDomain, setFormDomain] = useState("");
   const [formName, setFormName] = useState("");
@@ -145,10 +152,21 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
         return;
       }
       setGeoAudit(await res.json());
+      setProposalCopied(false);
     } catch {
       setGeoError("network");
     } finally {
       setGeoBusy(false);
+    }
+  };
+
+  const copyLlmsProposal = async () => {
+    if (!geoAudit?.llmsProposal) return;
+    try {
+      await navigator.clipboard.writeText(geoAudit.llmsProposal.content);
+      setProposalCopied(true);
+    } catch {
+      setProposalCopied(false);
     }
   };
 
@@ -353,6 +371,38 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
                     </li>
                   ))}
                 </ul>
+              )}
+              {geoAudit?.technical && (
+                <div className="seo-technical" aria-label={t("seo.geoTechnical")}>
+                  <h4>{t("seo.geoTechnical")}</h4>
+                  <div className="seo-geo-grid">
+                    <div className="seo-geo-tile">
+                      <strong>{t("seo.geoSitemap")}: {geoAudit.technical.sitemap.state}{geoAudit.technical.sitemap.urls !== null ? ` · ${geoAudit.technical.sitemap.urls} ${t("seo.geoUrls")}` : ""}</strong>
+                    </div>
+                    <div className="seo-geo-tile">
+                      <strong>{t("seo.geoCanonical")}: {geoAudit.technical.canonical.url ?? (geoAudit.technical.canonical.present ? "✓" : "—")}</strong>
+                    </div>
+                    <div className="seo-geo-tile">
+                      <strong>{t("seo.geoFreshness")}: {geoAudit.technical.freshness.datePublished ?? (geoAudit.technical.freshness.hasDate ? "✓" : "—")}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {geoAudit?.llmsProposal && (
+                <div className="seo-proposal">
+                  <div className="seo-rec-head">
+                    <h4>{t("seo.geoProposalTitle")}</h4>
+                    <span className="seo-badge">{geoAudit.llmsProposal.includedUrls.length} {t("seo.geoUrls")}</span>
+                  </div>
+                  <p className="seo-proposal-gate">{t("seo.geoProposalGate")}</p>
+                  <pre><code>{geoAudit.llmsProposal.content}</code></pre>
+                  {geoAudit.llmsProposal.warnings.length > 0 && (
+                    <p className="muted">{t("seo.geoProposalWarnings")}: {geoAudit.llmsProposal.warnings.join(" · ")}</p>
+                  )}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyLlmsProposal()}>
+                    {proposalCopied ? t("seo.geoProposalCopied") : t("seo.geoProposalCopy")}
+                  </button>
+                </div>
               )}
             </>
           )}

@@ -35,6 +35,12 @@
 .seo-geo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
 .seo-geo-tile { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--radius-xs); }
 .seo-geo-verify { margin-top: 4px; }
+.seo-technical, .seo-proposal { display: flex; flex-direction: column; gap: 8px; }
+.seo-technical h4, .seo-proposal h4 { margin: 0; font-size: var(--text-label); }
+.seo-proposal { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+.seo-proposal-gate { margin: 0; color: var(--amber, #b45309); font-size: var(--text-label); }
+.seo-proposal pre { margin: 0; max-height: 260px; overflow: auto; padding: 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-xs); background: var(--surface); white-space: pre-wrap; word-break: break-word; }
+.seo-proposal .btn { align-self: flex-start; }
 
 @media (max-width: 760px) {
   .seo-new-project { grid-template-columns: 1fr; }

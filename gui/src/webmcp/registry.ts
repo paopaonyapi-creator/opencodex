@@ -140,7 +140,7 @@ export function buildToolCatalog(deps: RegistryDeps): Array<WebMcpToolDefinition
   const get = (path: string) => deps.fetchLike?.(path);
 
   return [
-    makeTool(deps, {
+  makeTool(deps, {
       name: "get_workspace_status",
       title: "Get workspace status",
       description: "Returns Brain Universe workspace status: projects, tasks, pending approvals, and recent activity.",
@@ -319,8 +319,53 @@ export function buildToolCatalog(deps: RegistryDeps): Array<WebMcpToolDefinition
         packageContents: ["master.mp4", "preview.jpg", "metadata.json", "metadata.csv", "review.json", "manifest.json"],
         note: "No auto-upload: Adobe Stock submission stays a human action.",
       }),
+  }),
+    makeTool(deps, {
+      name: "get_seo_geo_audit",
+      title: "Get SEO/GEO audit",
+      description: "Read-only Phase 18.1: runs the GEO audit for an SEO project and returns heuristic scores, verified findings, crawler policy, llms.txt state, and the human-approval-gated fix plan. Never modifies any website.",
+      inputSchema: {
+        type: "object",
+        properties: { projectId: { type: "string" } },
+        required: ["projectId"],
+      },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      riskTier: "R0",
+      run: async (input) => {
+        const response = await post(`/api/agent-os/seo/geo/projects/${encodeURIComponent(String(input.projectId))}/audit`, {});
+        const body = response && await response.json() as Record<string, unknown>;
+        if (!response?.ok) return { audited: false, code: (body?.error as { code?: string })?.code ?? "audit_failed" };
+        const { runId, heuristicscore, verificationSummary, crawlerPolicy, llmsTxt, schema, citability, entity, eeatScore, platformReadiness, technical, llmsProposal } = body as never as {
+          runId: string; heuristicscore: number; verificationSummary: Record<string, unknown>; crawlerPolicy: unknown; llmsTxt: unknown; schema: unknown; citability: unknown; entity: unknown; eeatScore: unknown; platformReadiness: unknown; technical: unknown; llmsProposal: { content: string } | null;
+        };
+        return {
+          audited: true, runId, heuristicScore: heuristicscore, verification: verificationSummary,
+          crawlerPolicy, llmsTxt, schema, citability: citability ? (citability as { overallScore: number }).overallScore : null,
+          entity, eeatScore, platformReadiness, technical,
+          llmsProposalPreview: llmsProposal ? llmsProposal.content.slice(0, 300) : null,
+          note: "All scores are heuristics; every website change requires separate human approval.",
+        };
+      },
     }),
-  ];
+    makeTool(deps, {
+      name: "get_seo_geo_council",
+      title: "Get SEO/GEO council verdict",
+      description: "Read-only Phase 18.1: runs the deterministic GEO Reviewer Council over the latest audit and returns the verdict plus the approval-bound fix plan (plan only, no execution).",
+      inputSchema: {
+        type: "object",
+        properties: { projectId: { type: "string" } },
+        required: ["projectId"],
+      },
+      annotations: { readOnlyHint: true, untrustedContentHint: false },
+      riskTier: "R0",
+      run: async (input) => {
+        const response = await post(`/api/agent-os/seo/geo/projects/${encodeURIComponent(String(input.projectId))}/council`, {});
+        const body = response && await response.json() as Record<string, unknown>;
+        if (!response?.ok) return { reviewed: false, code: (body?.error as { code?: string })?.code ?? "council_failed" };
+        return { reviewed: true, ...(body as Record<string, unknown>) };
+      },
+    }),
+];
 }
 
 export interface RegistrationResult {

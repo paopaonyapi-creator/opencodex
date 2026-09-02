@@ -8,6 +8,8 @@ import type { ManagementContext } from "./context";
 import { getSeoProject, listSeoRecommendations } from "../../agent-os/seo/seo-models";
 import { runGeoAudit, GeoDisabledError } from "../../agent-os/seo/geo/geo-orchestrator";
 import { generateLlmsTxtProposal } from "../../agent-os/seo/geo/llms-proposal";
+import { reviewGeoAudit, buildGeoFixPlan } from "../../agent-os/seo/geo/geo-council";
+import { listSeoRuns } from "../../agent-os/seo/seo-models";
 
 export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
@@ -53,6 +55,30 @@ export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response 
     return jsonResponse({
       proposal,
       policy: { deploymentAllowed: false, humanApprovalRequired: true },
+    }, 200, req, {});
+  }
+
+  const councilMatch = subPath.match(/^projects\/([^/]+)\/council$/);
+  if (councilMatch) {
+    if (req.method !== "POST") {
+      return jsonResponse({ error: { code: "method_not_allowed", message: "council review is an explicit POST action" } }, 405, req, {});
+    }
+    const project = getSeoProject(councilMatch[1]!);
+    if (!project) return jsonResponse({ error: { code: "not_found", message: "unknown project" } }, 404, req, {});
+    const runs = listSeoRuns(project.id, 1);
+    const latest = runs[0] as { id?: string } | undefined;
+    if (!latest?.id) {
+      return jsonResponse({ error: { code: "no_audit", message: "run a GEO audit before requesting a council review" } }, 409, req, {});
+    }
+    // The council needs the full audit result; rerun deterministically against
+    // the same project (fixture/live) and review THAT result's run id.
+    const audit = await runGeoAudit({ project });
+    const review = reviewGeoAudit(audit);
+    const fixPlan = buildGeoFixPlan(audit, review.final);
+    return jsonResponse({
+      council: { final: review.final, reviewers: review.reviewers, runId: audit.runId, reviewedRunId: latest.id },
+      fixPlan,
+      policy: { executionAllowed: false, humanApprovalRequired: true },
     }, 200, req, {});
   }
 

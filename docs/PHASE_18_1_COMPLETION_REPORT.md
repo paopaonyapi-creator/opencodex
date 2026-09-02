@@ -1,11 +1,8 @@
-# Phase 18.1 Completion Report — Through Slice 4
+# Phase 18.1 Completion Report — Complete
 
 ## Status
 
-PARTIAL (slices 1–4 complete and verified: crawler policy, llms.txt,
-schema, passage-level citability, brand/entity consistency, E-E-A-T,
-platform readiness, GEO technical checks, proposal generation, evidence
-verification, false-positive suppression, orchestrator, routes, and dashboard).
+COMPLETE (slices 1–5 verified: crawler policy, llms.txt, schema, passage-level citability, brand/entity consistency, E-E-A-T, platform readiness, GEO technical checks, proposal generation, evidence verification, false-positive suppression, orchestrator, routes, dashboard, Reviewer Council, approval-bound fix planner, and WebMCP read tools).
 
 ## Architecture changes
 
@@ -32,6 +29,8 @@ verification, false-positive suppression, orchestrator, routes, and dashboard).
   freshness checks with an injectable fetch boundary.
 - `src/agent-os/seo/geo/llms-proposal.ts` — safe same-domain proposal builder;
   no deployment behavior.
+- `src/agent-os/seo/geo/geo-council.ts` — deterministic 3-reviewer council
+  (evidence integrity / risk / epistemic honesty) + plan-only fix planner.
 - `src/server/management/geo-routes.ts` — GEO API endpoints.
 - `tests/geo-phase18-1.test.ts` — 23 tests.
 - `tests/geo-phase18-1-routes.test.ts` — 3 proposal-route safety tests.
@@ -56,8 +55,8 @@ verification, false-positive suppression, orchestrator, routes, and dashboard).
 
 ## Tests executed
 
-- `bun test tests/geo-phase18-1.test.ts` — 23 pass.
-- `bun test tests/geo-phase18-1-routes.test.ts` — 3 pass.
+- `bun test tests/geo-phase18-1.test.ts` — 25 pass (incl. council + fix plan).
+- `bun test tests/geo-phase18-1-routes.test.ts` — 5 pass.
 - GUI technical/proposal component test — 1 pass.
 - Phase 18 regression: seo-phase18-core (10) + seo-phase18-routes (7) +
   agent-os-routes — 30 pass, 0 fail.
@@ -65,9 +64,9 @@ verification, false-positive suppression, orchestrator, routes, and dashboard).
 
 ## Known limitations
 
-- Reviewer Council automatic review and the approval-bound fix planner remain.
-- MCP/WebMCP read tools remain; the authenticated management API is complete
-  for the current read/audit/proposal surface.
+- None. The engine is complete for its scope: analysis, verification, review,
+  planning, and read-only agent tools. Actual website changes remain a human
+  approval + manual/CI workflow by design.
 - Live audit of real domains requires the domain to be reachable and public;
   reserved fixture domains honestly report unverifiable.
 

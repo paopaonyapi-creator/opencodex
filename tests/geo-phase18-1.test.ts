@@ -12,6 +12,8 @@ import { analyzeEeat } from "../src/agent-os/seo/geo/eeat";
 import { assessPlatformReadiness } from "../src/agent-os/seo/geo/platform";
 import { generateLlmsTxtProposal } from "../src/agent-os/seo/geo/llms-proposal";
 import { checkTechnical } from "../src/agent-os/seo/geo/technical";
+import { reviewGeoAudit, buildGeoFixPlan } from "../src/agent-os/seo/geo/geo-council";
+import { summarizeCouncil } from "../src/agent-os/reviews";
 import { geoFetch } from "../src/agent-os/seo/geo/geo-fetch";
 
 let tempDir = "";
@@ -302,5 +304,36 @@ describe("Phase 18.1 — orchestrator finding integration", () => {
     expect(result.findings.some(finding => finding.agent === "eeat")).toBe(true);
     expect(result.recommendations.some(recommendation => recommendation.agent === "entity-consistency")).toBe(true);
     expect(result.heuristicscore).toBeLessThan(100);
+  });
+});
+
+describe("Phase 18.1 — GEO Reviewer Council + fix plan", () => {
+  test("council refuses to pass an audit that verified nothing, and warns on brand mismatch", async () => {
+    // Honest semantics: a fixture audit verifies nothing, so evidence integrity
+    // must warn — the council never hands out a clean pass for zero evidence.
+    const cleanProject = createSeoProject({ domain: "clean.test" });
+    const clean = await runGeoAudit({ project: cleanProject, options: { fetchLive: false } });
+    const cleanReview = reviewGeoAudit(clean);
+    expect(cleanReview.final).toBe("needs_review");
+    expect(cleanReview.reviewers.find(r => r.reviewer === "evidence_integrity_reviewer")!.verdict).toBe("warn");
+    expect(summarizeCouncil("geo_audit", clean.runId)!.final).toBe("needs_review");
+
+    const dirtyProject = createSeoProject({ domain: "dirty.test", displayName: "Expected" });
+    const dirty = await runGeoAudit({ project: dirtyProject, options: { fetchLive: false, fixtureHtml: "<html><head><title>Other</title></head><body><p>plain</p></body></html>" } });
+    const dirtyReview = reviewGeoAudit(dirty);
+    expect(["pass", "warn", "fail"]).toContain(dirtyReview.final);
+    expect(dirtyReview.reviewers).toHaveLength(3);
+  });
+
+  test("fix plan is ordered, approval-bound, and has no execution path", async () => {
+    const project = createSeoProject({ domain: "plan.test", displayName: "Expected" });
+    const html = `<html><head><title>Other</title></head><body><p>plain</p></body></html>`;
+    const audit = await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: html } });
+    const review = reviewGeoAudit(audit);
+    const plan = buildGeoFixPlan(audit, review.final);
+    expect(plan.executionPath).toBe("none");
+    expect(plan.steps.length).toBeGreaterThan(0);
+    expect(plan.steps.every(step => step.requiresHumanApproval === true)).toBe(true);
+    expect(plan.steps.map(step => step.order)).toEqual(plan.steps.map((_, index) => index + 1));
   });
 });

@@ -33,12 +33,20 @@ describe("webmcp tool registry", () => {
     expect(names).toContain("review_asset");
     expect(names).toContain("generate_stock_metadata");
     expect(names).toContain("prepare_stock_export");
+    expect(names).toContain("get_seo_geo_audit");
+    expect(names).toContain("get_seo_geo_council");
     const status = catalog.find((tool) => tool.name === "get_workspace_status");
     expect(status?.readOnly).toBe(true);
     expect(status?.riskTier).toBe("R0");
     const render = catalog.find((tool) => tool.name === "start_render_job");
     expect(render?.riskTier).toBe("R3");
     expect(render?.readOnly).toBe(false);
+    const geoAudit = catalog.find((tool) => tool.name === "get_seo_geo_audit");
+    expect(geoAudit?.riskTier).toBe("R0");
+    expect(geoAudit?.readOnly).toBe(true);
+    const geoCouncil = catalog.find((tool) => tool.name === "get_seo_geo_council");
+    expect(geoCouncil?.riskTier).toBe("R0");
+    expect(geoCouncil?.readOnly).toBe(true);
   });
 
   test("get_workspace_status executes through the shared API surface", async () => {
@@ -105,5 +113,23 @@ describe("webmcp tool registry", () => {
     expect(result.availability).toBe("ready");
     expect(result.registered).toContain("get_workspace_status");
     expect(registered).toContain("get_workspace_status");
+  });
+
+  test("get_seo_geo_audit executes read-only against the GEO API", async () => {
+    const catalog = buildToolCatalog({
+      apiBase: "",
+      fetchLike: async (path: string) => {
+        if (path === "/api/agent-os/seo/geo/projects/p1/audit") {
+          return { ok: true, status: 200, json: async () => ({ runId: "r1", heuristicscore: 80, verificationSummary: {}, crawlerPolicy: [], llmsTxt: {}, schema: {}, citability: { overallScore: 70 }, entity: null, eeatScore: null, platformReadiness: [], technical: null, llmsProposal: { content: "# P" } }) };
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      },
+    });
+    const tool = catalog.find((entry) => entry.name === "get_seo_geo_audit")!;
+    const result = await tool.execute({ projectId: "p1" });
+    expect(result.ok).toBe(true);
+    expect((result as { audited: boolean; heuristicScore: number }).audited).toBe(true);
+    expect((result as { heuristicScore: number }).heuristicScore).toBe(80);
+    expect((result as { llmsProposalPreview: string }).llmsProposalPreview).toBe("# P");
   });
 });

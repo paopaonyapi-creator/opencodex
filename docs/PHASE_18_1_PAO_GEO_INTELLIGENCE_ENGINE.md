@@ -74,7 +74,19 @@ stay green.
   generation. Proposals include only validated same-domain HTTPS URLs, exclude
   sensitive/admin paths, are preview/copy-only, and have no deploy endpoint.
 
+## Reviewer Council & fix planner (slice 5)
+
+Every audit can be reviewed by a deterministic 3-reviewer council — evidence
+integrity, risk, and epistemic honesty — recorded into the existing reviews
+ledger and aggregated with the same summarizeCouncil() contract as every other
+Agent OS subject. The fix planner turns verified findings into an ordered,
+approval-bound plan (executionPath: "none"): it proposes, it never executes.
+Agents read audit/council results through two WebMCP tools (get_seo_geo_audit,
+get_seo_geo_council, both R0 read-only with the shared audit trail); a council
+never grants a pass when the audit verified nothing.
+
 ## Deferred (contract-ready)
 
-Reviewer Council auto-invocation, approval-bound fix planner, and MCP/WebMCP
-read tools. No website write or deployment path exists yet.
+Nothing inside the Phase 18.1 scope. Website changes remain a human approval
++ manual/CI workflow by design; there is no write or deployment path in this
+engine.

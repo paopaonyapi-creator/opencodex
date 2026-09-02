@@ -5,6 +5,14 @@
 
 ## Brain Universe + WebMCP
 
+เปิด http://127.0.0.1:10100/#seo สำหรับ Pao SEO Agent OS (Phase 18):
+จัดการโปรเจกต์ SEO, รันการวิเคราะห์ baseline และกล่องรับคำแนะนำ
+เชื่อมต่อ OpenSEO ภายนอกผ่าน MCP ด้วย env OPENSEO_ENABLED / OPENSEO_MODE /
+OPENSEO_MCP_URL / OPENSEO_API_KEY ค่าเริ่มต้นใช้ MockSeoProvider
+(ไม่มีต้นทุน, ติดป้าย provenance=mock) OpenSEO เป็น external provider —
+PaohupByPaoZa คุม orchestration, policy, approval และ dashboard
+ดู docs/PHASE_18_PAO_SEO_AGENT_OS.md
+
 เปิด http://127.0.0.1:10100/#brain เพื่อดู projects, tasks, agents, skills,
 memory, policies, approvals, Atlas/Universe, WebMCP Tool Inspector และ Agent
 Activity

@@ -1,5 +1,5 @@
 /**
- * Agent OS / Brain Universe observatory routes (read-only).
+ * Agent OS / Brain Universe observatory routes (read-only) and Stock Factory routes.
  *
  * Phase 15 rule: the system may SEE, INDEX, SEARCH, EXPLAIN — it may not
  * silently ACT. Every handler here is a GET over the local Agent OS store.
@@ -35,6 +35,8 @@ import { registerProject, scanProject } from "../../agent-os/brain-scanner";
 import { listSessions } from "../../agent-os/brain-sessions";
 import { getBrainUniverse, getProjectAtlas } from "../../agent-os/brain-graph";
 import { listWebMcpCalls, recordWebMcpCall } from "../../agent-os/webmcp";
+import { handleStockRoutes } from "./stock-routes";
+import { handleSeoRoutes } from "./seo-routes";
 
 function notFound(req: Request, message: string): Response {
   return jsonResponse({ error: { code: "not_found", message } }, 404, req, {});
@@ -43,6 +45,17 @@ function notFound(req: Request, message: string): Response {
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/")) return null;
+
+  // Phase 16: Stock Factory Management API Routes
+  if (url.pathname.startsWith("/api/agent-os/stock/")) {
+    return handleStockRoutes(ctx);
+  }
+
+  // Phase 18: SEO Agent OS Management API Routes
+  if (url.pathname.startsWith("/api/agent-os/seo/")) {
+    return handleSeoRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

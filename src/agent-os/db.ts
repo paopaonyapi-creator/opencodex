@@ -12,13 +12,16 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v5: seo_projects, seo_recommendations, seo_runs (Phase 18 Pao SEO Agent OS).
+// v4: stock_opportunities, stock_concepts, stock_assets, stock_asset_lineage,
+// stock_qc_reviews, stock_export_packs (Phase 16 Pao AI Media Factory).
 // v3: brain_files persists latest scan snapshots for Atlas/Universe graphs.
 // v2: brain_projects/brain_scans/brain_sessions/brain_session_events
 // (Phase 15 Brain Universe), team_runs (Phase 10), remote_nodes (Phase 12),
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
-// by v1 builds lack these tables; the v2 migration is additive (CREATE TABLE IF
-// NOT EXISTS) and never touches v1 data.
-export const AGENT_OS_SCHEMA_VERSION = 3;
+// by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
+// NOT EXISTS) and never touch prior data.
+export const AGENT_OS_SCHEMA_VERSION = 5;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -277,6 +280,146 @@ function migrate(db: Database): void {
         status TEXT NOT NULL DEFAULT 'issued'
       );
       CREATE INDEX IF NOT EXISTS idx_write_permits_digest ON write_permits(token_digest);
+      -- Phase 16: Pao AI Media Factory (Stock Domain Tables) -----------------
+      CREATE TABLE IF NOT EXISTS stock_opportunities (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        niche TEXT NOT NULL,
+        buyer_persona TEXT NOT NULL,
+        score INTEGER NOT NULL DEFAULT 0,
+        confidence INTEGER NOT NULL DEFAULT 0,
+        evidence_class TEXT NOT NULL DEFAULT 'I',
+        evidence_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_opportunities_project ON stock_opportunities(project_id);
+
+      CREATE TABLE IF NOT EXISTS stock_concepts (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        opportunity_id TEXT REFERENCES stock_opportunities(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        commercial_use_case TEXT NOT NULL,
+        copy_space TEXT NOT NULL,
+        differentiation TEXT NOT NULL,
+        production_mode TEXT NOT NULL DEFAULT 'stock_image',
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_concepts_project ON stock_concepts(project_id);
+
+      CREATE TABLE IF NOT EXISTS stock_assets (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        concept_id TEXT REFERENCES stock_concepts(id) ON DELETE SET NULL,
+        batch_id TEXT,
+        type TEXT NOT NULL,                     -- 'image' | 'png' | 'video'
+        mode TEXT NOT NULL,                     -- 'stock_image' | 'stock_png' | 'stock_video'
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        path TEXT NOT NULL,
+        preview_path TEXT,
+        width INTEGER,
+        height INTEGER,
+        megapixels REAL,
+        duration_seconds REAL,
+        fps REAL,
+        codec TEXT,
+        provider TEXT,
+        model TEXT,
+        prompt_json TEXT NOT NULL DEFAULT '{}',
+        generated_ai INTEGER NOT NULL DEFAULT 1,
+        fictional_people_property INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_assets_project_status ON stock_assets(project_id, status);
+
+      CREATE TABLE IF NOT EXISTS stock_asset_lineage (
+        id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL REFERENCES stock_assets(id) ON DELETE CASCADE,
+        parent_asset_id TEXT REFERENCES stock_assets(id) ON DELETE SET NULL,
+        step TEXT NOT NULL,
+        details_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_lineage_asset ON stock_asset_lineage(asset_id);
+
+      CREATE TABLE IF NOT EXISTS stock_qc_reviews (
+        id TEXT PRIMARY KEY,
+        asset_id TEXT NOT NULL REFERENCES stock_assets(id) ON DELETE CASCADE,
+        reviewer TEXT NOT NULL,
+        verdict TEXT NOT NULL,                  -- 'pass' | 'warn' | 'fail'
+        score INTEGER,
+        report_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_qc_asset ON stock_qc_reviews(asset_id);
+
+      CREATE TABLE IF NOT EXISTS stock_export_packs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        batch_id TEXT,
+        status TEXT NOT NULL DEFAULT 'ready',   -- 'pending' | 'ready' | 'exported'
+        manifest_json TEXT NOT NULL DEFAULT '{}',
+        package_path TEXT,
+        human_review_required INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_exports_project ON stock_export_packs(project_id);
+
+      -- Phase 18: SEO Agent OS ---------------------------------------------
+      CREATE TABLE IF NOT EXISTS seo_projects (
+        id TEXT PRIMARY KEY,
+        domain TEXT NOT NULL,
+        display_name TEXT,
+        country TEXT,
+        language TEXT,
+        business_type TEXT,
+        business_description TEXT,
+        goals_json TEXT NOT NULL DEFAULT '[]',
+        primary_topics_json TEXT NOT NULL DEFAULT '[]',
+        seed_keywords_json TEXT NOT NULL DEFAULT '[]',
+        competitors_json TEXT NOT NULL DEFAULT '[]',
+        key_pages_json TEXT NOT NULL DEFAULT '[]',
+        brand_terms_json TEXT NOT NULL DEFAULT '[]',
+        negative_keywords_json TEXT NOT NULL DEFAULT '[]',
+        policy_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_seo_projects_domain ON seo_projects(domain);
+
+      CREATE TABLE IF NOT EXISTS seo_recommendations (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES seo_projects(id) ON DELETE CASCADE,
+        area TEXT NOT NULL,
+        title TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '',
+        impact TEXT NOT NULL DEFAULT 'medium',
+        effort TEXT NOT NULL DEFAULT 'medium',
+        status TEXT NOT NULL DEFAULT 'open',
+        requires_approval INTEGER NOT NULL DEFAULT 0,
+        evidence_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_seo_recs_project ON seo_recommendations(project_id, status);
+
+      CREATE TABLE IF NOT EXISTS seo_runs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES seo_projects(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'succeeded',
+        provider TEXT NOT NULL DEFAULT 'mock',
+        provenance TEXT NOT NULL DEFAULT 'mock',
+        result_json TEXT NOT NULL DEFAULT '{}',
+        error_json TEXT,
+        started_ms INTEGER NOT NULL,
+        duration_ms INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_seo_runs_project ON seo_runs(project_id, started_ms);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

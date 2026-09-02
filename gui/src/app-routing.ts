@@ -14,6 +14,7 @@ export type Page =
   | "codex-auth"
   | "integrations"
   | "brain"
+  | "seo"
   | "demo";
 
 export const VALID_PAGES = new Set<Page>([
@@ -28,6 +29,7 @@ export const VALID_PAGES = new Set<Page>([
   "codex-auth",
   "integrations",
   "brain",
+  "seo",
   "demo",
 ]);
 

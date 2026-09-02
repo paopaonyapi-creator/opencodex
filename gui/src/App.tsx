@@ -10,11 +10,12 @@ import Storage from "./pages/Storage";
 import CodexAuth from "./pages/CodexAuth";
 import Integrations from "./pages/Integrations";
 import BrainUniverse from "./pages/BrainUniverse";
+import PaoSeo from "./pages/PaoSeo";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
-import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay } from "./icons";
+import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch } from "./icons";
 import { useI18n, useT, LOCALES, localeDisplayName, type Locale, type TKey } from "./i18n/shared";
 import { Select } from "./ui";
 import { installApiAuthFetch } from "./api";
@@ -40,6 +41,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "codex-auth": "nav.codexAuth",
   integrations: "nav.integrations",
   brain: "nav.brain",
+  seo: "nav.seo",
   demo: "nav.demo",
 };
 
@@ -71,6 +73,7 @@ const NAV: NavEntry[] = [
   { id: "storage", tkey: "nav.storage", Icon: IconHardDrive },
   { id: "integrations", tkey: "nav.integrations", Icon: IconGlobe },
   { id: "brain", tkey: "nav.brain", Icon: IconTicket },
+  { id: "seo", tkey: "nav.seo", Icon: IconSearch },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
 
@@ -351,6 +354,7 @@ export default function App() {
             {page === "codex-auth" && <CodexAuth apiBase={API_BASE} />}
             {page === "integrations" && <Integrations apiBase={API_BASE} />}
             {page === "brain" && <BrainUniverse apiBase={API_BASE} />}
+            {page === "seo" && <PaoSeo apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>
         </div>

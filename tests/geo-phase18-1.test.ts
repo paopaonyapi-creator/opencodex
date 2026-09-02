@@ -7,6 +7,9 @@ import { createSeoProject, listSeoRecommendations, listSeoRuns } from "../src/ag
 import { runGeoAudit } from "../src/agent-os/seo/geo/geo-orchestrator";
 import { parseRobotsTxt, extractJsonLdBlocks } from "../src/agent-os/seo/geo/analyzers";
 import { analyzeCitability, segmentPassages, scorePassage } from "../src/agent-os/seo/geo/citability";
+import { analyzeEntity } from "../src/agent-os/seo/geo/entity";
+import { analyzeEeat } from "../src/agent-os/seo/geo/eeat";
+import { assessPlatformReadiness } from "../src/agent-os/seo/geo/platform";
 import { geoFetch } from "../src/agent-os/seo/geo/geo-fetch";
 
 let tempDir = "";
@@ -154,5 +157,72 @@ describe("Phase 18.1 — citability (heuristic, passage-level)", () => {
     expect(result.citability).not.toBeNull();
     expect(result.citability!.overallScore).toBeGreaterThan(0);
     expect(result.findings.some(f => f.agent === "citability" && f.basis === "heuristic")).toBe(true);
+  });
+});
+
+describe("Phase 18.1 — brand/entity consistency", () => {
+  const htmlWithBrand = `<html><head><title>Wor-Pao Group — services</title></head><body><script type="application/ld+json">{"@type":"Organization","name":"Wor-Pao Group","sameAs":["https://facebook.com/worpao"]}</script></body></html>`;
+
+  test("matching brand across title and JSON-LD scores high", () => {
+    const check = analyzeEntity(htmlWithBrand, { brandName: "Wor-Pao Group" });
+    expect(check.brandInTitle).toBe(true);
+    expect(check.brandInJsonLd).toBe(true);
+    expect(check.sameAsCount).toBe(1);
+    expect(check.summary.score).toBe(100);
+    expect(check.summary.consistent).toBe(true);
+    expect(check.findings).toHaveLength(0);
+  });
+
+  test("mismatched JSON-LD name is a verified high-impact finding", () => {
+    const html = `<html><head><title>Wor-Pao Group</title></head><body><script type="application/ld+json">{"@type":"Organization","name":"Some Other Co"}</script></body></html>`;
+    const check = analyzeEntity(html, { brandName: "Wor-Pao Group" });
+    expect(check.summary.consistent).toBe(false);
+    expect(check.findings.some(f => f.impact === "high" && f.verification === "verified")).toBe(true);
+  });
+
+  test("no brand configured reports absence without inventing anything", () => {
+    const check = analyzeEntity("<html><head><title>x</title></head></html>", {});
+    expect(check.findings.some(f => f.title.includes("No brand"))).toBe(true);
+    expect(check.summary.score).toBe(40);
+  });
+});
+
+describe("Phase 18.1 — E-E-A-T signals", () => {
+  test("rich author/date/about/contact page outscores a bare page", () => {
+    const rich = `<html><body><span class="author">by Wor-Pao team, ผู้เขียน</span><time datetime="2026-09-02">updated</time><a href="/about">about</a><a href="/contact">contact</a><a href="https://source.example/">ref</a></body></html>`;
+    const bare = `<html><body><p>plain content</p></body></html>`;
+    const richCheck = analyzeEeat(rich, "https://x.example/");
+    const bareCheck = analyzeEeat(bare, "https://x.example/");
+    expect(richCheck.score).toBeGreaterThan(bareCheck.score);
+    expect(bareCheck.findings.length).toBeGreaterThan(richCheck.findings.length);
+  });
+});
+
+describe("Phase 18.1 — platform readiness", () => {
+  test("blocked crawler and missing schema lower the heuristic platform score", () => {
+    const rows = assessPlatformReadiness({
+      crawlerPolicy: [
+        { crawlerId: "gptbot", displayName: "GPTBot", category: "training", access: "blocked", evidenceLines: [] },
+        { crawlerId: "claudebot", displayName: "ClaudeBot", category: "training", access: "allowed", evidenceLines: [] },
+      ],
+      llmsTxtState: "present_valid",
+      schemaFamilies: ["Organization"],
+      citabilityScore: 75,
+    });
+    const chatgpt = rows.find(row => row.platform === "chatgpt")!;
+    const claude = rows.find(row => row.platform === "claude")!;
+    expect(chatgpt.score).toBeLessThan(claude.score);
+    expect(chatgpt.blockers.some(blocker => blocker.includes("GPTBot"))).toBe(true);
+    expect(rows.every(row => row.basis === "general_retrieval_principle")).toBe(true);
+  });
+
+  test("orchestrator emits entity/eeat/platform fields from a fixture document", async () => {
+    const project = createSeoProject({ domain: "entity.test", displayName: "Wor-Pao Group" });
+    const html = `<html><head><title>Wor-Pao Group</title></head><body><script type="application/ld+json">{"@type":"Organization","name":"Wor-Pao Group","sameAs":["https://x"]}</script><span>ผู้เขียน</span><time datetime="2026-09-02"></time></body></html>`;
+    const result = await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: html } });
+    expect(result.entity).not.toBeNull();
+    expect(result.entity!.consistent).toBe(true);
+    expect(result.eeatScore).toBeGreaterThan(40);
+    expect(result.platformReadiness).toHaveLength(6);
   });
 });

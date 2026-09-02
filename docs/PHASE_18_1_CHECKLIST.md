@@ -20,12 +20,12 @@
 
 Deferred to slice 2+ (contract-ready, not yet implemented):
 
-- [ ] Citability agent with passage-level scoring
-- [ ] Brand authority + entity consistency analyzers
-- [ ] Platform readiness agent (per-platform dimensions)
-- [ ] Content / E-E-A-T agent
+- [x] Citability agent with passage-level scoring (slice 2, geo/citability.ts)
+- [x] Brand authority + entity consistency analyzers (slice 3, geo/entity.ts)
+- [x] Platform readiness agent (slice 3, geo/platform.ts, basis=general_retrieval_principle)
+- [x] Content / E-E-A-T agent (slice 3, geo/eeat.ts)
 - [ ] llms.txt proposal generation
 - [ ] GEO technical agent (sitemap/canonical/freshness)
 - [ ] Reviewer Council auto-invocation + fix planner
-- [ ] Dashboard GEO section
+- [x] Dashboard GEO section (slice 2-3: score tiles, crawler list, entity/EEAT tiles, platform readiness)
 - [ ] MCP GEO read tools

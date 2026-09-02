@@ -94,4 +94,7 @@ export interface GeoAuditResult {
     topIssues: string[];
     passages: Array<{ type: string; heading: string | null; text: string; citability: number; strengths: string[]; issues: string[] }>;
   } | null;
+  entity: { consistent: boolean; score: number } | null;
+  eeatScore: number | null;
+  platformReadiness: Array<{ platform: string; score: number; blockers: string[]; basis: string }>;
 }

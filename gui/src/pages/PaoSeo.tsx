@@ -41,6 +41,9 @@ interface GeoAuditResult {
   llmsTxt: { state: string; url: string; issues: string[] };
   schema: { blocksFound: number; families: string[] };
   citability: { overallScore: number; strongCount: number; weakCount: number; topIssues: string[] } | null;
+  entity: { consistent: boolean; score: number } | null;
+  eeatScore: number | null;
+  platformReadiness: Array<{ platform: string; score: number; blockers: string[]; basis: string }>;
 }
 
 type LoadState = "idle" | "loading" | "ready" | "error";
@@ -325,6 +328,31 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
                 <div className="seo-geo-verify">
                   <span className="muted">{t("seo.geoVerify")}: {geoAudit.verificationSummary.verified} ✓ · {geoAudit.verificationSummary.unverified} ? · {geoAudit.verificationSummary.conflict} ⚠ · {geoAudit.verificationSummary.suppressed} ⊘</span>
                 </div>
+              )}
+              {geoAudit && (
+                <div className="seo-geo-grid">
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoEntity")}: {geoAudit.entity ? `${geoAudit.entity.score}/100` : "—"}</strong>
+                    <span className="muted">{geoAudit.entity ? (geoAudit.entity.consistent ? t("seo.geoEntityOk") : t("seo.geoEntityMismatch")) : "—"}</span>
+                  </div>
+                  <div className="seo-geo-tile">
+                    <strong>{t("seo.geoEeat")}: {geoAudit.eeatScore !== null ? `${geoAudit.eeatScore}/100` : "—"}</strong>
+                    <span className="muted">{t("seo.geoHeuristic")}</span>
+                  </div>
+                </div>
+              )}
+              {geoAudit && geoAudit.platformReadiness.length > 0 && (
+                <ul className="seo-rec-list">
+                  {geoAudit.platformReadiness.map(row => (
+                    <li key={row.platform} className="seo-rec">
+                      <div className="seo-rec-head">
+                        <span className={`seo-impact seo-impact--${row.score >= 70 ? "low" : row.score >= 45 ? "medium" : "high"}`}>{row.score}/100</span>
+                        <strong>{row.platform}</strong>
+                      </div>
+                      {row.blockers.length > 0 && <p className="muted">{row.blockers.join(" · ")}</p>}
+                    </li>
+                  ))}
+                </ul>
               )}
             </>
           )}

@@ -12,6 +12,9 @@ import type { GeoAuditResult, GeoEvidence, GeoFinding, GeoRecommendation } from 
 import { checkCrawlerPolicy, checkLlmsTxt, checkSchema, type CrawlersCheck, type LlmsTxtCheck, type SchemaCheck } from "./analyzers";
 import { analyzeCitability, type CitabilityAssessment } from "./citability";
 import { geoFetch } from "./geo-fetch";
+import { analyzeEntity } from "./entity";
+import { analyzeEeat } from "./eeat";
+import { assessPlatformReadiness } from "./platform";
 
 export class GeoDisabledError extends Error {
   constructor() { super("GEO engine is disabled for this project"); this.name = "GeoDisabledError"; }
@@ -103,6 +106,42 @@ export async function runGeoAudit(input: {
   const conflictCount = kept.filter(finding => finding.verification === "conflict").length;
   const unverifiedCount = kept.filter(finding => finding.verification === "unverified" || finding.verification === "unverifiable").length;
 
+  // Brand/entity consistency + E-E-A-T: only scored when raw HTML is available
+  // (fixture document). Findings flow through the same suppress/verify path,
+  // and absence of signals is reported as absence — nothing is inferred.
+  const rawHtml = input.options?.fixtureHtml ?? null;
+  let entitySummary: { consistent: boolean; score: number } | null = null;
+  let eeatScore: number | null = null;
+  let platformReadiness: ReturnType<typeof assessPlatformReadiness> = [];
+  if (rawHtml) {
+    const entity = analyzeEntity(rawHtml, { brandName: project.displayName });
+    entitySummary = entity.summary;
+    for (const finding of entity.findings) {
+      findings.push({
+        id: `f_${randomUUID().slice(0, 8)}`, agent: "entity-consistency",
+        title: finding.title, detail: finding.detail,
+        basis: finding.basis as GeoFinding["basis"], verification: finding.verification,
+        evidence: [], impact: finding.impact, confidence: 0.85,
+      });
+    }
+    const eeat = analyzeEeat(rawHtml, `https://${domain}/`);
+    eeatScore = eeat.score;
+    for (const finding of eeat.findings) {
+      findings.push({
+        id: `f_${randomUUID().slice(0, 8)}`, agent: "eeat",
+        title: finding.title, detail: finding.detail,
+        basis: finding.basis as GeoFinding["basis"], verification: finding.verification,
+        evidence: [], impact: finding.impact, confidence: 0.8,
+      });
+    }
+  }
+  platformReadiness = assessPlatformReadiness({
+    crawlerPolicy,
+    llmsTxtState: llmsTxt.state,
+    schemaFamilies: schema.families,
+    citabilityScore: citability ? citability.overallScore : null,
+  });
+
   // Transparent heuristic score: start neutral, subtract for verified problems.
   // Explicitly a HEURISTIC SCORE — never a platform ranking prediction.
   let heuristicscore = 100;
@@ -167,5 +206,8 @@ export async function runGeoAudit(input: {
       topIssues: citability.topIssues,
       passages: citability.passages.slice(0, 10).map(({ type, heading, text, citability: score, strengths, issues }) => ({ type, heading, text: text.slice(0, 240), citability: score, strengths, issues })),
     } : null,
+    entity: entitySummary,
+    eeatScore,
+    platformReadiness,
   };
 }

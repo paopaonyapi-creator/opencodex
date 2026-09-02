@@ -15,6 +15,7 @@ import {
 } from "../../agent-os/seo/seo-models";
 import { resolveSeoProvider } from "../../agent-os/seo/seo-provider";
 import { runSeoAnalysis, SeoPolicyViolationError } from "../../agent-os/seo/seo-orchestrator";
+import { handleGeoRoutes } from "./geo-routes";
 
 function notFound(req: Request, message: string): Response {
   return jsonResponse({ error: { code: "not_found", message } }, 404, req, {});
@@ -27,6 +28,9 @@ function badRequest(req: Request, message: string): Response {
 export async function handleSeoRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/seo/")) return null;
+  // Phase 18.1: GEO Intelligence Engine endpoints (/api/agent-os/seo/geo/*)
+  const geoHandled = await handleGeoRoutes(ctx);
+  if (geoHandled) return geoHandled;
   const subPath = url.pathname.slice("/api/agent-os/seo/".length);
 
   // 1. Provider health & capabilities (never includes secrets).

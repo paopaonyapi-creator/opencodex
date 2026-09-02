@@ -13,6 +13,13 @@ OPENSEO_MCP_URL / OPENSEO_API_KEY ค่าเริ่มต้นใช้ Moc
 PaohupByPaoZa คุม orchestration, policy, approval และ dashboard
 ดู docs/PHASE_18_PAO_SEO_AGENT_OS.md
 
+Phase 18.1 — Pao GEO Intelligence Engine (ต่อยอดในหน้า #seo เดิม):
+ตรวจความพร้อม AI Search — robots.txt ของ AI crawler, llms.txt,
+JSON-LD schema และ evidence verification แบบตรวจของจริงจากเว็บตรง
+(ป้องกัน SSRF, ห้ามเดาถ้าตรวจไม่ได้) รันผ่าน
+`POST /api/agent-os/seo/geo/projects/<id>/audit`
+ดู docs/PHASE_18_1_PAO_GEO_INTELLIGENCE_ENGINE.md
+
 เปิด http://127.0.0.1:10100/#brain เพื่อดู projects, tasks, agents, skills,
 memory, policies, approvals, Atlas/Universe, WebMCP Tool Inspector และ Agent
 Activity

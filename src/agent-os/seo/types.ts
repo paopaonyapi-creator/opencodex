@@ -214,7 +214,7 @@ export type SeoRecommendationStatus = "open" | "approved" | "dismissed" | "fix_p
 export interface SeoRecommendation {
   id: string;
   projectId: string;
-  area: "keywords" | "content" | "technical" | "competitors" | "backlinks" | "local" | "aeo" | "gsc";
+  area: "keywords" | "content" | "technical" | "competitors" | "backlinks" | "local" | "aeo" | "gsc" | "crawlers" | "llms_txt" | "schema" | "citability" | "brand" | "platform" | "evidence";
   title: string;
   detail: string;
   impact: "critical" | "high" | "medium" | "low";

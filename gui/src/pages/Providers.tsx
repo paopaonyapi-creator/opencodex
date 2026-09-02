@@ -219,12 +219,13 @@ export default function Providers({ apiBase }: { apiBase: string }) {
     onLoginSettled: revealProviderAccounts,
   });
 
-  const { removeProvider, confirmRemoveProvider, setProviderDisabled, setDefaultProvider, updateProvider } = useProvidersCrud({
+  const { removeProvider, confirmRemoveProvider, setProviderDisabled, setDefaultProvider, updateProvider, switchProviderPool } = useProvidersCrud({
     apiBase, t, removeBusyRef, workspaceSelected, setWorkspaceSelected, setRemoveConfirmName,
     notify, fetchConfig, fetchOauth, fetchProviderQuotas,
     // Mode PATCHes clear quota caches and thread affinity; the shared controller
     // must re-read /active (with quota) so both tabs show the post-switch state.
     refreshCodexAccount: () => codexPool.load(true),
+    refreshModels: bumpModelsRefresh,
   });
 
   const requestLoginOAuth = (provider: string, addAccount = false) => {
@@ -381,6 +382,7 @@ export default function Providers({ apiBase }: { apiBase: string }) {
             onSetDisabled={setProviderDisabled}
             onSetDefault={name => { void setDefaultProvider(name); }}
             onUpdateProvider={updateProvider}
+            onSwitchPool={switchProviderPool}
             codexController={codexPool}
           />
           );

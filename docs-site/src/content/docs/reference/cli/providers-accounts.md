@@ -18,6 +18,7 @@ both `--adapter` and `--base-url`.
 | `add <name>` | `--adapter <adapter>`, `--base-url <url>`, `--api-key <key>`, `--default-model <model>`, `--set-default`, `--force`, `--json`, `--sync` | Add a registry/custom provider. `--force` overwrites; `--sync` refreshes a running proxy in human-output mode. |
 | `edit <name>` | provider field flags, `--headers <json>`, `--json` | Edit validated live provider fields without replacing key pools. `--headers` merges custom request headers; pass `{}` or `-` to clear them. |
 | `test <name>` | `--json` | Probe the real upstream model endpoint. |
+| `switch-pool <name>` | `--base-url <url>`, `--default-model <id>`, `--json` | Read a replacement key from piped stdin, verify the candidate `/models` endpoint and default model, then atomically replace the endpoint and key pool and converge the Codex catalog. |
 | `show <name>` | `--json` | Show config with API keys masked. |
 | `remove <name>` | `--json` | Remove a non-default provider; the last provider cannot be removed. |
 | `set-default <name>` | `--json` | Select an existing provider as the default. |
@@ -35,6 +36,33 @@ ocx provider show anthropic --json
 ocx models --provider anthropic --json
 ocx models live --provider ark --json
 ```
+
+### `ocx provider switch-pool`
+
+Use this when one API-key provider changes pool/channel frequently. The running proxy tests the
+new endpoint with the new key before it writes anything. A rejected key, unreachable endpoint,
+malformed model list, unavailable default model, or concurrent provider edit leaves the active
+endpoint and its entire key pool unchanged. A successful switch replaces the old pool keys rather
+than retaining keys that belong to the previous endpoint, clears the endpoint-scoped model
+allowlist so every discovered model is visible, then refreshes the Codex catalog.
+
+The replacement key is accepted only from non-TTY stdin. It is never accepted in `--api-key`,
+printed in JSON, or repeated in an error. PowerShell and POSIX examples:
+
+```powershell
+$env:MAXPLUS_API_KEY | ocx provider switch-pool maxplus `
+  --base-url https://api.maxplus-ai.cc/my-pool/v1 `
+  --default-model my-model
+```
+
+```bash
+printf '%s\n' "$MAXPLUS_API_KEY" | ocx provider switch-pool maxplus \
+  --base-url https://api.maxplus-ai.cc/my-pool/v1 \
+  --default-model my-model
+```
+
+The command requires a running proxy. Success reports the public endpoint, verified model count,
+chosen default model, and sanitized catalog-convergence status. It never returns the key.
 
 :::caution[Custom headers are not a credential channel]
 `--headers` is for non-secret request metadata — routing hints, tenant or

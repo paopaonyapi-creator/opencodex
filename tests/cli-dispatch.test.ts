@@ -117,4 +117,18 @@ describe("dispatchCommand exit codes", () => {
       process.exitCode = previousExitCode ?? 0;
     }
   });
+
+  test("provider subcommands preserve the exit code set by their runtime handler", async () => {
+    const previousExitCode = process.exitCode;
+    try {
+      process.exitCode = 0;
+      const deps = { ...fakeDeps, args: ["provider", "test"] };
+      expect(await dispatchCommand(
+        { kind: "command", command: "provider", args: deps.args },
+        deps,
+      )).toBe(2);
+    } finally {
+      process.exitCode = previousExitCode ?? 0;
+    }
+  });
 });

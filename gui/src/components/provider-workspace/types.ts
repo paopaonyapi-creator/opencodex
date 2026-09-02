@@ -103,3 +103,14 @@ export type ProviderUpdatePatch = {
   /** Dedicated field: the API PATCHes it alone for the canonical `openai` provider. */
   codexAccountMode?: "direct" | "pool";
 };
+
+/** Atomic test-then-switch payload for POST /api/providers/switch-pool. */
+export type ProviderPoolSwitchInput = {
+  baseUrl: string;
+  defaultModel: string;
+  apiKey: string;
+};
+
+export type ProviderPoolSwitchResult =
+  | { ok: true; models?: number; catalogDegraded?: boolean }
+  | { ok: false; error?: string; code?: string; availableModelCount?: number; availableModels?: string[] };

@@ -129,7 +129,7 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
   },
   {
     name: "provider",
-    usage: "ocx provider <list|add|edit|test|remove|show|set-default|selected|quota|presets|account-mode>",
+    usage: "ocx provider <list|add|edit|test|switch-pool|remove|show|set-default|selected|quota|presets|account-mode>",
     summary: "Non-interactive provider management.",
     details: [
       "Subcommands: list, add/edit/test/remove/show, set-default, selected, quota, presets, account-mode",

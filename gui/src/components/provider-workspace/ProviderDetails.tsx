@@ -20,7 +20,7 @@ import type { CodexAccountPoolController } from "../../hooks/useCodexAccountPool
 import ProviderSettings from "./ProviderSettings";
 import { UnsavedLeaveDialog } from "./ProviderDialogs";
 import type { ProviderQuotaReportView } from "../../provider-workspace/report";
-import type { AccountLoadState, ProviderModelUsageRow, ProviderUsageTotals, OAuthAccountRow, ApiKeyRow, LoginHint, ProviderAuthHandlers, ProviderUpdatePatch } from "./types";
+import type { AccountLoadState, ProviderModelUsageRow, ProviderUsageTotals, OAuthAccountRow, ApiKeyRow, LoginHint, ProviderAuthHandlers, ProviderPoolSwitchInput, ProviderPoolSwitchResult, ProviderUpdatePatch } from "./types";
 
 type Tab = "overview" | "models" | "usage" | "accounts" | "settings";
 
@@ -51,6 +51,7 @@ export default function ProviderDetails({
   onCodexActiveNeedsReauthChange,
   codexController,
   onUpdateProvider,
+  onSwitchPool,
   isDefault,
   onRemoveProvider,
   onSetDisabled,
@@ -86,6 +87,7 @@ export default function ProviderDetails({
   /** Shared Codex account state owned by Providers (WP3). */
   codexController?: CodexAccountPoolController;
   onUpdateProvider?: (name: string, patch: ProviderUpdatePatch) => Promise<{ ok: boolean; error?: string }>;
+  onSwitchPool?: (name: string, input: ProviderPoolSwitchInput) => Promise<ProviderPoolSwitchResult>;
   isDefault?: boolean;
   onRemoveProvider?: (name: string) => void;
   onSetDisabled?: (name: string, disabled: boolean) => void;
@@ -321,6 +323,7 @@ export default function ProviderDetails({
             apiBase={apiBase}
             availableModels={availableModels}
             onUpdateProvider={onUpdateProvider}
+            onSwitchPool={onSwitchPool}
             onDirtyChange={setSettingsDirty}
             onRegisterSave={registerSettingsSave}
           />

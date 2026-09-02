@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { setFetchCursorUsableModelsForTests } from "../src/adapters/cursor/live-models";
@@ -48,6 +48,32 @@ function baseConfig(providers: OcxConfig["providers"]): OcxConfig {
 async function probe(config: OcxConfig, name: string): Promise<{ status: number; body: Record<string, unknown> }> {
   const req = new Request(`http://127.0.0.1/api/providers/test?name=${name}`, { method: "POST" });
   const res = await handleManagementAPI(req, new URL(req.url), config, {});
+  if (!res) throw new Error("handler returned no response");
+  return { status: res.status, body: await res.json() as Record<string, unknown> };
+}
+
+async function switchPool(
+  config: OcxConfig,
+  name: string,
+  body: Record<string, unknown>,
+  onConverge: () => void = () => {},
+  saveConfigImpl?: (config: OcxConfig) => void,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const req = new Request(`http://127.0.0.1/api/providers/switch-pool?name=${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const res = await handleManagementAPI(req, new URL(req.url), config, {
+    createManagementConvergeCodex: () => async () => {
+      onConverge();
+      return {
+        kind: "catalog-only",
+        catalogRefresh: { status: "committed", changed: true, degraded: false, notices: [] },
+      } as never;
+    },
+    ...(saveConfigImpl ? { saveConfigPreservingClaudeCode: saveConfigImpl } : {}),
+  });
   if (!res) throw new Error("handler returned no response");
   return { status: res.status, body: await res.json() as Record<string, unknown> };
 }
@@ -377,6 +403,227 @@ describe("POST /api/providers/test (WP040 connectivity probe)", () => {
     });
     const { status } = await probe(config, "ghost");
     expect(status).toBe(404);
+  });
+});
+
+describe("POST /api/providers/switch-pool", () => {
+  test("an upstream rejection leaves the active endpoint, key pool, and disk bytes unchanged", async () => {
+    const seen: Array<{ url: string; authorization: string | null }> = [];
+    globalThis.fetch = (async (input, init) => {
+      seen.push({
+        url: String(input),
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      throw new Error("candidate new-key was rejected");
+    }) as typeof fetch;
+    const config = baseConfig({
+      relay: {
+        adapter: "openai-chat",
+        baseUrl: "https://old.example.test/v1",
+        authMode: "key",
+        apiKey: "old-key",
+        apiKeyPool: [{ id: "old", key: "old-key", addedAt: 1 }],
+        defaultModel: "old-model",
+      },
+    });
+    const before = readFileSync(join(TEST_DIR, "config.json"), "utf8");
+    let convergences = 0;
+
+    const result = await switchPool(config, "relay", {
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "new-model",
+    }, () => { convergences += 1; });
+
+    expect(result.status).toBe(422);
+    expect(result.body).toMatchObject({ ok: false, code: "pool_probe_failed" });
+    expect(JSON.stringify(result.body)).not.toContain("new-key");
+    expect(seen).toEqual([{
+      url: "https://new.example.test/pool/v1/models",
+      authorization: "Bearer new-key",
+    }]);
+    expect(config.providers.relay).toMatchObject({
+      baseUrl: "https://old.example.test/v1",
+      apiKey: "old-key",
+      apiKeyPool: [{ id: "old", key: "old-key", addedAt: 1 }],
+      defaultModel: "old-model",
+    });
+    expect(readFileSync(join(TEST_DIR, "config.json"), "utf8")).toBe(before);
+    expect(convergences).toBe(0);
+  });
+
+  test("an unavailable default model reports bounded choices without committing the candidate pool", async () => {
+    globalThis.fetch = (async () => Response.json({
+      data: [{ id: "new-a" }, { id: "new-b" }],
+    })) as typeof fetch;
+    const config = baseConfig({
+      relay: {
+        adapter: "openai-chat",
+        baseUrl: "https://old.example.test/v1",
+        authMode: "key",
+        apiKey: "old-key",
+        defaultModel: "old-model",
+      },
+    });
+    const before = readFileSync(join(TEST_DIR, "config.json"), "utf8");
+
+    const result = await switchPool(config, "relay", {
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "missing-model",
+    });
+
+    expect(result.status).toBe(422);
+    expect(result.body).toEqual({
+      ok: false,
+      code: "default_model_unavailable",
+      error: "default model is not available from the candidate pool",
+      availableModelCount: 2,
+      availableModels: ["new-a", "new-b"],
+    });
+    expect(config.providers.relay?.baseUrl).toBe("https://old.example.test/v1");
+    expect(readFileSync(join(TEST_DIR, "config.json"), "utf8")).toBe(before);
+  });
+
+  test("a verified pool replaces the endpoint and entire key pool in one commit, then converges the catalog", async () => {
+    globalThis.fetch = (async () => Response.json({
+      data: [{ id: "new-a" }, { id: "new-b" }, { id: "new-b" }],
+    })) as typeof fetch;
+    const config = baseConfig({
+      relay: {
+        adapter: "openai-chat",
+        baseUrl: "https://old.example.test/v1",
+        authMode: "key",
+        apiKey: "old-active",
+        apiKeyPool: [
+          { id: "old-a", key: "old-active", addedAt: 1 },
+          { id: "old-b", key: "old-fallback", addedAt: 2 },
+        ],
+        defaultModel: "old-model",
+        selectedModels: ["old-model"],
+        reasoningEfforts: ["low", "high"],
+        note: "preserve me",
+      },
+    });
+    let convergences = 0;
+
+    const result = await switchPool(config, "relay", {
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "new-b",
+    }, () => { convergences += 1; });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      ok: true,
+      name: "relay",
+      baseUrl: "https://new.example.test/pool/v1",
+      defaultModel: "new-b",
+      models: 2,
+      catalogRefresh: { status: "committed", changed: true, degraded: false, notices: [] },
+    });
+    expect(JSON.stringify(result.body)).not.toContain("new-key");
+    expect(convergences).toBe(1);
+    expect(config.providers.relay).toMatchObject({
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "new-b",
+      reasoningEfforts: ["low", "high"],
+      note: "preserve me",
+    });
+    expect(config.providers.relay?.apiKeyPool).toHaveLength(1);
+    expect(config.providers.relay?.apiKeyPool?.[0]).toMatchObject({ key: "new-key" });
+    expect(config.providers.relay?.selectedModels).toBeUndefined();
+    const saved = JSON.parse(readFileSync(join(TEST_DIR, "config.json"), "utf8")) as OcxConfig;
+    expect(saved.providers.relay?.baseUrl).toBe("https://new.example.test/pool/v1");
+    expect(saved.providers.relay?.apiKey).toBe("new-key");
+    expect(saved.providers.relay?.apiKeyPool).toHaveLength(1);
+    expect(saved.providers.relay?.defaultModel).toBe("new-b");
+    expect(saved.providers.relay?.selectedModels).toBeUndefined();
+  });
+
+  test("a provider edit that lands during candidate probing wins instead of being overwritten", async () => {
+    let markProbeStarted!: () => void;
+    let releaseProbe!: () => void;
+    const probeStarted = new Promise<void>(resolve => { markProbeStarted = resolve; });
+    const probeGate = new Promise<void>(resolve => { releaseProbe = resolve; });
+    globalThis.fetch = (async () => {
+      markProbeStarted();
+      await probeGate;
+      return Response.json({ data: [{ id: "new-model" }] });
+    }) as typeof fetch;
+    const config = baseConfig({
+      relay: {
+        adapter: "openai-chat",
+        baseUrl: "https://old.example.test/v1",
+        authMode: "key",
+        apiKey: "old-key",
+        defaultModel: "old-model",
+        note: "before",
+      },
+    });
+    let convergences = 0;
+
+    const pending = switchPool(config, "relay", {
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "new-model",
+    }, () => { convergences += 1; });
+    await probeStarted;
+    config.providers.relay!.note = "concurrent edit";
+    saveConfig(config);
+    releaseProbe();
+    const result = await pending;
+
+    expect(result.status).toBe(409);
+    expect(result.body).toEqual({
+      ok: false,
+      code: "provider_changed",
+      error: "provider changed while the candidate pool was being tested; retry with the latest settings",
+    });
+    expect(config.providers.relay).toMatchObject({
+      baseUrl: "https://old.example.test/v1",
+      apiKey: "old-key",
+      defaultModel: "old-model",
+      note: "concurrent edit",
+    });
+    const saved = JSON.parse(readFileSync(join(TEST_DIR, "config.json"), "utf8")) as OcxConfig;
+    expect(saved.providers.relay?.note).toBe("concurrent edit");
+    expect(saved.providers.relay?.baseUrl).toBe("https://old.example.test/v1");
+    expect(convergences).toBe(0);
+  });
+
+  test("a failed durable save rolls live state back and skips catalog convergence", async () => {
+    globalThis.fetch = (async () => Response.json({ data: [{ id: "new-model" }] })) as typeof fetch;
+    const config = baseConfig({
+      relay: {
+        adapter: "openai-chat",
+        baseUrl: "https://old.example.test/v1",
+        authMode: "key",
+        apiKey: "old-key",
+        apiKeyPool: [{ id: "old", key: "old-key" }],
+        defaultModel: "old-model",
+      },
+    });
+    const before = readFileSync(join(TEST_DIR, "config.json"), "utf8");
+    let convergences = 0;
+
+    const result = await switchPool(config, "relay", {
+      baseUrl: "https://new.example.test/pool/v1",
+      apiKey: "new-key",
+      defaultModel: "new-model",
+    }, () => { convergences += 1; }, () => { throw new Error("simulated save failure"); });
+
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual({ ok: false, code: "save_failed", error: "provider pool was not saved" });
+    expect(config.providers.relay).toMatchObject({
+      baseUrl: "https://old.example.test/v1",
+      apiKey: "old-key",
+      apiKeyPool: [{ id: "old", key: "old-key" }],
+      defaultModel: "old-model",
+    });
+    expect(readFileSync(join(TEST_DIR, "config.json"), "utf8")).toBe(before);
+    expect(convergences).toBe(0);
   });
 });
 

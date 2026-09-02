@@ -3,7 +3,7 @@ import { act, useEffect, useRef, useState } from "react";
 import type { Root } from "react-dom/client";
 import { Window } from "happy-dom";
 import { useProvidersCrud } from "../src/pages/use-providers-crud";
-import type { ProviderUpdatePatch } from "../src/components/provider-workspace/types";
+import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, ProviderUpdatePatch } from "../src/components/provider-workspace/types";
 
 const globals = ["document", "window", "navigator", "localStorage", "IS_REACT_ACT_ENVIRONMENT"] as const;
 const originalFetch = globalThis.fetch;
@@ -62,14 +62,17 @@ test("updateProvider awaits fetchConfig before returning success", async () => {
 
 async function mountCrud(overrides: {
   fetchConfig?: () => Promise<void>;
+  fetchOauth?: () => Promise<void>;
   fetchProviderQuotas?: (refresh?: boolean) => Promise<void>;
   refreshCodexAccount?: () => Promise<unknown>;
+  refreshModels?: () => void;
 } = {}) {
   const container = document.createElement("div");
   document.body.append(container);
   const { createRoot } = await import("react-dom/client");
   let root!: Root;
   let updateProvider!: (name: string, patch: ProviderUpdatePatch) => Promise<{ ok: boolean; error?: string }>;
+  let switchProviderPool!: (name: string, input: ProviderPoolSwitchInput) => Promise<ProviderPoolSwitchResult>;
 
   function Harness() {
     const removeBusyRef = useRef(false);
@@ -82,15 +85,17 @@ async function mountCrud(overrides: {
       setRemoveConfirmName: () => {},
       notify: () => {},
       fetchConfig: overrides.fetchConfig ?? (async () => {}),
-      fetchOauth: async () => {},
+      fetchOauth: overrides.fetchOauth ?? (async () => {}),
       fetchProviderQuotas: overrides.fetchProviderQuotas ?? (async () => {}),
       refreshCodexAccount: overrides.refreshCodexAccount,
+      refreshModels: overrides.refreshModels,
     });
     const [ready, setReady] = useState(false);
     useEffect(() => {
       updateProvider = crud.updateProvider;
+      switchProviderPool = crud.switchProviderPool;
       setReady(true);
-    }, [crud.updateProvider]);
+    }, [crud.switchProviderPool, crud.updateProvider]);
     return ready ? <div data-ready="1" /> : null;
   }
 
@@ -99,7 +104,7 @@ async function mountCrud(overrides: {
     root.render(<Harness />);
   });
   expect(container.querySelector("[data-ready]")).toBeTruthy();
-  return { root, updateProvider };
+  return { root, updateProvider, switchProviderPool };
 }
 
 test("a codexAccountMode patch sends the standalone body and awaits quota + Codex refreshes", async () => {
@@ -167,5 +172,52 @@ test("non-mode patches do not refresh quotas or the Codex controller", async () 
   expect(fetchProviderQuotas).not.toHaveBeenCalled();
   expect(refreshCodexAccount).not.toHaveBeenCalled();
 
+  await act(async () => { root.unmount(); });
+});
+
+test("switchProviderPool sends the atomic request and refreshes every pool-dependent surface", async () => {
+  const fetchConfig = mock(async () => {});
+  const fetchOauth = mock(async () => {});
+  const fetchProviderQuotas = mock(async () => {});
+  const refreshModels = mock(() => {});
+  let captured: { url: string; body: unknown } | null = null;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    captured = { url: String(input), body: JSON.parse(String(init?.body)) };
+    return Response.json({
+      ok: true,
+      name: "maxplus-fff",
+      baseUrl: "https://new.example.test/v1",
+      defaultModel: "new-model",
+      models: 7,
+      catalogRefresh: { status: "committed", changed: true, degraded: false, notices: [] },
+    });
+  }) as typeof fetch;
+
+  const { root, switchProviderPool } = await mountCrud({
+    fetchConfig: fetchConfig as () => Promise<void>,
+    fetchOauth: fetchOauth as () => Promise<void>,
+    fetchProviderQuotas: fetchProviderQuotas as (refresh?: boolean) => Promise<void>,
+    refreshModels,
+  });
+  const result = await switchProviderPool("maxplus-fff", {
+    baseUrl: "https://new.example.test/v1",
+    defaultModel: "new-model",
+    apiKey: "candidate-secret",
+  });
+
+  expect(captured).toEqual({
+    url: "http://localhost:10100/api/providers/switch-pool?name=maxplus-fff",
+    body: {
+      baseUrl: "https://new.example.test/v1",
+      defaultModel: "new-model",
+      apiKey: "candidate-secret",
+    },
+  });
+  expect(result).toEqual({ ok: true, models: 7, catalogDegraded: false });
+  expect(fetchConfig).toHaveBeenCalledTimes(1);
+  // A pool switch is a key-auth transaction; OAuth account state is untouched.
+  expect(fetchOauth).not.toHaveBeenCalled();
+  expect(fetchProviderQuotas).toHaveBeenCalledWith(true);
+  expect(refreshModels).toHaveBeenCalledTimes(1);
   await act(async () => { root.unmount(); });
 });

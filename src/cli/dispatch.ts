@@ -388,7 +388,7 @@ const commandRunners: Record<string, CommandRunner> = {
   provider: async deps => {
     const { handleProviderCommand } = await import("./provider");
     await handleProviderCommand(deps.args.slice(1));
-    return 0;
+    return Number(process.exitCode ?? 0);
   },
   account: async deps => {
     const { cmdAccount } = await import("./account");

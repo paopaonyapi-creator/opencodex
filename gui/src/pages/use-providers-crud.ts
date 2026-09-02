@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { TFn } from "../i18n/shared";
-import type { ProviderUpdatePatch } from "../components/provider-workspace/types";
+import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, ProviderUpdatePatch } from "../components/provider-workspace/types";
 import { apiErrorMessage } from "../api-error";
 
 type ProviderError = { code?: unknown; combos?: unknown; error?: unknown };
@@ -30,6 +30,7 @@ export function useProvidersCrud({
   fetchOauth,
   fetchProviderQuotas,
   refreshCodexAccount,
+  refreshModels,
 }: {
   apiBase: string;
   t: TFn;
@@ -43,6 +44,8 @@ export function useProvidersCrud({
   fetchProviderQuotas: (refresh?: boolean) => Promise<void>;
   /** Shared Codex account controller refresh (Providers.tsx passes codexPool.load). */
   refreshCodexAccount?: () => Promise<unknown> | unknown;
+  /** Bumps the Models tab refresh token; a pool switch changes the live catalog. */
+  refreshModels?: () => void;
 }) {
   const removeProvider = useCallback(async (name: string) => {
     setRemoveConfirmName(name);
@@ -140,5 +143,32 @@ export function useProvidersCrud({
     }
   }, [apiBase, fetchConfig, notify, t]);
 
-  return { removeProvider, confirmRemoveProvider, setProviderDisabled, setDefaultProvider, updateProvider };
+  const switchProviderPool = useCallback(async (name: string, input: ProviderPoolSwitchInput): Promise<ProviderPoolSwitchResult> => {
+    try {
+      const res = await fetch(`${apiBase}/api/providers/switch-pool?name=${encodeURIComponent(name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | (ProviderPoolSwitchResult & { models?: number; catalogRefresh?: { degraded?: boolean } })
+        | null;
+      if (!res.ok || !data || data.ok !== true) {
+        if (data && data.ok === false) {
+          const { error, code, availableModelCount, availableModels } = data;
+          return { ok: false, error, code, availableModelCount, availableModels };
+        }
+        return { ok: false, error: await apiErrorMessage(res, t("prov.updateFail")) };
+      }
+      // The switched pool changes the provider row, live catalog, and quota caches.
+      await fetchConfig();
+      fetchProviderQuotas(true);
+      refreshModels?.();
+      return { ok: true, models: data.models, catalogDegraded: data.catalogRefresh?.degraded === true };
+    } catch {
+      return { ok: false, error: t("prov.networkError") };
+    }
+  }, [apiBase, fetchConfig, fetchProviderQuotas, refreshModels, t]);
+
+  return { removeProvider, confirmRemoveProvider, setProviderDisabled, setDefaultProvider, updateProvider, switchProviderPool };
 }

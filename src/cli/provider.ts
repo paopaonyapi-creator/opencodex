@@ -427,6 +427,7 @@ Subcommands:
   add <name>            Add a provider (registry or custom)
   edit <name>           Edit live provider fields
   test <name>           Test the provider's upstream model endpoint
+  switch-pool <name>    Verify and atomically replace a key provider's pool
   remove <name>         Remove a configured provider
   show <name>           Show provider config details
   set-default <name>    Change the default provider

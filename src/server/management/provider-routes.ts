@@ -47,6 +47,7 @@ import {
 import { routedSlug, slugEquals } from "../../providers/slug-codec";
 import { clearAccountQuotaCache, clearProviderQuotaCache, fetchProviderQuotaReports } from "../../providers/quota";
 import { clearKeyCooldowns } from "../../providers/key-failover";
+import { apiKeyPoolEntryId, isKeyAuthProvider, sanitizeApiKeyValue } from "../../providers/api-keys";
 import { providerRequestPacingStatus } from "../../providers/request-pacing";
 import { CODEX_FORWARD_BASE_URL, isCanonicalOpenAiForwardProvider } from "../../providers/openai-tiers";
 import { codexAccountNamespaceProviderCollisionError } from "../../codex/account-namespace-match";
@@ -97,6 +98,101 @@ type ProviderPatchApplication =
       enablingOpenAi: boolean;
       headersTouched: boolean;
     };
+
+type ProviderLiveModelsProbe =
+  | { ok: true; latencyMs: number; models: number; message: string; modelIds?: string[] }
+  | { ok: false; latencyMs: number; error: string };
+
+/**
+ * Probe one candidate provider directly, without consulting stale/static catalog fallbacks.
+ * `modelIds` is present only when discovery produced validated public ids; the ordinary
+ * connection-test route deliberately omits it, while the pool-switch transaction uses it
+ * to prove the requested default model before writing any credential or endpoint state.
+ */
+async function probeProviderLiveModels(
+  name: string,
+  prov: OcxProviderConfig,
+  apiKey: string | undefined,
+  project: string | undefined,
+  antigravity: boolean,
+): Promise<ProviderLiveModelsProbe> {
+  const { buildModelsRequest } = await import("../../oauth");
+  const { method, url: modelsUrl, headers } = buildModelsRequest(prov, apiKey, name);
+  const discovery = resolveProviderModelDiscovery(name, prov);
+  const started = Date.now();
+  try {
+    const res = method === "POST"
+      ? await providerOutboundPost(name, prov, modelsUrl, {
+        headers,
+        body: JSON.stringify({ project }),
+        signal: AbortSignal.timeout(8000),
+      })
+      : await providerOutboundGet(name, prov, modelsUrl, {
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+    const latencyMs = Date.now() - started;
+    const redirectError = await providerRedirectError(res, modelsUrl);
+    if (redirectError) return { ok: false, latencyMs, error: redirectError };
+    if (!res.ok) {
+      try {
+        void res.body?.cancel().catch(() => undefined);
+      } catch {
+        // Best-effort release for non-conforming response streams.
+      }
+      return { ok: false, latencyMs, error: `upstream model discovery returned ${res.status}` };
+    }
+    const bounded = await readBoundedDiscoveryJson(res, discovery.maxResponseBytes);
+    if (!bounded.ok) {
+      return {
+        ok: false,
+        latencyMs,
+        error: bounded.reason === "response_too_large"
+          ? `upstream model discovery exceeded the ${discovery.maxResponseBytes}-byte response limit`
+          : "upstream model discovery returned invalid JSON",
+      };
+    }
+    const ccaModels = antigravity ? parseAntigravityAvailableModels(bounded.value, discovery.maxModels) : undefined;
+    if (antigravity && !ccaModels) {
+      return { ok: false, latencyMs, error: "upstream CCA model discovery returned an unexpected shape" };
+    }
+    const record = bounded.value !== null && typeof bounded.value === "object" && !Array.isArray(bounded.value)
+      ? bounded.value as Record<string, unknown>
+      : undefined;
+    const extracted = ccaModels
+      ? undefined
+      : Array.isArray(bounded.value) || Array.isArray(record?.data)
+      ? extractProviderModelItems(bounded.value, discovery)
+      : extractModelEnvelopeRows(bounded.value, discovery.maxModels, ["models"]);
+    if (extracted && !extracted.ok) {
+      return {
+        ok: false,
+        latencyMs,
+        error: extracted.reason === "too_many_models"
+          ? `upstream /models exceeded the ${discovery.maxModels}-row model limit`
+          : "upstream /models returned an unexpected shape",
+      };
+    }
+    const modelIds = ccaModels?.map(model => model.id)
+      ?? (extracted && "items" in extracted ? extracted.items.map(item => item.id) : undefined);
+    const models = modelIds?.length ?? (extracted && "rows" in extracted ? extracted.rows.length : 0);
+    return {
+      ok: true,
+      latencyMs,
+      models,
+      message: `Connected — ${models} model${models === 1 ? "" : "s"} available.`,
+      ...(modelIds ? { modelIds } : {}),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - started,
+      error: err instanceof ProviderOutboundPolicyError
+        ? `upstream /models blocked by destination policy: ${err.message}`
+        : err instanceof Error ? err.message : "Connection test failed",
+    };
+  }
+}
 
 /**
  * Apply the recognized PATCH field mask onto a provider copy. The caller runs this once
@@ -396,6 +492,133 @@ export async function handleProviderRoutes(ctx: ManagementContext): Promise<Resp
       codexAccountMode: providerCodexAccountMode(name, p),
       discovery: p.liveModels === false ? undefined : getProviderDiscoveryStatus(name),
     })));
+  }
+
+  // Replace a key-auth provider's endpoint + credential + default model as one
+  // verified transaction. Pool-scoped gateways commonly return 403 when a key is
+  // paired with another pool's URL; testing the candidate before persistence keeps
+  // the currently working provider and its fallback keys intact on every failure.
+  if (url.pathname === "/api/providers/switch-pool" && req.method === "POST") {
+    const name = url.searchParams.get("name")?.trim();
+    if (!name || !isValidProviderName(name) || !hasOwnProvider(config.providers, name)) {
+      return jsonResponse({ error: "unknown provider" }, 404);
+    }
+    let rawBody: unknown;
+    try {
+      rawBody = await readManagementJsonBody(req);
+    } catch (error) {
+      rethrowManagementBodyTooLarge(error);
+      return jsonResponse({ error: "invalid JSON body" }, 400);
+    }
+    if (!isPlainRecord(rawBody)) return jsonResponse({ error: "pool switch body must be a plain object" }, 400);
+    const keys = Object.keys(rawBody);
+    if (keys.some(key => !["baseUrl", "apiKey", "defaultModel"].includes(key))) {
+      return jsonResponse({ error: "pool switch accepts only baseUrl, apiKey, and defaultModel" }, 400);
+    }
+    const baseUrl = typeof rawBody.baseUrl === "string" ? rawBody.baseUrl.trim() : "";
+    const apiKey = sanitizeApiKeyValue(rawBody.apiKey);
+    const defaultModel = typeof rawBody.defaultModel === "string" ? rawBody.defaultModel.trim() : "";
+    if (!baseUrl || !apiKey || !defaultModel) {
+      return jsonResponse({ error: "baseUrl, apiKey, and defaultModel are required" }, 400);
+    }
+
+    const existing = config.providers[name]!;
+    if (
+      !isKeyAuthProvider(existing)
+      || existing.authMode === "local"
+      || (existing.adapter !== "openai-chat" && existing.adapter !== "openai-responses")
+      || existing.liveModels === false
+    ) {
+      return jsonResponse({
+        error: "pool switching requires an enabled live OpenAI-compatible API-key provider",
+        code: "pool_switch_not_supported",
+      }, 409);
+    }
+    if (existing.disabled) {
+      return jsonResponse({ error: "Provider is disabled", code: "provider_disabled" }, 409);
+    }
+
+    const candidate: OcxProviderConfig = {
+      ...existing,
+      baseUrl,
+      apiKey,
+      apiKeyPool: [{ id: apiKeyPoolEntryId(apiKey), key: apiKey, addedAt: Date.now() }],
+      defaultModel,
+      authMode: "key",
+    };
+    // A provider allowlist is endpoint-scoped intent. Carrying it into a different
+    // pool can make a verified catalog appear empty, so a pool replacement returns
+    // to the documented "all discovered models" state before convergence.
+    delete candidate.selectedModels;
+    const providerError = providerManagementConfigError(name, candidate);
+    if (providerError) return jsonResponse({ error: providerError }, 400);
+    const serviceTierError = providerServiceTierConfigError(name, candidate);
+    if (serviceTierError) return jsonResponse({ error: serviceTierError }, 400);
+
+    const sourceFingerprint = JSON.stringify(existing);
+    const probe = await probeProviderLiveModels(name, candidate, apiKey, candidate.project, false);
+    if (!probe.ok) {
+      return jsonResponse({
+        ok: false,
+        code: "pool_probe_failed",
+        // A custom fetch/executor may include request metadata in its thrown message.
+        // Never let the candidate credential cross back into UI, CLI, or request logs.
+        error: probe.error.replaceAll(apiKey, "[redacted]"),
+        latencyMs: probe.latencyMs,
+      }, 422);
+    }
+    const modelIds = probe.modelIds ?? [];
+    if (!modelIds.includes(defaultModel)) {
+      return jsonResponse({
+        ok: false,
+        code: "default_model_unavailable",
+        error: "default model is not available from the candidate pool",
+        availableModelCount: modelIds.length,
+        availableModels: modelIds.slice(0, 50),
+      }, 422);
+    }
+
+    let sourceChanged = false;
+    let saveError = false;
+    const save = deps.saveConfigPreservingClaudeCode ?? saveConfigPreservingClaudeCode;
+    withConfigMutationLockSync(() => {
+      const current = config.providers[name];
+      if (!current || JSON.stringify(current) !== sourceFingerprint) {
+        sourceChanged = true;
+        return;
+      }
+      config.providers[name] = candidate;
+      try {
+        save(config);
+      } catch {
+        config.providers[name] = existing;
+        saveError = true;
+      }
+    });
+    if (sourceChanged) {
+      return jsonResponse({
+        ok: false,
+        code: "provider_changed",
+        error: "provider changed while the candidate pool was being tested; retry with the latest settings",
+      }, 409);
+    }
+    if (saveError) return jsonResponse({ ok: false, code: "save_failed", error: "provider pool was not saved" }, 500);
+
+    reconcileLiveStateStores();
+    clearGatherRoutedModelsInflight();
+    (deps.clearProviderQuotaCache ?? clearProviderQuotaCache)();
+    clearAccountQuotaCache(name);
+    clearKeyCooldowns(name);
+    clearModelCache(name);
+    const catalogRefresh = await convergeCodexCatalog();
+    return jsonResponse({
+      ok: true,
+      name,
+      baseUrl: publicProviderBaseUrl(baseUrl),
+      defaultModel,
+      models: modelIds.length,
+      catalogRefresh,
+    });
   }
 
   if (url.pathname === LOCAL_PROVIDER_RELOAD_PATH && req.method === "POST") {
@@ -724,7 +947,7 @@ export async function handleProviderRoutes(ctx: ManagementContext): Promise<Resp
       // credential resolution/network access for providers such as Antigravity.
       return jsonResponse({ applicable: false, reason: "static_catalog", latencyMs: 0 });
     }
-    const { buildModelsRequest, getValidAccessTokenSnapshot, resolveModelsAuthToken } = await import("../../oauth");
+    const { getValidAccessTokenSnapshot, resolveModelsAuthToken } = await import("../../oauth");
     const antigravity = effectiveGoogleMode(name, prov) === "cloud-code-assist";
     const snapshot = antigravity
       ? await getValidAccessTokenSnapshot(name).catch(() => undefined)
@@ -758,87 +981,12 @@ export async function handleProviderRoutes(ctx: ManagementContext): Promise<Resp
     if (antigravity && !project) {
       return jsonResponse({ ok: false, latencyMs: 0, error: "Antigravity project unavailable — re-run `ocx login google-antigravity`" });
     }
-    const { method, url: modelsUrl, headers } = buildModelsRequest(prov, apiKey, name);
-    const discovery = resolveProviderModelDiscovery(name, prov);
-    const started = Date.now();
-    try {
-      const res = method === "POST"
-        ? await providerOutboundPost(name, prov, modelsUrl, {
-          headers,
-          body: JSON.stringify({ project }),
-          signal: AbortSignal.timeout(8000),
-        })
-        : await providerOutboundGet(name, prov, modelsUrl, {
-          headers,
-          signal: AbortSignal.timeout(8000),
-        });
-      const latencyMs = Date.now() - started;
-      const redirectError = await providerRedirectError(res, modelsUrl);
-      if (redirectError) {
-        return jsonResponse({
-          ok: false,
-          latencyMs,
-          error: redirectError,
-        });
-      }
-      if (!res.ok) {
-        try {
-          void res.body?.cancel().catch(() => undefined);
-        } catch {
-          // Best-effort release for non-conforming response streams.
-        }
-        return jsonResponse({ ok: false, latencyMs, error: `upstream model discovery returned ${res.status}` });
-      }
-      const bounded = await readBoundedDiscoveryJson(res, discovery.maxResponseBytes);
-      if (!bounded.ok) {
-        return jsonResponse({
-          ok: false,
-          latencyMs,
-          error: bounded.reason === "response_too_large"
-              ? `upstream model discovery exceeded the ${discovery.maxResponseBytes}-byte response limit`
-              : "upstream model discovery returned invalid JSON",
-        });
-      }
-      const ccaModels = antigravity ? parseAntigravityAvailableModels(bounded.value, discovery.maxModels) : undefined;
-      if (antigravity && !ccaModels) {
-        return jsonResponse({ ok: false, latencyMs, error: "upstream CCA model discovery returned an unexpected shape" });
-      }
-      // OpenAI-style lists (and Together top-level arrays) use the same validation/dedupe/filter
-      // as catalog discovery. Google's /v1beta/models uses `models[].name` and remains a
-      // connectivity-only count because it is not an authoritative catalog source.
-      const record = bounded.value !== null && typeof bounded.value === "object" && !Array.isArray(bounded.value)
-        ? bounded.value as Record<string, unknown>
-        : undefined;
-      const extracted = ccaModels
-        ? undefined
-        : Array.isArray(bounded.value) || Array.isArray(record?.data)
-        ? extractProviderModelItems(bounded.value, discovery)
-        : extractModelEnvelopeRows(bounded.value, discovery.maxModels, ["models"]);
-      if (extracted && !extracted.ok) {
-        return jsonResponse({
-          ok: false,
-          latencyMs,
-          error: extracted.reason === "too_many_models"
-            ? `upstream /models exceeded the ${discovery.maxModels}-row model limit`
-            : "upstream /models returned an unexpected shape",
-        });
-      }
-      const models = ccaModels?.length ?? ("items" in extracted! ? extracted!.items.length : extracted!.rows.length);
-      return jsonResponse({
-        ok: true,
-        latencyMs,
-        models,
-        message: `Connected — ${models} model${models === 1 ? "" : "s"} available.`,
-      });
-    } catch (err) {
-      return jsonResponse({
-        ok: false,
-        latencyMs: Date.now() - started,
-        error: err instanceof ProviderOutboundPolicyError
-          ? `upstream /models blocked by destination policy: ${err.message}`
-          : err instanceof Error ? err.message : "Connection test failed",
-      });
+    const probe = await probeProviderLiveModels(name, prov, apiKey, project, antigravity);
+    if (probe.ok) {
+      const { modelIds: _modelIds, ...publicProbe } = probe;
+      return jsonResponse(publicProbe);
     }
+    return jsonResponse(probe);
   }
 
   if (url.pathname === "/api/providers" && req.method === "DELETE") {

@@ -19,7 +19,7 @@ import { openAiAccountProviderState } from "../../provider-payload";
 import { providerSupportsLiveModelDiscovery } from "../../provider-workspace/catalog";
 import type { CatalogPreset } from "../provider-catalog/provider-presets";
 import { authModeLabel } from "./ProviderRail";
-import type { WorkspaceItem, ProviderUpdatePatch } from "./types";
+import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, WorkspaceItem, ProviderUpdatePatch } from "./types";
 
 const ADAPTERS = ["openai-responses", "openai-chat", "anthropic", "google", "azure-openai", "cursor"] as const;
 const EMPTY_MODELS: string[] = [];
@@ -57,13 +57,15 @@ function pacingSignature(value: WorkspaceItem["requestPacing"] | undefined): str
 }
 
 export default function ProviderSettings({
-  item, availableModels = EMPTY_MODELS, apiBase, onUpdateProvider, onDirtyChange, onRegisterSave,
+  item, availableModels = EMPTY_MODELS, apiBase, onUpdateProvider, onSwitchPool, onDirtyChange, onRegisterSave,
 }: {
   item: WorkspaceItem;
   availableModels?: string[];
   /** When set, load endpoint choices for catalog providers that expose baseUrlChoices. */
   apiBase?: string;
   onUpdateProvider?: (name: string, patch: ProviderUpdatePatch) => Promise<{ ok: boolean; error?: string }>;
+  /** Atomic test-then-switch for pool-scoped gateways; see /api/providers/switch-pool. */
+  onSwitchPool?: (name: string, input: ProviderPoolSwitchInput) => Promise<ProviderPoolSwitchResult>;
   onDirtyChange?: (dirty: boolean) => void;
   /** Lets parent dialogs trigger the same save path as the sticky bar. */
   onRegisterSave?: (save: (() => Promise<boolean>) | null) => void;
@@ -98,6 +100,12 @@ export default function ProviderSettings({
   const [pacingModelRpm, setPacingModelRpm] = useState("");
   const [pacingModelDelay, setPacingModelDelay] = useState("");
   const [pacingStatus, setPacingStatus] = useState<PacingStatus | null>(null);
+  const [poolUrl, setPoolUrl] = useState(item.baseUrl);
+  const [poolModel, setPoolModel] = useState(item.defaultModel ?? "");
+  const [poolKey, setPoolKey] = useState("");
+  const [poolBusy, setPoolBusy] = useState(false);
+  const [poolMsg, setPoolMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [poolChoices, setPoolChoices] = useState<{ count: number; models: string[] } | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect -- intentional form reset when saved provider fields change */
   useEffect(() => {
@@ -118,6 +126,15 @@ export default function ProviderSettings({
     setModeMsg(null);
     queueMicrotask(() => setEndpointChoice(matchChoiceId(baseUrlChoices, item.baseUrl)));
   }, [item.adapter, item.baseUrl, item.defaultModel, item.authMode, item.apiKeyTransport, item.keyOptional, item.note, item.allowPrivateNetwork, savedLiveModels, savedCursorHttpVersion, item.requestPacing, baseUrlChoices]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Pool switch drafts are independent of the settings Save: a pool replacement
+  // is its own transaction and must not silently merge into the Save button.
+  /* eslint-disable react-hooks/set-state-in-effect -- pool draft follows the saved row like the main form */
+  useEffect(() => {
+    setPoolUrl(item.baseUrl);
+    setPoolModel(item.defaultModel ?? "");
+  }, [item.baseUrl, item.defaultModel]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Account mode syncs on its own: a mode PATCH refresh must not reset an in-progress
@@ -216,6 +233,12 @@ export default function ProviderSettings({
   const isPreset = isCatalogProviderId(item.name);
   const hasEndpointPicker = choicesStatus === "ready" && !!(baseUrlChoices && baseUrlChoices.length > 0);
   const supportsApiKeyTransport = adapter.trim() === "anthropic" && authMode === "key";
+  // Mirrors POST /api/providers/switch-pool: enabled live OpenAI-compatible
+  // API-key providers only, so the UI never offers a 409-guaranteed action.
+  const supportsPoolSwitch = item.authMode === "key"
+    && (item.adapter === "openai-chat" || item.adapter === "openai-responses")
+    && item.liveModels !== false
+    && item.disabled !== true;
   const openAiState = item.name === "openai" ? openAiAccountProviderState(item) : "invalid";
   const isCanonicalOpenAi = openAiState === "ready" || openAiState === "disabled";
   // Lock plain baseUrl for presets while loading or when there is no picker.
@@ -304,6 +327,38 @@ export default function ProviderSettings({
     setPacingEnabled(item.requestPacing?.enabled === true); setPacingRpm(numberDraft(item.requestPacing?.requestsPerMinute));
     setPacingDelay(numberDraft(item.requestPacing?.minIntervalMs)); setPacingModels({ ...(item.requestPacing?.models ?? {}) });
     setEndpointChoice(matchChoiceId(baseUrlChoices, item.baseUrl));
+  };
+
+  const switchPool = async () => {
+    if (poolBusy) return;
+    if (!onSwitchPool) { setPoolMsg({ ok: false, text: t("pws.updatesUnavailable") }); return; }
+    const baseUrl = poolUrl.trim();
+    const defaultModel = poolModel.trim();
+    const apiKey = poolKey.trim();
+    if (!baseUrl || !defaultModel || !apiKey) { setPoolMsg({ ok: false, text: t("pws.poolSwitchRequired") }); return; }
+    setPoolBusy(true);
+    setPoolMsg(null);
+    try {
+      const res = await onSwitchPool(item.name, { baseUrl, defaultModel, apiKey });
+      setPoolKey("");
+      if (res.ok) {
+        setPoolMsg({ ok: true, text: t("pws.poolSwitchDone", { models: res.models ?? 0 }) });
+        setPoolChoices(null);
+      } else if (res.code === "default_model_unavailable") {
+        // The candidate probed fine; the model name just missed the pool.
+        // Keep the attempted pool editable and surface the bounded model list.
+        const models = res.availableModels ?? [];
+        setPoolChoices({ count: res.availableModelCount ?? models.length, models });
+        setPoolMsg({ ok: false, text: t("pws.poolSwitchModelMissing", { count: res.availableModelCount ?? models.length }) });
+      } else {
+        setPoolMsg({ ok: false, text: res.error || t("pws.poolSwitchFailed") });
+      }
+    } catch {
+      setPoolKey("");
+      setPoolMsg({ ok: false, text: t("pws.poolSwitchFailed") });
+    } finally {
+      setPoolBusy(false);
+    }
   };
 
   const endpointLabel = (id: string, fallback: string) => {
@@ -495,6 +550,55 @@ export default function ProviderSettings({
         </div>
         {Object.entries(pacingModels).length > 0 && <div className="pwi-pacing-overrides">{Object.entries(pacingModels).map(([model, rule]) => <div key={model} className="pwi-pacing-row"><code>{model}</code><span>{rule.requestsPerMinute !== undefined ? `${rule.requestsPerMinute} ${t("pws.pacingRpmUnit")}` : ""}{rule.requestsPerMinute !== undefined && rule.minIntervalMs !== undefined ? " · " : ""}{rule.minIntervalMs !== undefined ? `${rule.minIntervalMs} ms` : ""}</span><button type="button" className="btn btn-ghost btn-sm" onClick={() => setPacingModels(current => Object.fromEntries(Object.entries(current).filter(([id]) => id !== model)))} aria-label={t("pws.pacingRemoveModel", { model })}>{t("pws.pacingRemove")}</button></div>)}</div>}
       </section>
+      {supportsPoolSwitch && (
+        <form
+          className="pwi-pool-switch-card"
+          onSubmit={event => {
+            event.preventDefault();
+            void switchPool();
+          }}
+        >
+          <h3>{t("pws.poolSwitchTitle")}</h3>
+          <p>{t("pws.poolSwitchDesc")}</p>
+          <div className="pwi-pool-switch-grid">
+            <label className="pwi-settings-field">
+              <span className="pwi-settings-label">{t("modal.baseUrl")}</span>
+              <input className="input" value={poolUrl} onChange={e => setPoolUrl(e.target.value)} placeholder={t("modal.baseUrlPlaceholder")} />
+            </label>
+            <label className="pwi-settings-field">
+              <span className="pwi-settings-label">{t("pws.cell.defaultModel")}</span>
+              <input
+                className="input"
+                value={poolModel}
+                onChange={e => setPoolModel(e.target.value)}
+                placeholder={t("pws.optionalPlaceholder")}
+                list={poolChoices ? "pool-switch-models" : undefined}
+              />
+            </label>
+            <label className="pwi-settings-field">
+              <span className="pwi-settings-label">{t("pws.addApiKey")}</span>
+              <input
+                className="input"
+                type="password"
+                autoComplete="off"
+                value={poolKey}
+                onChange={e => setPoolKey(e.target.value)}
+                placeholder={t("pws.poolSwitchKeyPlaceholder")}
+              />
+            </label>
+            {poolChoices && <datalist id="pool-switch-models">{poolChoices.models.map(model => <option key={model} value={model} />)}</datalist>}
+          </div>
+          {poolChoices && <p className="pwi-settings-hint">{t("pws.poolSwitchChoicesHint", { shown: poolChoices.models.length, total: poolChoices.count })}</p>}
+          <div className="pwi-pool-switch-actions">
+            <button type="submit" className="btn btn-primary btn-sm" disabled={poolBusy || modeSaving}>{poolBusy ? t("pws.testing") : t("pws.poolSwitchRun")}</button>
+          </div>
+          {poolMsg && (
+            <div role={poolMsg.ok ? "status" : "alert"} className={poolMsg.ok ? "pwi-settings-mode-msg pwi-settings-mode-msg--ok" : "pwi-settings-mode-msg pwi-settings-mode-msg--err"}>
+              {poolMsg.text}
+            </div>
+          )}
+        </form>
+      )}
       {formDirty && (
         <div className="pwi-settings-sticky-bar">
           <span className="muted">{t("pws.settingsUnsavedBar")}</span>

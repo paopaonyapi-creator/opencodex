@@ -144,6 +144,21 @@
   .pwi-pacing-row span { grid-column: 1 / -1; grid-row: 2; }
 }
 
+.pwi-pool-switch-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%);
+}
+.pwi-pool-switch-card h3 { margin: 0; color: var(--text); font-size: var(--text-control); }
+.pwi-pool-switch-card > p { margin: 0; color: var(--muted); font-size: var(--text-caption); line-height: 1.45; }
+.pwi-pool-switch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.pwi-pool-switch-actions { display: flex; justify-content: flex-end; }
+
+@media (max-width: 760px) {
+  .pwi-pool-switch-grid { grid-template-columns: 1fr; }
+  .pwi-pool-switch-actions .btn { width: 100%; }
+}
+
 /* ── ProviderJsonEditor ────────────────────────────────────── */
 
 .pwi-json-panel { display: flex; flex-direction: column; gap: 8px; }

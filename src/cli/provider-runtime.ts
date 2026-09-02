@@ -2,6 +2,7 @@ import {
   CliUsageError,
   csv,
   printData,
+  readSecretLine,
   rejectArgs,
   runCliAction,
   runtimeRequest,
@@ -19,6 +20,8 @@ const USAGE = `Usage:
       [--headers <json>] [--enabled <on|off>] [--live-models <on|off>]
       [--allow-private-network <on|off>] [--json]
   ocx provider test <name> [--json]
+  ocx provider switch-pool <name> --base-url <url> --default-model <id> [--json]
+      (reads the replacement API key from piped stdin)
   ocx provider quota [--refresh] [--json]
   ocx provider presets [--json]
   ocx provider account-mode <pool|direct> [--json]
@@ -102,6 +105,40 @@ async function testProvider(argv: string[], deps: RuntimeApiDeps): Promise<void>
   if (!ok) process.exitCode = 1;
 }
 
+async function switchPool(argv: string[], deps: RuntimeApiDeps): Promise<void> {
+  const args = [...argv];
+  // Never accept a secret-bearing argv spelling. Detect it before generic argument
+  // reporting so neither `--api-key value` nor `--api-key=value` can be echoed.
+  if (args.some(arg => arg === "--api-key" || arg.startsWith("--api-key="))) {
+    throw new CliUsageError("the replacement API key must be piped on stdin", USAGE);
+  }
+  const name = args.shift()?.trim();
+  const wantsJson = takeFlag(args, "--json");
+  const baseUrl = takeOption(args, "--base-url")?.trim();
+  const defaultModel = takeOption(args, "--default-model")?.trim();
+  if (!name || !baseUrl || !defaultModel) {
+    throw new CliUsageError("provider name, --base-url, and --default-model are required", USAGE);
+  }
+  rejectArgs(args, USAGE, { redactValues: true });
+  const input = deps.stdinImpl ?? process.stdin;
+  if (input.isTTY) {
+    throw new CliUsageError("pipe the replacement API key on stdin; interactive echo is not allowed", USAGE);
+  }
+  const apiKey = await readSecretLine(deps, "replacement API key");
+  const result = await runtimeRequest<Record<string, unknown>>(
+    `/api/providers/switch-pool?name=${encodeURIComponent(name)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ baseUrl, defaultModel, apiKey }),
+    },
+    deps,
+  );
+  printData(result, wantsJson, [
+    `${name}: pool switched to ${String(result.baseUrl ?? baseUrl)}.`,
+    `${String(result.models ?? "?")} models available; default ${String(result.defaultModel ?? defaultModel)}.`,
+  ]);
+}
+
 async function quota(argv: string[], deps: RuntimeApiDeps): Promise<void> {
   const args = [...argv];
   const wantsJson = takeFlag(args, "--json");
@@ -166,6 +203,7 @@ export async function handleProviderRuntimeCommand(sub: string, argv: string[], 
     edit,
     update: edit,
     test: testProvider,
+    "switch-pool": switchPool,
     quota,
     presets,
     "account-mode": accountMode,

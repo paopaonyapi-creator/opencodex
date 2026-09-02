@@ -64,6 +64,31 @@ beforeEach(() => {
           },
         });
       }
+      if (url.pathname.endsWith("/projects/seo_demo/council") && init?.method === "POST") {
+        return Response.json({
+          council: {
+            final: "needs_review",
+            runId: "run_geo",
+            reviewers: [
+              { reviewer: "evidence_integrity_reviewer", verdict: "pass", score: 100, notes: "all verified" },
+              { reviewer: "geo_risk_reviewer", verdict: "warn", score: 75, notes: "one medium finding" },
+              { reviewer: "epistemic_honesty_reviewer", verdict: "pass", score: 100, notes: "heuristic claims labeled" },
+            ],
+          },
+          fixPlan: {
+            projectId: "seo_demo",
+            runId: "run_geo",
+            councilFinal: "needs_review",
+            executionPath: "none",
+            note: "Plan only.",
+            steps: [
+              { order: 1, title: "Fix technical issue", detail: "Sitemap missing", target: "sitemap.xml", requiresHumanApproval: true },
+              { order: 2, title: "Deploy llms.txt proposal", detail: "After human review", target: "llms.txt", requiresHumanApproval: true },
+            ],
+          },
+          policy: { executionAllowed: false, humanApprovalRequired: true },
+        });
+      }
       return Response.json({ error: "unexpected" }, { status: 404 });
     },
   });
@@ -109,4 +134,34 @@ test("GEO audit renders verified technical state and a copy-only llms.txt propos
   const copyButton = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Copy proposal")!;
   await act(async () => { copyButton.click(); });
   expect(clipboardWrites).toEqual(["# Wor-Pao Group\n\n## Site\n- [Home](https://worpao.example/)"]);
+});
+
+test("council review renders verdict, reviewers, and an approval-bound fix plan without an execute button", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const { createRoot } = await import("react-dom/client");
+  await act(async () => {
+    root = createRoot(host);
+    root.render(<LanguageProvider><PaoSeo apiBase="" /></LanguageProvider>);
+  });
+  await flush();
+  await act(async () => { host.querySelector<HTMLButtonElement>(".seo-project button")!.click(); });
+  await flush();
+  const geoButton = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Run GEO audit")!;
+  await act(async () => { geoButton.click(); });
+  await flush();
+
+  const councilButton = [...host.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Run council review")!;
+  expect(councilButton).toBeTruthy();
+  await act(async () => { councilButton.click(); });
+  await flush();
+
+  expect(host.textContent).toContain("needs_review");
+  expect(host.textContent).toContain("evidence_integrity_reviewer");
+  expect(host.textContent).toContain("geo_risk_reviewer");
+  expect(host.textContent).toContain("epistemic_honesty_reviewer");
+  expect(host.textContent).toContain("Fix plan");
+  expect(host.textContent).toContain("sitemap.xml");
+  expect(host.textContent).toContain("Plan only");
+  expect([...host.querySelectorAll("button")].some(button => /execute|apply now|deploy/i.test(button.textContent ?? ""))).toBe(false);
 });

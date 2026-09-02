@@ -41,6 +41,8 @@
 .seo-proposal-gate { margin: 0; color: var(--amber, #b45309); font-size: var(--text-label); }
 .seo-proposal pre { margin: 0; max-height: 260px; overflow: auto; padding: 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-xs); background: var(--surface); white-space: pre-wrap; word-break: break-word; }
 .seo-proposal .btn { align-self: flex-start; }
+.seo-council { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+.seo-council h4 { margin: 0; font-size: var(--text-label); }
 
 @media (max-width: 760px) {
   .seo-new-project { grid-template-columns: 1fr; }

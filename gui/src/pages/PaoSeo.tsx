@@ -52,6 +52,12 @@ interface GeoAuditResult {
   llmsProposal: { content: string; includedUrls: string[]; excludedCount: number; warnings: string[] } | null;
 }
 
+interface GeoCouncilResult {
+  council: { final: string; reviewers: Array<{ reviewer: string; verdict: string; score: number; notes: string }> };
+  fixPlan: { councilFinal: string; executionPath: string; note: string; steps: Array<{ order: number; title: string; detail: string; target: string; requiresHumanApproval: boolean }> };
+  policy: { executionAllowed: boolean; humanApprovalRequired: boolean };
+}
+
 type LoadState = "idle" | "loading" | "ready" | "error";
 
 export default function PaoSeo({ apiBase }: { apiBase: string }) {
@@ -67,6 +73,9 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
   const [geoAudit, setGeoAudit] = useState<GeoAuditResult | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [geoCouncil, setGeoCouncil] = useState<GeoCouncilResult | null>(null);
+  const [councilBusy, setCouncilBusy] = useState(false);
+  const [councilError, setCouncilError] = useState<string | null>(null);
   const [proposalCopied, setProposalCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formDomain, setFormDomain] = useState("");
@@ -167,6 +176,25 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
       setProposalCopied(true);
     } catch {
       setProposalCopied(false);
+    }
+  };
+
+  const runCouncilAction = async () => {
+    if (!selected || councilBusy) return;
+    setCouncilBusy(true);
+    setCouncilError(null);
+    try {
+      const res = await fetch(`${apiBase}/api/agent-os/seo/geo/projects/${encodeURIComponent(selected)}/council`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: { code?: string } } | null;
+        setCouncilError(body?.error?.code ?? String(res.status));
+        return;
+      }
+      setGeoCouncil(await res.json());
+    } catch {
+      setCouncilError("network");
+    } finally {
+      setCouncilBusy(false);
     }
   };
 
@@ -306,8 +334,14 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => void runGeoAuditAction()} disabled={geoBusy}>
                   {geoBusy ? t("seo.analyzing") : t("seo.geoRun")}
                 </button>
+                {geoAudit && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runCouncilAction()} disabled={councilBusy}>
+                    {councilBusy ? t("seo.analyzing") : t("seo.geoCouncilRun")}
+                  </button>
+                )}
               </div>
               {geoError && <p className="seo-err">{t("seo.runFailed")} ({geoError})</p>}
+              {councilError && <p className="seo-err">{t("seo.runFailed")} ({councilError})</p>}
               {geoAudit && (
                 <div className="seo-geo-grid">
                   <div className="seo-geo-tile">
@@ -402,6 +436,40 @@ export default function PaoSeo({ apiBase }: { apiBase: string }) {
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copyLlmsProposal()}>
                     {proposalCopied ? t("seo.geoProposalCopied") : t("seo.geoProposalCopy")}
                   </button>
+                </div>
+              )}
+              {geoCouncil && (
+                <div className="seo-council" aria-label={t("seo.geoCouncilTitle")}>
+                  <div className="seo-rec-head">
+                    <h4>{t("seo.geoCouncilTitle")}</h4>
+                    <span className={`seo-impact ${geoCouncil.council.final === "pass" ? "seo-impact--low" : geoCouncil.council.final === "fail" ? "seo-impact--high" : "seo-impact--medium"}`}>{geoCouncil.council.final}</span>
+                  </div>
+                  <ul className="seo-rec-list">
+                    {geoCouncil.council.reviewers.map(reviewer => (
+                      <li key={reviewer.reviewer} className="seo-rec">
+                        <div className="seo-rec-head">
+                          <span className={`seo-impact ${reviewer.verdict === "pass" ? "seo-impact--low" : reviewer.verdict === "fail" ? "seo-impact--high" : "seo-impact--medium"}`}>{reviewer.verdict}</span>
+                          <strong>{reviewer.reviewer}</strong>
+                          <span className="seo-badge">{reviewer.score}/100</span>
+                        </div>
+                        <p className="muted">{reviewer.notes}</p>
+                      </li>
+                    ))}
+                  </ul>
+                  <h4>{t("seo.geoFixPlan")}</h4>
+                  <ul className="seo-rec-list">
+                    {geoCouncil.fixPlan.steps.map(step => (
+                      <li key={step.order} className="seo-rec">
+                        <div className="seo-rec-head">
+                          <span className="seo-badge">{step.order}</span>
+                          <strong>{step.title}</strong>
+                          <span className="seo-badge">{step.target}</span>
+                        </div>
+                        <p className="muted">{step.detail}</p>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="muted">{geoCouncil.fixPlan.note} ({t("seo.geoExecutionNone")})</p>
                 </div>
               )}
             </>

@@ -172,6 +172,23 @@ export function addSeoRecommendation(input: {
   evidence?: Record<string, unknown>;
 }): SeoRecommendation {
   const db = openAgentOsDb();
+  const existing = db.query(
+    "SELECT * FROM seo_recommendations WHERE project_id = ? AND area = ? AND title = ? AND status = 'open' ORDER BY created_at DESC, id LIMIT 1",
+  ).get(input.projectId, input.area, input.title) as SeoRecommendationRow | undefined;
+  if (existing) {
+    db.query(
+      "UPDATE seo_recommendations SET detail = ?, impact = ?, effort = ?, requires_approval = ?, evidence_json = ? WHERE id = ?",
+    ).run(
+      input.detail ?? "",
+      input.impact ?? "medium",
+      input.effort ?? "medium",
+      input.requiresApproval ? 1 : 0,
+      JSON.stringify(input.evidence ?? {}),
+      existing.id,
+    );
+    const updated = db.query("SELECT * FROM seo_recommendations WHERE id = ?").get(existing.id) as SeoRecommendationRow;
+    return rowToRecommendation(updated);
+  }
   const rec: SeoRecommendation = {
     id: input.id ?? `rec_${randomUUID().slice(0, 8)}`,
     projectId: input.projectId,
@@ -204,6 +221,7 @@ export function updateSeoRecommendationStatus(id: string, status: SeoRecommendat
 }
 
 export function recordSeoRun(input: {
+  id?: string;
   projectId: string;
   kind: string;
   status?: "succeeded" | "failed" | "policy_denied";
@@ -215,7 +233,7 @@ export function recordSeoRun(input: {
   durationMs?: number;
 }): string {
   const db = openAgentOsDb();
-  const id = `run_${randomUUID().slice(0, 8)}`;
+  const id = input.id ?? `run_${randomUUID().slice(0, 8)}`;
   db.query(
     "INSERT INTO seo_runs (id, project_id, kind, status, provider, provenance, result_json, error_json, started_ms, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   ).run(
@@ -230,4 +248,43 @@ export function listSeoRuns(projectId: string, limit = 20): Array<Record<string,
   return openAgentOsDb()
     .query("SELECT id, project_id, kind, status, provider, provenance, started_ms, duration_ms FROM seo_runs WHERE project_id = ? ORDER BY started_ms DESC, id LIMIT ?")
     .all(projectId, limit) as Array<Record<string, unknown>>;
+}
+
+export interface SeoRunSnapshot {
+  id: string;
+  projectId: string;
+  kind: string;
+  status: string;
+  provider: string;
+  provenance: string;
+  result: Record<string, unknown>;
+  startedMs: number;
+  durationMs: number | null;
+}
+
+export function latestSeoRunSnapshot(projectId: string, kind?: string): SeoRunSnapshot | null {
+  const row = (kind
+    ? openAgentOsDb().query("SELECT * FROM seo_runs WHERE project_id = ? AND kind = ? ORDER BY started_ms DESC, id DESC LIMIT 1").get(projectId, kind)
+    : openAgentOsDb().query("SELECT * FROM seo_runs WHERE project_id = ? ORDER BY started_ms DESC, id DESC LIMIT 1").get(projectId)
+  ) as {
+    id: string; project_id: string; kind: string; status: string; provider: string;
+    provenance: string; result_json: string; started_ms: number; duration_ms: number | null;
+  } | undefined;
+  if (!row) return null;
+  let result: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(row.result_json) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) result = parsed as Record<string, unknown>;
+  } catch { /* corrupted historical result degrades to an empty snapshot */ }
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    kind: row.kind,
+    status: row.status,
+    provider: row.provider,
+    provenance: row.provenance,
+    result,
+    startedMs: row.started_ms,
+    durationMs: row.duration_ms,
+  };
 }

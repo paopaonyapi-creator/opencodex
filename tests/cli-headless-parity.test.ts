@@ -247,6 +247,15 @@ describe("headless GUI parity CLI", () => {
       ["/api/effort", "ocx agent"],
       ["/api/grok", "ocx grok"],
       ["/api/injection", "ocx agent"],
+      // Phase 18/18.1 SEO Agent OS + GEO engine: ocx seo mirrors the read/audit/
+      // /council management surface headlessly (health, capabilities, projects,
+      // analyze, geo-audit, council, report). Website mutations stay behind the
+      // dashboard's human-approval workflow by design.
+      ["/api/agent-os/seo", "ocx seo"],
+      // Remaining /api/agent-os* observatory routes are Brain Universe GUI
+      // surfaces; the same data is reachable headlessly via `ocx observe` for
+      // logs/usage/memory and the Brain Universe page for graphs.
+      ["/api/agent-os", "(none — Brain Universe GUI observatory; ocx observe covers logs/usage/memory)"],
       ["/api/keys", "ocx access"],
       ["/api/logs", "ocx observe"],
       ["/api/lab", "ocx lab"],

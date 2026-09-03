@@ -424,6 +424,10 @@ const commandRunners: Record<string, CommandRunner> = {
     const { handleObserveCommand } = await import("./observe");
     return await handleObserveCommand(deps.args.slice(1));
   },
+  seo: async deps => {
+    const { handleSeoCommand } = await import("./seo");
+    return await handleSeoCommand(deps.args.slice(1));
+  },
   logs: async deps => {
     const { handleObserveCommand } = await import("./observe");
     return await handleObserveCommand([deps.command!, ...deps.args.slice(1)]);

@@ -200,6 +200,15 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
     usage: "ocx observe <logs|usage|storage|memory|debug|claude-inbound|injection> ...",
     summary: "Inspect proxy requests, usage, storage, memory, and debug data.",
   },
+  {
+    name: "seo",
+    usage: "ocx seo <health|capabilities|projects|analyze|geo-audit|council|report> ...",
+    summary: "Run the Pao SEO Agent OS and GEO Intelligence Engine (Phase 18/18.1) headlessly.",
+    details: [
+      "Read/audit/council only: website changes stay behind the dashboard's human-approval workflow.",
+      "council prints the deterministic 3-reviewer verdict plus the plan-only fix plan (executionPath none).",
+    ],
+  },
   { name: "logs", usage: "ocx logs [filters] [--follow] [--json|--jsonl]", summary: "Alias of ocx observe logs." },
   {
     name: "usage",

@@ -53,6 +53,8 @@ Usage:
   ocx combo <sub>             Combo failover/round-robin routing
   ocx agent <sub>             Subagents, injection, effort caps, and sidecars
   ocx observe <sub>           Logs, usage, storage, memory, and debug data
+  ocx seo <sub>               Pao SEO Agent OS + GEO engine (health, projects,
+                              analyze, geo-audit, council, report)
   ocx route <sub>             Routing features (combo, policy)
   ocx logs [filters]          Alias of ocx observe logs
   ocx usage [--range <7d|30d|all>]  Alias of ocx observe usage

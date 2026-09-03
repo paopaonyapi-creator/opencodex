@@ -52,6 +52,7 @@ the browser or password manager's decision.
 | **Models** | Toggle native GPT and routed models, set provider allowlists and context caps, choose v1/base/v2, and configure the v2 thread limit. Configured providers stay visible as zero-model groups when discovery is off or returns no rows. |
 | **Logs** | Auto-refresh recent requests with tokens, requested effort and (when available) effective outbound effort, resolved model, provider, status, request id, duration, and error details. The detail view includes the exact reasoning wire field when the adapter emits one. Filter by opaque conversation/session id (when the client sends one) to total tokens and estimated list-price cost for the currently loaded Logs ring. |
 | **Usage / Debug** | Inspect token-usage coverage and trends, or enable opt-in provider transport and usage-extraction diagnostics. |
+| **Pao SEO (Phase 18/18.1)** | Create SEO projects (domain, seed keywords, competitors), run keyword/competitor analysis through the configured provider (mock by default; OpenSEO MCP via `OPENSEO_*` environment variables), and review the prioritized recommendation inbox with approve/dismiss actions. The **GEO / AI-search readiness** section runs a safe verified audit: AI crawler access from the raw `robots.txt`, `llms.txt` state by direct request, JSON-LD schema, sitemap/canonical/freshness, entity consistency, E-E-A-T signals, and per-platform readiness. Every finding carries a verification state (verified / unverified / unverifiable) and a provenance basis; heuristic scores are labeled heuristics, never platform-ranking predictions. The deterministic Reviewer Council (evidence integrity / risk / epistemic honesty) issues a verdict and a plan-only fix plan — every step requires human approval, and no deploy or execute path exists anywhere in the engine. The `llms.txt` proposal is preview/copy only. External page content is treated as untrusted data; the fetcher refuses loopback/private/metadata destinations and enforces HTTPS. |
 | **Storage** | Read-only CODEX_HOME disk breakdown (sessions, archives, DBs, attachments). Optional archived cleanup: preview the oldest N%, then quarantine to `CODEX_HOME/.trash` (default) or permanently delete behind an explicit checkbox. **Auto-cleanup policy** is opt-in and **default OFF** (`storageCleanupPolicy.enabled`); configure threshold/target/schedule/mode on the Storage page, or trigger **Run now**. Quarantined entries can be restored from the Storage page (JSONL + threads). Active sessions stay read-only. Cleanup and restore are refused while Codex holds the newest/active `state_*.sqlite` locked. |
 | **Stop** | Gracefully stop the proxy and installed background service, restore native Codex, and exit (`POST /api/stop`). |
 
@@ -60,8 +61,8 @@ the browser or password manager's decision.
 There is a single layout, so there is no layout switch to configure. Dashboard sections are
 addressable instead: `#dashboard` opens Overview, and `#dashboard/providers` and
 `#dashboard/models` open the other two. Reload, bookmark, and Back all keep the section you were
-on. **Logs** works the same way with `#logs` and `#logs/debug`. An older `#providers/workspace`
-bookmark now lands on `#providers`.
+on. **Logs** works the same way with `#logs` and `#logs/debug`. **Pao SEO** lives at `#seo` and
+**Brain Universe** at `#brain`. An older `#providers/workspace` bookmark now lands on `#providers`.
 
 Cost values in **Logs** and **Usage** are API list-price equivalents calculated from reported tokens.
 They are not billing receipts or evidence of an actual charge; subscription usage or provider credits

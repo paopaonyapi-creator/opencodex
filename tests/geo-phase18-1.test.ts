@@ -120,6 +120,18 @@ describe("Phase 18.1 — GEO orchestrator", () => {
     // stays clean, which is itself the honest behavior under test.
     expect(recs).toHaveLength(0);
   });
+
+  test("repeating the same GEO audit updates open recommendations instead of duplicating them", async () => {
+    const project = createSeoProject({ domain: "dedupe.test", displayName: "Expected Brand" });
+    const html = `<html><head><title>Other Brand</title></head><body><p>Plain content without author or date.</p></body></html>`;
+    await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: html } });
+    const first = listSeoRecommendations(project.id);
+    expect(first.length).toBeGreaterThan(0);
+    await runGeoAudit({ project, options: { fetchLive: false, fixtureHtml: html } });
+    const second = listSeoRecommendations(project.id);
+    expect(second).toHaveLength(first.length);
+    expect(new Set(second.map(recommendation => `${recommendation.area}:${recommendation.title}`)).size).toBe(second.length);
+  });
 });
 
 describe("Phase 18.1 — citability (heuristic, passage-level)", () => {

@@ -81,3 +81,10 @@ bun test tests/seo-phase18-routes.test.ts   # management API surface
 
 MCP discovery is tested against an in-process JSON-RPC server, including the
 credential-leak guard. bun x tsc --noEmit and bun run build must stay green.
+
+## Headless CLI
+
+`ocx seo` mirrors the dashboard's Phase 18/18.1 read, analysis, audit,
+council, and report paths. It uses the live management API rather than editing
+the SQLite database or provider config directly. No CLI subcommand applies or
+deploys a website change.

@@ -56,6 +56,20 @@ the browser or password manager's decision.
 | **Storage** | Read-only CODEX_HOME disk breakdown (sessions, archives, DBs, attachments). Optional archived cleanup: preview the oldest N%, then quarantine to `CODEX_HOME/.trash` (default) or permanently delete behind an explicit checkbox. **Auto-cleanup policy** is opt-in and **default OFF** (`storageCleanupPolicy.enabled`); configure threshold/target/schedule/mode on the Storage page, or trigger **Run now**. Quarantined entries can be restored from the Storage page (JSONL + threads). Active sessions stay read-only. Cleanup and restore are refused while Codex holds the newest/active `state_*.sqlite` locked. |
 | **Stop** | Gracefully stop the proxy and installed background service, restore native Codex, and exit (`POST /api/stop`). |
 
+The Pao SEO/GEO surface is also available headlessly through the same management API:
+
+```bash
+ocx seo health --json
+ocx seo projects
+ocx seo analyze <projectId>
+ocx seo geo-audit <projectId>
+ocx seo council <projectId>
+ocx seo report <projectId>
+```
+
+These commands inspect, analyze, audit, review, and produce plans. They do not apply or deploy
+website changes.
+
 ### Linking to a section
 
 There is a single layout, so there is no layout switch to configure. Dashboard sections are

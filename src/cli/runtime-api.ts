@@ -9,7 +9,7 @@
  * - 다른 대안 대신 이 방식을 선택한 이유: GUI/CLI의 검증 규칙이 갈라지지 않고 fallback port도 안전하게 찾는다.
  * - 장점, 단점 및 영향: 동작 일관성이 높아지는 대신 live 관리 명령은 실행 중인 proxy가 필요하다.
  */
-import { findLiveProxy, probeHostname } from "../server/proxy-liveness";
+import { findLiveProxy, probeHostname, type LiveProxy } from "../server/proxy-liveness";
 import { runningProxyUpdateHeaders } from "../oauth/login-cli";
 
 export type CliStdin = NodeJS.ReadableStream & { isTTY?: boolean; readableEnded?: boolean };
@@ -17,6 +17,9 @@ export type CliStdin = NodeJS.ReadableStream & { isTTY?: boolean; readableEnded?
 export interface RuntimeApiDeps {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  /** Test seam + restart-handoff resilience for transient discovery gaps. */
+  findLiveProxyImpl?: () => Promise<LiveProxy | null>;
+  sleepImpl?: (ms: number) => Promise<void>;
   /** Test injection for commands that read a secret from stdin instead of argv. */
   stdinImpl?: CliStdin;
   stdinTimeoutMs?: number;
@@ -42,9 +45,14 @@ export class RuntimeApiError extends Error {
 
 export async function runtimeBaseUrl(deps: RuntimeApiDeps = {}): Promise<string> {
   if (deps.baseUrl) return deps.baseUrl.replace(/\/$/, "");
-  const live = await findLiveProxy();
-  if (!live) throw new RuntimeApiError("Proxy is not running. Start it with: ocx start", 503, null);
-  return `http://${probeHostname(live.hostname)}:${live.port}`;
+  const discover = deps.findLiveProxyImpl ?? (() => findLiveProxy());
+  const sleep = deps.sleepImpl ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const live = await discover();
+    if (live) return `http://${probeHostname(live.hostname)}:${live.port}`;
+    if (attempt < 3) await sleep(100);
+  }
+  throw new RuntimeApiError("Proxy is not running. Start it with: ocx start", 503, null);
 }
 
 function responseMessage(body: unknown, status: number): string {

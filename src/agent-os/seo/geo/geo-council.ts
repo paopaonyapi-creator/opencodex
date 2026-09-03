@@ -36,6 +36,19 @@ export interface GeoFixPlan {
 export function reviewGeoAudit(audit: GeoAuditResult): { final: "pass" | "needs_review" | "fail"; reviewers: GeoReviewerInput[] } {
   const subjectKind = "geo_audit";
   const subjectId = audit.runId;
+  const existing = summarizeCouncil(subjectKind, subjectId);
+  const expectedReviewers = new Set(["evidence_integrity_reviewer", "geo_risk_reviewer", "epistemic_honesty_reviewer"]);
+  if (existing && existing.reviews.length === expectedReviewers.size && existing.reviews.every(review => expectedReviewers.has(review.reviewer))) {
+    return {
+      final: existing.final,
+      reviewers: existing.reviews.map(review => ({
+        reviewer: review.reviewer,
+        verdict: review.verdict,
+        score: review.score ?? 0,
+        notes: review.notes,
+      })),
+    };
+  }
   const reviewers: GeoReviewerInput[] = [];
 
   // Reviewer 1 — evidence integrity: verified share + suppressed handling.

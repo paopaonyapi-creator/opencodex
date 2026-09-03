@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { handleSeoCommand } from "../src/cli/seo";
+import { runtimeBaseUrl } from "../src/cli/runtime-api";
 
 type Recorded = { path: string; method: string };
 const servers: Array<ReturnType<typeof Bun.serve>> = [];
@@ -38,6 +39,19 @@ function fakeRuntime(responder?: (req: Request) => unknown) {
 }
 
 describe("ocx seo (Phase 18/18.1 CLI surface)", () => {
+  test("runtime discovery retries a transient restart handoff before declaring the proxy stopped", async () => {
+    let calls = 0;
+    const url = await runtimeBaseUrl({
+      findLiveProxyImpl: async () => {
+        calls += 1;
+        return calls === 1 ? null : { pid: 42, port: 10123, hostname: "127.0.0.1", source: "runtime" as const };
+      },
+      sleepImpl: async () => {},
+    } as never);
+    expect(url).toBe("http://127.0.0.1:10123");
+    expect(calls).toBe(2);
+  });
+
   test("health prints provider status without mutation", async () => {
     const { requests, deps } = fakeRuntime(() => ({ provider: "mock", status: "healthy", activeMode: "mock", latencyMs: 3, capabilities: ["keyword_research"], security: { status: "safe" } }));
     const code = await handleSeoCommand(["health", "--json"], deps);

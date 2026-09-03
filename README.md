@@ -20,6 +20,11 @@ JSON-LD schema และ evidence verification แบบตรวจของจ
 `POST /api/agent-os/seo/geo/projects/<id>/audit`
 ดู docs/PHASE_18_1_PAO_GEO_INTELLIGENCE_ENGINE.md
 
+ใช้แบบ headless ได้ด้วย `ocx seo health`, `ocx seo projects`,
+`ocx seo analyze <projectId>`, `ocx seo geo-audit <projectId>`,
+`ocx seo council <projectId>` และ `ocx seo report <projectId>`
+ทุกคำสั่งเป็น read/analyze/review/plan เท่านั้น ไม่มี deploy เว็บอัตโนมัติ
+
 เปิด http://127.0.0.1:10100/#brain เพื่อดู projects, tasks, agents, skills,
 memory, policies, approvals, Atlas/Universe, WebMCP Tool Inspector และ Agent
 Activity

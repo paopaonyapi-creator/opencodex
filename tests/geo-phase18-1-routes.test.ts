@@ -3,10 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { closeAgentOsDbForTests, openAgentOsDb } from "../src/agent-os/db";
-import { createSeoProject } from "../src/agent-os/seo/seo-models";
+import { createSeoProject, listSeoRuns } from "../src/agent-os/seo/seo-models";
 import { handleGeoRoutes } from "../src/server/management/geo-routes";
 import { runGeoAudit } from "../src/agent-os/seo/geo/geo-orchestrator";
 import type { ManagementContext } from "../src/server/management/context";
+import { summarizeCouncil } from "../src/agent-os/reviews";
 
 let tempDir = "";
 
@@ -84,6 +85,12 @@ describe("Phase 18.1 — GEO council + fix plan routes", () => {
     expect(body.fixPlan.steps.length).toBeGreaterThan(0);
     expect(body.fixPlan.steps.every((step: { requiresHumanApproval: boolean }) => step.requiresHumanApproval)).toBe(true);
     expect(body.policy).toEqual({ executionAllowed: false, humanApprovalRequired: true });
+    expect(listSeoRuns(project.id)).toHaveLength(1);
+    expect(body.council.reviewedRunId).toBe(audit.runId);
+    expect(body.council.runId).toBe(audit.runId);
+    const repeated = await handleGeoRoutes(mockCtx(`/api/agent-os/seo/geo/projects/${project.id}/council`, "POST"));
+    expect(repeated!.status).toBe(200);
+    expect(summarizeCouncil("geo_audit", audit.runId)!.reviews).toHaveLength(3);
   });
 
   test("council route refuses GET and unknown projects", async () => {

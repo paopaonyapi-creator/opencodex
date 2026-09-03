@@ -208,18 +208,8 @@ export async function runGeoAudit(input: {
     });
   }
 
-  const runId = recordSeoRun({
-    projectId: project.id,
-    kind: "geo_audit",
-    status: "succeeded",
-    provider: "geo-engine",
-    provenance: live ? "live" : "mock",
-    result: { heuristicscore, verified: verifiedCount, unverified: unverifiedCount, conflict: conflictCount, suppressed: suppressed.length, crawlerPolicy: crawlerPolicy.map(status => ({ id: status.crawlerId, access: status.access })) },
-    startedMs,
-    durationMs: Date.now() - startedMs,
-  });
-
-  return {
+  const runId = `run_${randomUUID().slice(0, 8)}`;
+  const audit: GeoAuditResult = {
     runId,
     projectId: project.id,
     domain,
@@ -243,4 +233,18 @@ export async function runGeoAudit(input: {
     technical,
     llmsProposal,
   };
+  recordSeoRun({
+    id: runId,
+    projectId: project.id,
+    kind: "geo_audit",
+    status: "succeeded",
+    provider: "geo-engine",
+    provenance: live ? "live" : "mock",
+    // Persist the bounded normalized audit snapshot so Reviewer Council reviews
+    // the exact completed run instead of re-fetching a changed website.
+    result: { audit: audit as unknown as Record<string, unknown> },
+    startedMs,
+    durationMs: Date.now() - startedMs,
+  });
+  return audit;
 }

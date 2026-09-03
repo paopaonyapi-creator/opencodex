@@ -85,6 +85,23 @@ Agents read audit/council results through two WebMCP tools (get_seo_geo_audit,
 get_seo_geo_council, both R0 read-only with the shared audit trail); a council
 never grants a pass when the audit verified nothing.
 
+The same surface is available without a browser through `ocx seo`:
+
+```text
+ocx seo health --json
+ocx seo projects
+ocx seo analyze <projectId>
+ocx seo geo-audit <projectId>
+ocx seo council <projectId>
+ocx seo report <projectId>
+```
+
+Every audit stores a bounded normalized snapshot in `seo_runs.result_json`.
+Council reviews that exact snapshot without re-fetching the website. Repeated
+audits upsert open recommendations by project/area/title, and repeated council
+calls reuse the same three reviews; old user-owned duplicates are never
+silently deleted.
+
 ## Deferred (contract-ready)
 
 Nothing inside the Phase 18.1 scope. Website changes remain a human approval

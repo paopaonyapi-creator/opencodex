@@ -5,11 +5,26 @@
  */
 import { jsonResponse } from "../auth-cors";
 import type { ManagementContext } from "./context";
-import { getSeoProject, listSeoRecommendations } from "../../agent-os/seo/seo-models";
+import { getSeoProject, latestSeoRunSnapshot, listSeoRecommendations } from "../../agent-os/seo/seo-models";
 import { runGeoAudit, GeoDisabledError } from "../../agent-os/seo/geo/geo-orchestrator";
 import { generateLlmsTxtProposal } from "../../agent-os/seo/geo/llms-proposal";
 import { reviewGeoAudit, buildGeoFixPlan } from "../../agent-os/seo/geo/geo-council";
-import { listSeoRuns } from "../../agent-os/seo/seo-models";
+import type { GeoAuditResult } from "../../agent-os/seo/geo/types";
+
+function auditFromSnapshot(value: unknown, projectId: string, runId: string): GeoAuditResult | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const audit = value as Partial<GeoAuditResult>;
+  if (
+    audit.runId !== runId
+    || audit.projectId !== projectId
+    || !Array.isArray(audit.findings)
+    || !Array.isArray(audit.recommendations)
+    || !Array.isArray(audit.crawlerPolicy)
+    || !audit.verificationSummary
+    || typeof audit.heuristicscore !== "number"
+  ) return null;
+  return audit as GeoAuditResult;
+}
 
 export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
@@ -65,14 +80,14 @@ export async function handleGeoRoutes(ctx: ManagementContext): Promise<Response 
     }
     const project = getSeoProject(councilMatch[1]!);
     if (!project) return jsonResponse({ error: { code: "not_found", message: "unknown project" } }, 404, req, {});
-    const runs = listSeoRuns(project.id, 1);
-    const latest = runs[0] as { id?: string } | undefined;
-    if (!latest?.id) {
+    const latest = latestSeoRunSnapshot(project.id, "geo_audit");
+    if (!latest) {
       return jsonResponse({ error: { code: "no_audit", message: "run a GEO audit before requesting a council review" } }, 409, req, {});
     }
-    // The council needs the full audit result; rerun deterministically against
-    // the same project (fixture/live) and review THAT result's run id.
-    const audit = await runGeoAudit({ project });
+    const audit = auditFromSnapshot(latest.result.audit, project.id, latest.id);
+    if (!audit) {
+      return jsonResponse({ error: { code: "audit_snapshot_unavailable", message: "latest GEO audit predates snapshots; run a fresh audit before council review" } }, 409, req, {});
+    }
     const review = reviewGeoAudit(audit);
     const fixPlan = buildGeoFixPlan(audit, review.final);
     return jsonResponse({

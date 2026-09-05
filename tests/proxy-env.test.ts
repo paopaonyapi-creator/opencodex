@@ -11,6 +11,11 @@ beforeEach(() => {
     saved[key] = process.env[key];
     delete process.env[key];
   }
+  // On Windows, deleting NO_PROXY does not stop a lowercase `no_proxy` read from
+  // resolving through to the OS environment block, so an ambient NO_PROXY would leak
+  // back in via applyProxyEnv's `NO_PROXY ?? no_proxy` fallback. An explicit empty
+  // string short-circuits the `??` chain and keeps these tests hermetic.
+  process.env.NO_PROXY = "";
 });
 
 afterEach(() => {

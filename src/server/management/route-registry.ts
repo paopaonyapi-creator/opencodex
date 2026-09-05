@@ -265,6 +265,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/providers", module: "server/management/provider-routes", mutates: false },
   { method: "PATCH", path: "/api/providers", module: "server/management/provider-routes", mutates: true },
   { method: "POST", path: "/api/providers", module: "server/management/provider-routes", mutates: true },
+  { method: "POST", path: "/api/providers/switch-pool", module: "server/management/provider-routes", mutates: true },
   { method: "POST", path: "/api/providers/test", module: "server/management/provider-routes", mutates: true },
   { method: "PUT", path: "/api/provider-context-caps", module: "server/management/provider-routes", mutates: true },
   // server/management/request-history-routes

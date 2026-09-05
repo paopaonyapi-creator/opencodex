@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createGoogleAdapter as createGoogleAdapterProduction } from "../src/adapters/google";
 import { antigravitySessionId, isLikelyRealThoughtSignature } from "../src/adapters/google-antigravity-wire";
 import { antigravityHostCandidates } from "../src/adapters/google-antigravity-hosts";
-import { repairGoogleToolPairs, stripTrailingClaudePrefill } from "../src/adapters/google-antigravity-tools";
+import { repairGoogleToolPairs } from "../src/adapters/google-antigravity-tools";
 import { ANTIGRAVITY_MODELS, ANTIGRAVITY_MODEL_EFFORTS, canonicalAntigravityUsageModel, parseAntigravityAvailableModels, registerAntigravityDiscoveredWireModels, resolveAntigravityEffortWireModel, resolveAntigravityWireModelId } from "../src/providers/antigravity-models";
 import { MODEL_DISCOVERY_MAX_MODEL_ID_LENGTH, MODEL_DISCOVERY_MAX_MODELS } from "../src/providers/model-discovery";
 import type { AdapterEvent, OcxParsedRequest, OcxProviderConfig } from "../src/types";
@@ -102,25 +102,28 @@ describe("antigravity CCA envelope", () => {
     expect(req.headers["anthropic-beta"]).toBeUndefined();
   });
 
-  test("Claude CCA strips a trailing prefill model turn but keeps a lone model turn", async () => {
-    const withPrefill = {
+  test("Claude CCA keeps a trailing model turn and appends the continue nudge", async () => {
+    const withTrailingModel = {
       ...parsed("x", false, "claude-sonnet-4-6"),
       context: {
         messages: [
           { role: "user", content: "question" },
-          { role: "assistant", content: [{ type: "text", text: "prefill" }] },
+          { role: "assistant", content: [{ type: "text", text: "partial answer" }] },
         ],
         systemPrompt: [],
         tools: [],
       },
     } as unknown as OcxParsedRequest;
-    const prefillEnv = JSON.parse((await createGoogleAdapter(provider).buildRequest(withPrefill)).body);
-    expect(prefillEnv.request.contents.map((content: { role: string }) => content.role)).toEqual(["user"]);
+    const trailingEnv = JSON.parse((await createGoogleAdapter(provider).buildRequest(withTrailingModel)).body);
+    // The prior answer is preserved (not stripped as prefill) and the history is made
+    // user-tailed so CCA generates the next turn instead of continuing a prefill.
+    expect(trailingEnv.request.contents.map((content: { role: string }) => content.role)).toEqual(["user", "model", "user"]);
+    expect(trailingEnv.request.contents.at(-1)).toEqual({ role: "user", parts: [{ text: "(continue)" }] });
 
     const loneModel = {
-      ...withPrefill,
+      ...withTrailingModel,
       context: {
-        ...withPrefill.context,
+        ...withTrailingModel.context,
         messages: [{ role: "assistant", content: [{ type: "text", text: "only turn" }] }],
       },
     } as unknown as OcxParsedRequest;
@@ -744,13 +747,6 @@ describe("Google Antigravity history repair", () => {
     const repaired = repairGoogleToolPairs(messages);
     expect((repaired[0] as { content: { id: string }[] }).content.map(part => part.id)).toEqual(["call-1", "call-2"]);
     expect(repaired).toHaveLength(3);
-  });
-
-  test("strips only trailing model turns when another content turn remains", () => {
-    expect(stripTrailingClaudePrefill([{ role: "user" }, { role: "model" }, { role: "model" }]))
-      .toEqual([{ role: "user" }]);
-    expect(stripTrailingClaudePrefill([{ role: "model" }]))
-      .toEqual([{ role: "model" }]);
   });
 });
 

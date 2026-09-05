@@ -71,17 +71,3 @@ export function repairGoogleToolPairs(messages: readonly OcxMessage[]): OcxMessa
   }
   return repaired;
 }
-
-/**
- * Claude interprets a final model turn as a prefilled assistant response.
- * CCA expects the next turn to be generated instead, except when that model
- * turn is the entire conversation and must remain as the initial context.
- */
-export function stripTrailingClaudePrefill(contents: unknown[]): unknown[] {
-  while (contents.length >= 2) {
-    const last = contents[contents.length - 1];
-    if (typeof last !== "object" || last === null || (last as { role?: unknown }).role !== "model") break;
-    contents.pop();
-  }
-  return contents;
-}

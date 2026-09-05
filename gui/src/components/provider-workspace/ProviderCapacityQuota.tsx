@@ -25,6 +25,7 @@ function bcp47(locale: Locale): string {
     case "ru": return "ru-RU";
     case "ja": return "ja-JP";
     case "tr": return "tr-TR";
+    case "th": return "th-TH";
     default: {
       const _exhaustive: never = locale;
       return _exhaustive;

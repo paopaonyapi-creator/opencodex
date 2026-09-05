@@ -96,6 +96,18 @@ const ZH_TW_KEEP_ENGLISH: ReadonlySet<string> = new Set([
   "nav.api",
   "nav.claude",
   "nav.grok",
+  // Pao SEO surface: product brands (Pao SEO, Pao SEO Agent OS, GEO Reviewer
+  // Council), technical SEO terms (Sitemap, Canonical, E-E-A-T), the llms.txt
+  // filename, and the example.com placeholder domain. Every other locale
+  // (including th/ko/zh) ships these in English too.
+  "nav.seo",
+  "seo.title",
+  "seo.geoCouncilTitle",
+  "seo.geoSitemap",
+  "seo.geoCanonical",
+  "seo.geoEeat",
+  "seo.geoLlms",
+  "seo.domainPlaceholder",
   // Other short identifiers, commands, and product names kept in English
   "api.clientConfig.clientOpencode",
   "api.clientConfig.clientPi",

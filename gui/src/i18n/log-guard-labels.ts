@@ -281,6 +281,7 @@ const LABELS: Record<Locale, Record<LogGuardLabelKey, string>> = {
     inspectionOnly: "ดูอย่างเดียว",
     externalSqliteHome: "ที่เก็บ SQLite ภายนอก",
     inspectionUnavailable: "ไม่สามารถตรวจบันทึกวินิจฉัยได้",
+    metricsSkippedLarge: "ข้ามเมทริกซ์ระดับแถว: ฐานข้อมูลเกิน {threshold} การสแกนจะทำให้พร็อกซีค้าง",
     protection: "การป้องกัน",
     compat: "ความเข้ากันได้",
     quiet: "เงียบ",

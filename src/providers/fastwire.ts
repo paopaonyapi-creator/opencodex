@@ -145,34 +145,40 @@ function resolvePolicyAdapter(
   inbound: InboundWire,
 ): { adapter: string; hardPinned: boolean; forwardCallerServiceTier?: boolean } {
   // Hard pins and configured overrides deliberately use the same exact-key semantics as
-  // resolveWireProtocolOverride(). Registry defaults alone normalize ids at their boundary.
+  // resolveWireProtocolOverride(). Registry route policy normalizes ids at its boundary.
   const hardPin = Object.hasOwn(authority.hardPins, modelId)
     ? authority.hardPins[modelId]
     : undefined;
   if (typeof hardPin === "string") return { adapter: hardPin, hardPinned: true };
   if (authority.modelWireOverrideAllowed) {
+    const registryDefault = MODEL_ADAPTER_OVERRIDE_ALLOWED.has(authority.providerAdapter)
+      ? registryDefaultForModel(
+          authority.registryWireDefaults,
+          modelId,
+          inbound,
+          authority.providerAuthMode,
+        )
+      : undefined;
     const configured = Object.hasOwn(authority.modelAdapters, modelId)
       ? authority.modelAdapters[modelId]
       : undefined;
     if (typeof configured === "string" && MODEL_ADAPTER_OVERRIDE_ALLOWED.has(configured)) {
-      return { adapter: configured, hardPinned: false };
+      return {
+        adapter: configured,
+        hardPinned: false,
+        ...(registryDefault?.forwardCallerServiceTier === false
+          ? { forwardCallerServiceTier: false }
+          : {}),
+      };
     }
-    if (MODEL_ADAPTER_OVERRIDE_ALLOWED.has(authority.providerAdapter)) {
-      const registryDefault = registryDefaultForModel(
-        authority.registryWireDefaults,
-        modelId,
-        inbound,
-        authority.providerAuthMode,
-      );
-      if (registryDefault !== undefined) {
-        return {
-          adapter: registryDefault.adapter,
-          hardPinned: false,
-          ...(registryDefault.forwardCallerServiceTier !== undefined
-            ? { forwardCallerServiceTier: registryDefault.forwardCallerServiceTier }
-            : {}),
-        };
-      }
+    if (registryDefault !== undefined) {
+      return {
+        adapter: registryDefault.adapter,
+        hardPinned: false,
+        ...(registryDefault.forwardCallerServiceTier !== undefined
+          ? { forwardCallerServiceTier: registryDefault.forwardCallerServiceTier }
+          : {}),
+      };
     }
   }
   return { adapter: authority.providerAdapter, hardPinned: false };
@@ -240,6 +246,7 @@ export function tierObservationContext(
   policy: ResolvedFastPolicy,
   fastMode: boolean | undefined,
   callerTier: string | undefined,
+  responseTierAuthoritative?: boolean,
 ): TierObservationContext {
   return {
     capability: policy.capability,
@@ -247,6 +254,7 @@ export function tierObservationContext(
     fastWire: policy.fastWire,
     demandDecision: fastMode === true ? "force-fast" : fastMode === false ? "force-default" : "inherit",
     ...(callerTier !== undefined ? { callerTier } : {}),
+    ...(responseTierAuthoritative !== undefined ? { responseTierAuthoritative } : {}),
   };
 }
 
@@ -338,7 +346,11 @@ export function createAdapterTierMetadata(
 
   const responseCanConfirmFast = effectiveFastRequested
     && context.eligibility === "eligible"
-    && wireValue !== null;
+    && wireValue !== null
+    // A destination whose echo is not authoritative can neither confirm nor deny Fast. The
+    // ChatGPT-internal Codex backend echoes "default" on priority-scheduled turns, so believing
+    // it reported every Fast request as `response-declined` (#2558).
+    && context.responseTierAuthoritative !== false;
   return {
     outcome,
     observeResponseServiceTier(value: unknown) {

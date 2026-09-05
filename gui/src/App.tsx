@@ -7,7 +7,7 @@ import Subagents from "./pages/Subagents";
 import Logs from "./pages/Logs";
 import Usage from "./pages/Usage";
 import Storage from "./pages/Storage";
-import CodexAuth from "./pages/CodexAuth";
+import CodexSet from "./pages/CodexSet";
 import Integrations from "./pages/Integrations";
 import BrainUniverse from "./pages/BrainUniverse";
 import PaoSeo from "./pages/PaoSeo";
@@ -38,7 +38,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   logs: "nav.logs",
   usage: "nav.usage",
   storage: "nav.storage",
-  "codex-auth": "nav.codexAuth",
+  "codex-set": "nav.codexSet",
   integrations: "nav.integrations",
   brain: "nav.brain",
   seo: "nav.seo",
@@ -64,7 +64,7 @@ type NavEntry = {
 
 const NAV: NavEntry[] = [
   { id: "dashboard", tkey: "nav.dashboard", Icon: IconGrid },
-  { id: "codex-auth", tkey: "nav.codexAuth", Icon: IconKey },
+  { id: "codex-set", tkey: "nav.codexSet", Icon: IconKey },
   { id: "providers", tkey: "nav.providers", Icon: IconServer },
   { id: "models", tkey: "nav.models", Icon: IconBoxes },
   { id: "subagents", tkey: "nav.subagents", Icon: IconBot },
@@ -351,7 +351,7 @@ export default function App() {
             {page === "logs" && <Logs apiBase={API_BASE} />}
             {page === "usage" && <Usage apiBase={API_BASE} />}
             {page === "storage" && <Storage apiBase={API_BASE} />}
-            {page === "codex-auth" && <CodexAuth apiBase={API_BASE} />}
+            {page === "codex-set" && <CodexSet apiBase={API_BASE} />}
             {page === "integrations" && <Integrations apiBase={API_BASE} />}
             {page === "brain" && <BrainUniverse apiBase={API_BASE} />}
             {page === "seo" && <PaoSeo apiBase={API_BASE} />}

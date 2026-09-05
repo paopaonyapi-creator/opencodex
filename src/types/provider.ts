@@ -17,6 +17,15 @@ export interface OpenRouterProviderRouting {
   allowFallbacks?: boolean;
 }
 
+export interface VercelGatewayRouting {
+  /** Vercel AI Gateway provider slugs to try first, in priority order. */
+  order?: string[];
+  /** Restrict routing to these Vercel AI Gateway provider slugs. */
+  only?: string[];
+  /** Sort providers by "cost", "ttft", or "tps". */
+  sort?: "cost" | "ttft" | "tps";
+}
+
 export interface ResponsesItemIdRepairConfig {
   /** Exact `message` item ids that the proxy should rewrite to request-local canonical ids. */
   message?: string[];
@@ -115,6 +124,15 @@ export interface TierObservationContext {
   fastWire: FastWire | null;
   demandDecision: "force-fast" | "force-default" | "inherit";
   callerTier?: string;
+  /**
+   * Whether the destination's echoed `service_tier` is authoritative about Fast scheduling.
+   *
+   * The ChatGPT-internal Codex backend returns `service_tier: "default"` on turns that were in
+   * fact scheduled as priority, so treating its echo as a downgrade produced a false
+   * `response-declined` on every Fast request (#2558). Absent means "assume authoritative",
+   * preserving the behaviour for the public API where the echo does mean what it says.
+   */
+  responseTierAuthoritative?: boolean;
 }
 
 export type TierDecision =
@@ -127,6 +145,12 @@ export type TierDecision =
  * retries are allowed; OAuth/forward credentials and local runtimes are never replayed.
  */
 export interface OcxProviderConfig {
+  /** Optional short provider namespace used only at request/catalog presentation time. */
+  alias?: string;
+  /** Native model id -> short, slash-free request alias. */
+  modelAliases?: Record<string, string>;
+  /** Override the global built-in model-alias switch for this provider. */
+  defaultAliases?: boolean;
   adapter: string;
   /**
    * Codex tool calling mode for routed models.
@@ -205,6 +229,11 @@ export interface OcxProviderConfig {
    */
   preserveResponsesReasoningContent?: boolean;
   /**
+   * Explicit opt-in for a relay that genuinely fronts OpenAI and can decode native
+   * compaction blobs. Absent or false degrades foreign blobs to an opaque note.
+   */
+  decodesNativeCompactionBlobs?: boolean;
+  /**
    * Explicit opt-in for non-registry private-network destinations such as localhost, RFC1918,
    * link-local, or unique-local upstreams. Metadata endpoints remain blocked.
    */
@@ -261,6 +290,33 @@ export interface OcxProviderConfig {
    * full set so the user can pick). See devlog issue_052_provider-model-allowlist.
    */
   selectedModels?: string[];
+  /** Override for newly discovered models. Absent/"inherit" uses the install policy. */
+  newModelPolicy?: "on" | "off" | "inherit";
+  /**
+   * Model-preset marker for `selectedModels` (#2465). Absent means "all", exactly today's
+   * semantics — an existing provider is never narrowed by an upgrade.
+   *
+   * The preset is a SEED, not a lock: `selectedModels` holds concrete ids materialized from
+   * the shipped rules, so every existing consumer and older binaries keep working against a
+   * plain allowlist. Divergence is detected at the WRITE path rather than by diffing — any user
+   * edit while the mode is "preset" flips it to "custom", after which the proxy never
+   * re-materializes. That collapses upgrade reconciliation to a version compare.
+   *
+   * Deliberately distinct from `deriveProviderPresets`, which curates WHICH PROVIDERS to offer.
+   * This curates which MODELS a provider exposes; the code says "model preset" throughout.
+   */
+  modelPreset?: {
+    mode: "preset" | "all" | "custom";
+    /** MODEL_PRESETS version materialized into `selectedModels`. */
+    appliedVersion?: number;
+    appliedAt?: string;
+    /**
+     * Set when materialization matched nothing and the provider fell back to "all". A preset
+     * must never write an empty allowlist, because empty means ALL and would silently
+     * un-curate; the fallback marker lets the next convergence retry.
+     */
+    fallback?: "preset-empty";
+  };
   /** Provider-wide fallback when context metadata is absent; otherwise caps the reported window. */
   contextWindow?: number;
   /** Per-model fallback when context metadata is absent; otherwise caps the reported window. */
@@ -269,6 +325,11 @@ export interface OcxProviderConfig {
   modelInputModalities?: Record<string, string[]>;
   /** Model-specific max input token limits. Values cap auto_compact_token_limit. */
   modelMaxInputTokens?: Record<string, number>;
+  /**
+   * Per-model soft compaction budgets. Values may only lower the effective
+   * context/max-input envelope; they never raise hard admission limits.
+   */
+  modelAutoCompactTokenLimits?: Record<string, number>;
   /**
    * Provider-wide fallback for chat-completions `max_tokens` when the caller omits
    * Responses `max_output_tokens`. Adapters still let an explicit request win.
@@ -290,6 +351,10 @@ export interface OcxProviderConfig {
   openRouterRouting?: OpenRouterProviderRouting;
   /** Exact model-id overrides for `openRouterRouting`. Each matching entry replaces the default. */
   modelOpenRouterRouting?: Record<string, OpenRouterProviderRouting>;
+  /** Default provider-routing preferences for models sent through Vercel AI Gateway (issue #1406). */
+  vercelGatewayRouting?: VercelGatewayRouting;
+  /** Exact model-id overrides for `vercelGatewayRouting`. Each matching entry replaces the default. */
+  modelVercelGatewayRouting?: Record<string, VercelGatewayRouting>;
   /**
    * "key" (default): authenticate upstream with `apiKey`.
    * "forward": relay the caller's incoming auth headers verbatim (OAuth passthrough; gpt only).
@@ -299,6 +364,16 @@ export interface OcxProviderConfig {
    * providers whose registry entry declares authKind "local" (management API enforces).
    */
   authMode?: "key" | "forward" | "oauth" | "local";
+  /**
+   * Per-provider override for generic OAuth multi-account 429 failover (#2568).
+   *
+   * Rotation is presence-driven by default — 2+ logged-in accounts activate it — so this exists
+   * for the operator who accepts rotation on one provider and refuses it on another. An explicit
+   * boolean here beats the global `oauthAccountFailover` and beats presence.
+   */
+  oauthAccountFailover?: {
+    enabled?: boolean;
+  };
   /** Allow an explicitly key/oauth provider to run without a credential (for keyless local proxies). */
   keyOptional?: boolean;
   /**
@@ -332,6 +407,18 @@ export interface OcxProviderConfig {
    */
   modelSupportsReasoningSummaries?: Record<string, boolean>;
   /**
+   * Model-specific Codex Responses verbosity capability. Set false when the upstream ignores
+   * `text.verbosity`; the catalog hides the no-op picker and the Responses adapter strips stale
+   * or caller-supplied values while preserving other `text` fields.
+   */
+  modelSupportsVerbosity?: Record<string, boolean>;
+  /**
+   * Provider-wide Codex Responses verbosity capability, applied to models the per-model map
+   * does not enumerate (a live-discovered id, for example). Materialized from the registry at
+   * seed/enrich time so the catalog hint pass never has to read PROVIDER_REGISTRY.
+   */
+  supportsVerbosity?: boolean;
+  /**
    * Per-model wire value for Responses `stream_options.reasoning_summary_delivery`.
    * Presence also advertises reasoning-summary support for that routed model.
    */
@@ -347,6 +434,18 @@ export interface OcxProviderConfig {
    * passthrough compatibility for OpenAI and unclassified gateways.
    */
   supportsOpenAiWebSearchToolFields?: boolean;
+  /**
+   * Opt xAI Responses destinations into the provider-hosted `x_search` declaration when a live
+   * `web_search` tool survives final request normalization. Disabled by default. This is separate
+   * from the web-search sidecar's `search.xSearch` options and never widens caller tool selectors.
+   */
+  xaiResponsesXSearch?: boolean;
+  /**
+   * Whether the Responses upstream accepts native custom tools and custom_tool_call items.
+   * Set false only for a provider whose native contract rejects them; absence preserves
+   * apply_patch passthrough compatibility for OpenAI and unclassified gateways.
+   */
+  supportsResponsesCustomTools?: boolean;
   /**
    * Provider-local repair for Responses gateways whose lifecycle snapshots omit canonical
    * fields or closing events (#893). Disabled by default and applied only to client-facing
@@ -406,6 +505,13 @@ export interface OcxProviderConfig {
    * mid-work; non-`openai-chat` adapters ignore this flag.
    */
   terminalContinuationGuard?: boolean;
+  /**
+   * Opt-in for OpenAI-compatible chat gateways that may close after emitting a complete
+   * tool-call delta without `finish_reason` or `[DONE]`. The adapter accepts that EOF only
+   * when every pending call has a non-empty name and complete JSON-object arguments;
+   * incomplete JSON, missing arguments, and empty streams remain truncation errors.
+   */
+  openaiChatEofTolerance?: boolean;
   /**
    * Opt-in: forward `prompt_cache_key` to the upstream `/chat/completions` body.
    * OpenAI-specific extension; strict backends (Groq, Cerebras, etc.) reject unknown

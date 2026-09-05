@@ -1,30 +1,36 @@
 import { timingSafeEqual } from "node:crypto";
+import { extractAccountId } from "../oauth/chatgpt";
 import { formatErrorResponse } from "../bridge";
+import {
+  codexAutoStartEnabled,
+  modelPreferHostedToolsConfigError,
+  providerModelCostsConfigError,
+  requestPacingConfigError,
+  retryOn429PolicyConfigError,
+  sanitizeModelCostsForDisplay,
+} from "../config";
 import {
   apiKeyTransportConfigError,
   booleanRecordConfigError,
   modelAdapterRecordConfigError,
-  modelPreferHostedToolsConfigError,
-  codexAutoStartEnabled,
   nonBlankStringArrayConfigError,
   positiveIntegerConfigError,
   positiveIntegerRecordConfigError,
   providerBaseUrlConfigError,
   providerHeadersConfigError,
-  providerModelCostsConfigError,
   reasoningSummaryDeliveryRecordConfigError,
-  retryOn429PolicyConfigError,
-  requestPacingConfigError,
-  sanitizeModelCostsForDisplay,
   upstreamHttpVersionConfigError,
-} from "../config";
+} from "../config/provider-validation";
 import { providerDestinationConfigError } from "../lib/destination-policy";
 import { redactSecretString } from "../lib/redact";
 import { effectiveGoogleMode, getProviderRegistryEntry, providerCodexAccountMode, providerMatchesRegistryTransport, registryEntryForProviderDestination } from "../providers/registry";
 import { providerConfigSeed } from "../providers/derive";
 import type { OcxConfig, OcxProviderConfig } from "../types";
 import { openRouterRoutingConfigError } from "../providers/openrouter-routing";
+import { modelAutoCompactTokenLimitsConfigError } from "../providers/auto-compact-budget";
+import { vercelGatewayRoutingConfigError } from "../providers/vercel-gateway-routing";
 import { googleVertexLocationConfigError } from "../providers/google-vertex-location";
+import { xaiResponsesOptInState } from "../providers/xai-responses-opt-in";
 
 let _corsOrigin = "http://localhost:10100";
 export function setCorsOrigin(port: number): void { _corsOrigin = `http://localhost:${port}`; }
@@ -427,6 +433,14 @@ export function validateForwardAdmissionCredential(headers: Headers, config: Ocx
   if (bearer && isProxyAdmissionSecret(bearer, config)) throw new ForwardAdmissionCredentialError();
 }
 
+/** Whether Authorization carries a caller-owned native Codex credential safe to forward. */
+export function hasForwardableCodexBearer(headers: Headers, config: OcxConfig): boolean {
+  const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  const accountId = headers.get("chatgpt-account-id")?.trim()
+    || (bearer ? extractAccountId(undefined, bearer) : undefined);
+  return !!bearer && !!accountId && !isProxyAdmissionSecret(bearer, config);
+}
+
 /**
  * Resolving form of `hasValidApiAuth`: identical header precedence, identical
  * decision, but it names the admission instead of collapsing it to a boolean.
@@ -562,6 +576,8 @@ export function providerManagementConfigError(name: unknown, provider: unknown):
     if (contextOverlayError) return contextOverlayError;
     delete canonicalCandidate.contextWindow;
     delete canonicalCandidate.modelContextWindows;
+    // User-owned soft compaction policy; it does not alter the canonical transport seed.
+    delete canonicalCandidate.modelAutoCompactTokenLimits;
     const canonical = seed && sameCanonicalProviderSeed(canonicalCandidate, seed);
     if (!canonical) {
       return `provider ${name} must equal the canonical built-in provider seed`;
@@ -604,6 +620,13 @@ export function providerManagementConfigError(name: unknown, provider: unknown):
   if (apiKeyTransportError) return `provider ${name} ${apiKeyTransportError}`;
   const maxInputError = positiveIntegerRecordConfigError(raw.modelMaxInputTokens, "modelMaxInputTokens");
   if (maxInputError) return `provider ${name} ${maxInputError}`;
+  const autoCompactError = modelAutoCompactTokenLimitsConfigError(
+    raw.modelAutoCompactTokenLimits,
+    { requireNativeIds: name === "openai" },
+  );
+  if (autoCompactError) {
+    return `provider ${JSON.stringify(redactSecretString(name))} ${autoCompactError}`;
+  }
   const reasoningSummariesError = booleanRecordConfigError(raw.modelSupportsReasoningSummaries, "modelSupportsReasoningSummaries");
   if (reasoningSummariesError) return `provider ${name} ${reasoningSummariesError}`;
   const reasoningSummaryDeliveryError = reasoningSummaryDeliveryRecordConfigError(
@@ -623,6 +646,9 @@ export function providerManagementConfigError(name: unknown, provider: unknown):
   if (raw.responsesSnapshotRepair !== undefined && typeof raw.responsesSnapshotRepair !== "boolean") {
     return `provider ${name} responsesSnapshotRepair must be a boolean`;
   }
+  if (raw.xaiResponsesXSearch !== undefined && typeof raw.xaiResponsesXSearch !== "boolean") {
+    return `provider ${name} xaiResponsesXSearch must be a boolean`;
+  }
   const defaultMaxOutputError = positiveIntegerConfigError(raw.defaultMaxOutputTokens, "defaultMaxOutputTokens");
   if (defaultMaxOutputError) return `provider ${name} ${defaultMaxOutputError}`;
   const maxOutputError = positiveIntegerRecordConfigError(raw.modelMaxOutputTokens, "modelMaxOutputTokens");
@@ -634,6 +660,8 @@ export function providerManagementConfigError(name: unknown, provider: unknown):
   if (structuredOutputOptOutError) return `provider ${name} ${structuredOutputOptOutError}`;
   const openRouterError = openRouterRoutingConfigError(typed);
   if (openRouterError) return `provider ${name} ${openRouterError}`;
+  const vercelError = vercelGatewayRoutingConfigError(typed);
+  if (vercelError) return `provider ${name} ${vercelError}`;
   if (typed.authMode === "local") {
     // "local" bypasses key-requirement enforcement (api-keys/key-failover treat non-oauth/
     // forward as key auth; openai-chat skips credential checks for local). Only providers
@@ -688,8 +716,14 @@ export function safeConfigDTO(config: OcxConfig): unknown {
       hasApiKey: !!provider.apiKey,
       hasHeaders: !!provider.headers && Object.keys(provider.headers).length > 0,
     };
+    if (name === "xai") {
+      dto.xaiResponsesOptInState = xaiResponsesOptInState(provider);
+    }
     for (const key of [
       "defaultModel",
+      "alias",
+      "modelAliases",
+      "defaultAliases",
       "disabled",
       "allowPrivateNetwork",
       "authMode",
@@ -701,10 +735,13 @@ export function safeConfigDTO(config: OcxConfig): unknown {
       "models",
       "contextWindow",
       "modelContextWindows",
+      "modelAutoCompactTokenLimits",
       "defaultMaxOutputTokens",
       "modelMaxOutputTokens",
       "openRouterRouting",
       "modelOpenRouterRouting",
+      "vercelGatewayRouting",
+      "modelVercelGatewayRouting",
       "reasoningEfforts",
       "modelReasoningEfforts",
       "reasoningWireFormat",
@@ -740,8 +777,12 @@ export function safeConfigDTO(config: OcxConfig): unknown {
     port: config.port,
     hostname: config.hostname ?? "127.0.0.1",
     defaultProvider: config.defaultProvider,
+    defaultModelAliases: config.defaultModelAliases,
     codexAutoStart: codexAutoStartEnabled(config),
     websockets: config.websockets,
+    // The GUI's browser-open toggle reads and writes this; absent means the
+    // historical auto-open behavior.
+    oauthOpenBrowser: config.oauthOpenBrowser !== false,
     providers,
   };
 }

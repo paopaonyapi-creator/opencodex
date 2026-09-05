@@ -138,6 +138,34 @@ describe("Responses previous_response_id state", () => {
     clearResponseStateMemoryForTests();
   });
 
+  test("a slow progressing Cursor chain remains replayable beyond the reported 18 continuations", () => {
+    let request: Record<string, unknown> = {
+      model: "cursor/grok-4.6",
+      input: [{ role: "user", content: "bounded task" }],
+      store: false,
+    };
+
+    for (let turn = 0; turn < 32; turn += 1) {
+      const responseId = `resp_progress_${turn}`;
+      const callId = `call_progress_${turn}`;
+      rememberResponseState(
+        request,
+        fixedResponse(responseId, [{ type: "function_call", call_id: callId, name: "inspect", arguments: "{}" }]),
+        { cursor: { conversationId: "cursor_progress_chain" } },
+        { force: true },
+      );
+      request = expandPreviousResponseInput({
+        model: "cursor/grok-4.6",
+        previous_response_id: responseId,
+        input: [{ type: "function_call_output", call_id: callId, output: `new evidence ${turn}` }],
+        store: false,
+      }) as Record<string, unknown>;
+    }
+
+    expect(request.input).toBeArrayOfSize(65);
+    expect(previousResponseConversationId("resp_progress_31")).toBe("cursor_progress_chain");
+  });
+
   afterEach(() => {
     setSpillIoForTest(null);
     setIcaclsRunnerForTests(null);
@@ -2052,6 +2080,37 @@ describe("Responses previous_response_id state", () => {
     rememberResponseState(firstBody, first, "cursor_conversation_1");
 
     expect(previousResponseConversationId(first.id as string)).toBe("cursor_conversation_1");
+  });
+
+  test("persists an opaque Cursor checkpoint ref without raw protobuf bytes", async () => {
+    const first = buildResponseJSON([
+      { type: "text_delta", text: "answer", phase: "final_answer" },
+      { type: "done", endTurn: true },
+    ], "cursor/auto");
+    rememberResponseState(
+      { model: "cursor/auto", input: "hello" },
+      first,
+      {
+        cursor: {
+          conversationId: "cursor_conversation_ref",
+          checkpointUsable: true,
+          checkpointRef: "opaque-checkpoint-ref",
+        },
+      },
+    );
+    await flushResponseState();
+    clearResponseStateMemoryForTests();
+
+    expect(previousResponseProviderState(first.id as string)).toEqual({
+      cursor: {
+        conversationId: "cursor_conversation_ref",
+        checkpointUsable: true,
+        checkpointRef: "opaque-checkpoint-ref",
+      },
+    });
+    const snapshot = readFileSync(join(home, "responses-state.json"), "utf8");
+    expect(snapshot).toContain("opaque-checkpoint-ref");
+    expect(snapshot).not.toContain("rootPromptMessagesJson");
   });
 
   test("preserves provider conversation id after a client tool-call response (multi-turn continuation)", () => {

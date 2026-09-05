@@ -11,11 +11,11 @@ import type {
   OcxToolCall,
   OcxReasoningReplayScopeRef,
 } from "../types";
-import { namespacedToolName, toolChoiceCandidates } from "../types";
+import { createToolChoiceResolver, namespacedToolName } from "../types";
 import { responsesRequestSchema } from "./schema";
 import { providerMetadataFromResponsesFunctionCall } from "./provider-opaque-metadata";
 import { lookupReplayThoughtSignature } from "./thought-signature-replay";
-import { compactionItemToText } from "./compaction";
+import { compactionItemToText, isCompactionItemType } from "./compaction";
 import { previousResponseReplayPrefixLength } from "./state";
 import { decodeReasoningEnvelope } from "./reasoning-envelope";
 import { extractHostedWebSearch, WEB_SEARCH_TOOL_NAME } from "../web-search/synthetic-tool";
@@ -45,6 +45,7 @@ type InputBlock =
   | { type: "input_text"; text: string }
   | { type: "text"; text: string }
   | { type: "input_image"; image_url?: string; file_id?: string; detail?: string }
+  | { type: "input_video"; video_url?: string }
   | { type: "input_file"; file_id?: string; filename?: string; file_data?: string };
 
 /** A usable reference string, or undefined. Empty strings and non-strings are not references. */
@@ -80,6 +81,9 @@ function inputContentParts(blocks: unknown): string | OcxContentPart[] {
       }
       // No usable reference: omit the block. A "[image: ?]" marker would claim an attachment
       // the request never carried, which is worse than dropping malformed input.
+    } else if (block.type === "input_video") {
+      const videoUrl = nonEmptyString(block.video_url);
+      if (videoUrl) parts.push({ type: "video", videoUrl });
     } else if (block.type === "input_file") {
       const b = block as { file_id?: string; filename?: string; file_data?: string };
       const fileId = nonEmptyString(b.file_id);
@@ -439,7 +443,7 @@ export function parseRequest(
         continue;
       }
 
-      if (effectiveType === "compaction" || effectiveType === "compaction_summary" || effectiveType === "context_compaction") {
+      if (isCompactionItemType(effectiveType)) {
         // A stored summary from a previous compaction. Decode our ocx1 envelope into plain text so
         // the routed model keeps the compacted context; real OpenAI-encrypted blobs degrade to a note.
         // `context_compaction` (encrypted_content optional) is codex-rs's local-compaction marker;
@@ -763,8 +767,9 @@ export function parseRequest(
   const tc = mapToolChoice(data.tool_choice);
   if (tc && typeof tc === "object") {
     const selectors = "allowedTools" in tc ? tc.allowedTools : [tc.name];
+    const resolver = createToolChoiceResolver(mergedTools);
     for (const selector of selectors) {
-      if (toolChoiceCandidates(mergedTools, selector).length > 1) {
+      if (resolver.candidateCount(selector) > 1) {
         throw new Error(`ambiguous tool_choice name: ${selector}`);
       }
     }

@@ -64,7 +64,7 @@ differing backup and rewrites known legacy namespaced selected ids to bare ids.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `adapter` | `string` | One of `openai-chat`, `openai-responses`, `anthropic`, `google`, `kiro`, `cursor`, `azure-openai` (or alias `azure`). |
+| `adapter` | `string` | One of `openai-chat`, `openai-responses`, `anthropic`, `google`, `kiro`, `cursor`, `ollama-native`, `azure-openai` (or alias `azure`). |
 | `baseUrl` | `string` | Upstream API base URL. Most built-in fixed endpoints ignore a mismatch; collision-safe key presets preserve an older same-named custom destination. |
 | `requestPacing?` | `{ enabled, requestsPerMinute?, minIntervalMs?, models? }` | Optional client-side outbound request-start pacing, separate from upstream usage, billing, and rate-limit indicators. RPM is converted to an even interval; `minIntervalMs` may impose a longer interval. Provider limits apply across all models, while `models` entries use exact upstream model IDs (for example `nvidia/llama-3.1-nemotron-ultra-253b-v1`) and can only add delay. Queue waits do not consume the upstream response-header timeout. HTTP, Responses WebSocket, and explicit adapter `fetchResponse`/`runTurn` dispatches are covered. |
 | `upstreamHttpVersion?` | `"auto" \| "http1.1" \| "h1" \| "http2" \| "h2"` | Pin the HTTP version used for upstream requests to this provider. Defaults to `auto`, which lets Bun negotiate. An explicit pin requires an HTTPS target and fails locally when it cannot be honored. Set `http1.1` when a provider's HTTP/2 SSE stream stalls instead of delivering events — the symptom is a long-running streaming request that produces nothing and eventually times out. For Cursor, `http1.1`/`h1` selects its `RunSSE` + `BidiAppend` compatibility transport for inference and also pins live model discovery. Management `POST`/`PATCH` accept `null` to clear it back to `auto`. |
@@ -72,6 +72,7 @@ differing backup and rewrites known legacy namespaced selected ids to bare ids.
 | `supportsServiceTier?` | `boolean` | Tri-state canonical Fast capability fallback. `true` publishes Fast in the catalog, satisfies service-tier routing requirements, contributes a supported fingerprint, and lets fast mode inject the provider's canonical wire value on a compatible final adapter. `false` strips the field and never injects, and exact model declarations cannot reopen it. Absent leaves the provider unclassified: fast mode does not inject or normalize a canonical caller value, and caller values obey the final wire's forwarding permission (`chatServiceTier` on Chat; passthrough on Responses). The registry classifies canonical OpenAI (`true`), DeepSeek, and Volcengine Ark (`false`); set it explicitly only for custom gateways that genuinely support tiers. |
 | `modelSupportsServiceTier?` | `Record<string, boolean>` | Exact upstream model capability overrides. Exact `true` enables canonical Fast for that model; exact `false` narrows provider defaults. An explicit provider-level `supportsServiceTier: false` remains fail-closed and cannot be reopened. Exact `true` does not authorize foreign caller-tier forwarding on Chat. Undeclared models fall back to provider-wide behavior. Management `PATCH /api/providers` merges entries and accepts `null` to clear one. |
 | `chatServiceTier?` | `boolean` | Provider-wide Chat-wire opt-in for forwarding caller `service_tier` values. On a classified route it governs foreign values such as `flex`, not proxy-owned canonical Fast after capability validation; on an unclassified route it governs every caller value because no Fast capability has been validated. Exact model capability does not authorize foreign forwarding. Responses routes retain their capability-based caller forwarding behavior. |
+| `promptCacheKey?` | `boolean` | Provider-wide `openai-chat` opt-in for forwarding a `prompt_cache_key`. The adapter forwards the key it is given and never invents one, but the key is not always the caller's: Claude Messages translation derives one from `metadata.user_id`, or from a model/system/tools cohort when no metadata is sent. Default off. Enable only when the upstream documents support, because strict gateways may reject the unknown field with HTTP 400. |
 | `preserveResponsesReasoningContent?` | `boolean` | Keep plaintext reasoning content on replayed Responses reasoning items instead of blanking it (blanking is the ChatGPT backend's rule). Enable for upstreams whose contract accepts reasoning replay, such as DeepSeek. Proxy-minted `ocxr1` envelopes are always stripped. |
 | `disabled?` | `boolean` | Keep the provider on disk but exclude it from routing and model/catalog listings. |
 | `apiKey?` | `string` | API key, or an `${ENV_VAR}` / `$ENV_VAR` reference resolved at request time. |
@@ -85,12 +86,15 @@ differing backup and rewrites known legacy namespaced selected ids to bare ids.
 | `modelContextWindows?` | `Record<string, number>` | Per-model context fallbacks/caps. These override `contextWindow`: an unknown window uses the configured value, while smaller live metadata remains authoritative. |
 | `modelInputModalities?` | `Record<string, string[]>` | Per-model input hints such as `["text"]` or `["text", "image"]`. |
 | `modelMaxInputTokens?` | `Record<string, number>` | Positive per-model max input limits used for catalog auto-compaction hints. |
+| `modelAutoCompactTokenLimits?` | `Record<string, number>` | Positive safe-integer per-model soft auto-compaction budgets. Values can only lower the effective 90%-of-context/max-input envelope and are omitted when no authoritative context window is known. For canonical `openai`, keys must be exact supported native model IDs without provider or account-selector prefixes. Provider PATCH merges entries; set a key to `null` to delete it or the whole field to `null` to clear the map. These `null` tombstones are PATCH-only. |
 | `defaultMaxOutputTokens?` | `number` | Provider-wide `openai-chat` fallback when the client omits `max_output_tokens`. |
 | `modelMaxOutputTokens?` | `Record<string, number>` | Positive per-model `openai-chat` fallback budgets; exact/pattern matches beat the provider default. |
-| `modelCosts?` | `Record<string, Cost4>` | Per-model display prices (USD per 1M tokens), keyed by that provider's exact upstream model id — not a provider identifier or a routed `provider/model` label, e.g. `{ "deepseek-v4-flash": { "input": 0.14, "output": 0.28, "cacheRead": 0.0028, "cacheWrite": 0 } }`. Any model id is a valid key — custom providers may target any OpenAI-compatible endpoint through the `openai-chat` adapter, and local or internal provider ids work even when they are absent from the built-in catalogs. User-configured prices win over the built-in catalogs in the Logs `~$` and Usage estimates; historical entries are repriced from the current overlay, so editing a price can move past totals. The fallback order is user `modelCosts` → jawcode catalog → expected-price overlay → model-level vendor fallback, and an all-zero entry falls through to the next source in that sequence. Each rate must be a non-negative finite number at most 1,000,000 (USD per 1M tokens); out-of-range rows are rejected by the management boundary and dropped on load. Display-time estimation only: overlays never affect routing, account selection, quotas, or billing. |
+| `modelCosts?` | `Record<string, Cost4>` | Per-model display prices (USD per 1M tokens), keyed by that provider's exact upstream model id — not a provider identifier or a routed `provider/model` label, e.g. `{ "deepseek-v4-flash": { "input": 0.14, "output": 0.28, "cacheRead": 0.0028, "cacheWrite": 0 } }`. Any model id is a valid key — custom providers may target any OpenAI-compatible endpoint through the `openai-chat` adapter, and local or internal provider ids work even when they are absent from the built-in catalogs. User-configured prices win over the built-in catalogs in the Logs `~$` and Usage estimates; historical entries are repriced from the current overlay, so editing a price can move past totals. The fallback order is user `modelCosts` → exact official correction → jawcode catalog → expected-price overlay → model-level vendor fallback, and an all-zero entry falls through to the next source in that sequence. Each rate must be a non-negative finite number at most 1,000,000 (USD per 1M tokens); out-of-range rows are rejected by the management boundary and dropped on load. Display-time estimation only: overlays never affect routing, account selection, quotas, or billing. |
 | `headers?` | `Record<string, string>` | Extra upstream headers. Authorization, cookies, API-key headers, embedded newlines, and invalid names are rejected. |
 | `openRouterRouting?` | `OpenRouterProviderRouting` | Default OpenRouter `order`, `only`, and `allowFallbacks` preferences; valid only for canonical OpenRouter with `openai-chat`. |
 | `modelOpenRouterRouting?` | `Record<string, OpenRouterProviderRouting>` | Exact model-id overrides that replace the provider-wide OpenRouter preference. |
+| `vercelGatewayRouting?` | `VercelGatewayRouting` | Default Vercel AI Gateway `order`, `only`, and `sort` (`"cost"` \| `"ttft"` \| `"tps"`) preferences; valid only for canonical Vercel AI Gateway with `openai-chat`. |
+| `modelVercelGatewayRouting?` | `Record<string, VercelGatewayRouting>` | Exact model-id overrides that replace the provider-wide Vercel AI Gateway preference. |
 | `authMode?` | `"key" \| "forward" \| "oauth" \| "local"` | Authentication mode (default `key`). OAuth/subscription credentials are stored outside `config.json`; `local` is limited to providers whose registry entry permits it. |
 | `codexAccountMode?` | `"pool" \| "direct"` | Canonical `openai` only; defaults to Pool. Direct bypasses pool state. |
 | `refreshPolicy?` | `"proactive" \| "lazy-only" \| "disabled"` | Override this OAuth provider's Token Guardian policy. |
@@ -99,6 +103,7 @@ differing backup and rewrites known legacy namespaced selected ids to bare ids.
 | `modelSupportsReasoningSummaries?` | `Record<string, boolean>` | Set a model to `false` to stop advertising summaries and strip summary-delivery fields. |
 | `modelReasoningSummaryDelivery?` | `Record<string, "sequential" \| "sequential_cutoff" \| "concurrent" \| "concurrent_cutoff">` | Per-model Responses delivery enum; rewrites an existing delivery field. |
 | `modelAdapters?` | `Record<string, string>` | Per-model `openai-chat` or `openai-responses` wire override for mixed-wire gateways. Explicit entries beat registry defaults. The OpenCode Go preset selects Responses for `gpt-5.6-luna` while leaving sibling models on their documented wires; DeepSeek can select native Responses for `deepseek-v4-flash`; and GitHub Copilot declares Responses-only defaults for its GPT-5 family (`gpt-5.3-codex`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`) because those models reject `/chat/completions` for agent traffic. Models without a built-in default (for example `gpt-5.4-nano`) can be opted in here. Single-wire upstream pins and canonical ChatGPT forward reject overrides. |
+| xAI Responses opt-in (dashboard) | switch | For `xai` only, atomically sets or clears the `grok-4.5` and `grok-4.6` `modelAdapters` entries. A hand-edited single entry appears as mixed until the next switch write normalizes both. Other overrides and tier behavior are unchanged. |
 | `modelPreferHostedTools?` | `Record<string,string[]>` | Exact-model opt-in for non-forward Responses gateways that reserve a hosted-tool namespace. Currently accepts only `["image_generation"]`; a matching model must use the `openai-responses` wire and support that hosted tool. It removes colliding client `image_gen` declarations and rewrites their selectors to preserve caller tool choice. For OpenAI API virtual `-pro` models, the selected public ID is matched first and the resolved base wire-model ID is a fallback. `modelAdapters` resolves the public ID first, then the base ID; the second resolution determines the final wire. Other models retain normal alias behavior. |
 | `reasoningEffortMap?` | `Record<string, string>` | Provider-wide wire aliases for reasoning labels. |
 | `modelReasoningEffortMap?` | `Record<string, Record<string, string>>` | Per-model wire aliases for reasoning labels. |
@@ -130,6 +135,21 @@ differing backup and rewrites known legacy namespaced selected ids to bare ids.
 | `unsafeAllowNativeLocalExec?` | `boolean` | Cursor legacy boolean, equivalent to `nativeLocalExec: "on"` only when the newer field is unset. |
 | `nativeLocalExec?` | `"off" \| "codex-sandbox" \| "on"` | Cursor local-exec policy. `off` is default; `codex-sandbox` currently fails closed like `off`. |
 
+## Codex catalog and root `config.toml` settings
+
+These settings belong in the root of `$CODEX_HOME/config.toml`, alongside
+`approvals_reviewer`; they are not provider fields.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `auto_review_model` | `string` | Public catalog selector in `provider/model` form, for example `opencode-go/deepseek-v4-flash`. After each catalog merge, OpenCodex resolves it against the final catalog and stamps the trimmed value as `auto_review_model_override` on catalog entries. Boundary whitespace is removed; the selector's slash-delimited components are otherwise unchanged. If the value is absent or blank, existing routed overrides are cleared and normal upstream auto-review selection is preserved. If it is syntactically invalid or absent from the final catalog (including after provider/model removal), OpenCodex fails closed for the override only: it clears the dead override, preserves normal upstream behavior, and emits a diagnostic. Re-adding the provider/model on a later sync allows the configured selector to be stamped again. |
+
+The setting is evaluated after provider discovery, model filtering, native/account-row
+projection, and merge precedence, so only a selector present in the catalog produced by
+that sync can become an override. Native upstream values are preserved when the setting is
+cleared or unresolved. The persisted catalog field is read by Codex for the current turn's
+model, which is why a valid configured selector is copied to each applicable entry.
+
 ### FastWire B1 capability migration
 
 Fast capability and arbitrary Chat caller-tier forwarding are independent after FastWire B1. The
@@ -158,6 +178,17 @@ The built-in `xai` preset advertises and injects Fast only when its effective tr
 sends `service_tier: "priority"` through Chat Completions. `ocx login xai`
 instead stores OAuth credentials for the separate Grok CLI subscription-gateway flow, so OAuth
 remains unclassified: its catalog rows do not advertise Fast and the proxy does not inject a tier.
+
+xAI charges Priority Processing at 2× the standard token price for input, output, cached, and
+reasoning tokens; cache discounts are applied before the multiplier. Cost estimates use that premium
+only when xAI's response confirms `service_tier: "priority"`. A missing or unparsed response tier is
+not confirmation, and an echoed `default` is a downgrade; all three stay at the standard price.
+
+For `grok-4.6`, the standard rate per 1M tokens is $2.00 input, $0.50 cached input, and $6.00
+output. A prompt of at least 200,000 tokens reprices the whole request at $4.00 / $1.00 / $12.00.
+xAI has not published how that long-context band combines with Priority Processing. When a
+long-context response confirms `priority`, the dashboard therefore shows the published long-context
+cost with a `≥` marker and a lower-bound explanation; it never invents a stacked multiplier.
 
 ### OpenRouter Fast
 
@@ -266,6 +297,63 @@ Leave this disabled unless you understand Anthropic account policy risk. Prefer 
 `ocx account use anthropic <id>` switching when unsure.
 :::
 
+### `oauthAccountFailover`
+
+Rotates to another logged-in account of the same provider when one is rate-limited, for OAuth
+providers that have no pool of their own — xAI, Cursor, Kimi, GitHub Copilot, Google Antigravity,
+and Nous.
+
+**Logging in a second account is what turns this on.** With no configuration, rotation activates
+for any of those providers holding 2 or more accounts that are not flagged for reauthentication —
+the same rule `apiKeyPool` already applies to a 2+ key pool. A provider with one stored account
+behaves exactly as before.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `oauthAccountFailover.enabled?` | `boolean` | presence-driven | Global override. `false` forces single-account behaviour everywhere; `true` forces rotation on. |
+| `providers.<name>.oauthAccountFailover.enabled?` | `boolean` | inherits | Per-provider override; beats the global setting and beats account presence. |
+
+To keep strict single-account behaviour for one provider whose terms you would rather not test:
+
+```json
+{
+  "providers": {
+    "cursor": {
+      "oauthAccountFailover": { "enabled": false }
+    }
+  }
+}
+```
+
+That setting survives logging in, adding an account, and reauthenticating.
+
+Deliberately narrower than `anthropicAccountPool`: no session affinity, no quota-ranked
+selection, no probe leases. It answers one question — the account that just returned 429 is
+cooled, is there another one available.
+
+The Codex pool and the Anthropic pool are excluded and keep their own rotation; enabling this
+changes neither. A provider with a single stored account is a strict no-op, and no cooldown is
+recorded for it.
+
+On a 429 the failed account is cooled using `Retry-After` when present (capped at 15 minutes)
+or a default backoff, and the request is replayed on the next eligible account, up to three
+rotations per request. An account flagged for reauthentication is never selected. Cooldowns are
+process-local, so a restart forgets them.
+
+Rotation carries the alternate account's **full** credential snapshot, not just its bearer, so a
+provider that pairs routing metadata with its token — Antigravity's Cloud Code Assist project id,
+for example — cannot end up sending one account's token with another account's metadata.
+
+Current scope is the ordinary Responses request paths. Cursor reports rate limits as adapter
+events rather than an HTTP status, and the standalone Antigravity image endpoint has its own
+request path; neither rotates yet.
+
+:::caution[Experimental]
+Rotating across subscription accounts spends a second account's quota and may violate some
+providers' terms. If that is not a tradeoff you want, set `enabled: false` globally or for the
+provider in question.
+:::
+
 ### Managed record shapes
 
 `apiKeys[]` entries contain `id`, `name`, generated `key`, and ISO `createdAt` strings.
@@ -356,8 +444,9 @@ selection on every request. They remain available when live discovery omits `def
 
 Native Cursor vision uses `SelectedImage` (JPEG soft-cap + `blobIdWithData`) for models that can
 see images natively — Claude, Gemini, GPT, Kimi, and Grok among them — using active-turn `data:`
-images only. Auto, the Composer family, and GLM (`glm-5.2`, `glm-5.3`) stay on the curated `noVisionModels`
-list and use the vision describe sidecar instead.
+images only. Earlier-turn images replay as `[image attached]` text markers; remote or undecodable
+images become omission markers. Auto, the Composer family, and GLM (`glm-5.2`, `glm-5.3`) stay on
+the curated `noVisionModels` list and use the vision describe sidecar instead.
 
 Cursor server-driven local tools are disabled by default. Codex continues using its own tools such as
 `apply_patch` and `exec_command` with its own approval and sandbox policy:
@@ -431,9 +520,40 @@ eligible provider after the ordered list. `only` is always an allowlist.
 }
 ```
 
-Model keys are exact native OpenRouter ids, without the outer opencodex provider prefix. Selecting
-`openrouter/anthropic-claude-sonnet-5` restores native `anthropic/claude-sonnet-5` before applying
-the model rule.
+## Vercel AI Gateway provider routing
+
+Vercel AI Gateway can route a model across multiple underlying inference providers. `vercelGatewayRouting` configures provider-wide preferences; `modelVercelGatewayRouting` replaces it for exact model IDs. Leaving both unset makes `resolveVercelGatewayRouting()` return `undefined`, so Chat request builders omit the `provider` field and Vercel AI Gateway retains its default dynamic routing behavior.
+
+- `order`: Vercel AI Gateway upstream provider slugs in priority order.
+- `only`: explicit allowlist restricting eligible Vercel AI Gateway upstream providers.
+- `sort`: automatically sort eligible providers by `"cost"` (lowest cost), `"ttft"` (time to first token), or `"tps"` (tokens per second).
+
+```json
+{
+  "providers": {
+    "vercel-ai-gateway": {
+      "adapter": "openai-chat",
+      "baseUrl": "https://ai-gateway.vercel.sh/v1",
+      "apiKey": "${VERCEL_AI_GATEWAY_KEY}",
+      "vercelGatewayRouting": {
+        "sort": "ttft"
+      },
+      "modelVercelGatewayRouting": {
+        "zai/glm-5.2": {
+          "only": ["novita", "deepinfra"],
+          "order": ["novita", "deepinfra"]
+        }
+      }
+    }
+  }
+}
+```
+
+Model keys are Vercel public model selectors without the outer OpenCodex provider prefix. Selecting
+`vercel-ai-gateway/zai-glm-5.2` restores native `zai/glm-5.2` before applying the model rule. The
+same mapping applies to a native `vercel/<model-id>` selector: use the encoded
+`vercel-ai-gateway/vercel-<model-id>` selector in OpenCodex and keep `vercel/<model-id>` as the
+model key.
 
 ## Static model allowlists
 
@@ -484,11 +604,10 @@ ids with context `922000` and max input `922000`; OpenRouter seeds `openai/gpt-5
       "defaultModel": "claude-sonnet-4-6"
     },
     "ollama-cloud": {
-      "adapter": "openai-chat",
       "baseUrl": "https://ollama.com/v1",
       "apiKey": "${OLLAMA_API_KEY}",
       "defaultModel": "glm-5.2",
-      "noVisionModels": ["glm-5.2", "gpt-oss", "qwen3-coder", "deepseek-v4-pro"]
+      "noVisionModels": ["glm-5.2", "glm-5.3", "gpt-oss", "qwen3-coder", "deepseek-v4-pro"]
     }
   },
   "subagentModels": ["anthropic/claude-opus-5", "ollama-cloud/glm-5.2"],

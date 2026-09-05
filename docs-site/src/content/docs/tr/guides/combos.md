@@ -286,6 +286,11 @@ Yerel kontrol panelini açın ve **Modeller → Kombolar** seçeneğini belirley
 hedef seçicisi ise devre dışı bırakılmış modelleri ve iç içe geçmiş komboları
 hariç tutar.
 
+Her hedef ayrıca canlı bir kota rozeti gösterir: **Kullanılabilir**, **Kota tükendi** veya **Kota bilinmiyor**.
+Kaydet ve Oluştur yalnızca etkin hedeflerin tamamı için kotanın tükendiğini gösteren güncel ve eksiksiz kanıt varsa
+devre dışı bırakılır. Eksik, eski, bozuk veya tamamlanmamış toplu kanıt bilinmiyor olarak kalır ve denetimleri asla
+kilitlemez. Kota yenilendiğinde işlem otomatik olarak yeniden etkinleşir.
+
 ### CLI
 
 Birincil komutlar şunlardır:

@@ -1,5 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import {
+  resetCodexModelEntitlementCacheForTests,
+  seedCodexModelEntitlementsForTests,
+} from "../src/codex/model-entitlements";
 import { handleManagementAPI } from "../src/server/management-api";
 import {
   OPENCODE_API_KEY_ENV,
@@ -11,6 +15,7 @@ import {
   opencodeGlobalConfigPath,
   type DshGeneratedConfig,
   type ExportModel,
+  type McodeGeneratedConfig,
   type OpencodeGeneratedConfig,
   type PiGeneratedConfig,
 } from "../src/clients/config-export";
@@ -22,6 +27,8 @@ import { catalogConvergenceFactory } from "./helpers/catalog-convergence";
  * worthless unless the running config actually holds a serializable secret (030 §Security).
  */
 const REAL_LOOKING_KEY = "ocx_live_9f3c7a2b41d84e6fa05c8e17b3d92764";
+
+afterEach(() => resetCodexModelEntitlementCacheForTests());
 
 interface ClientConfigEnvelope {
   client: string;
@@ -68,6 +75,7 @@ function baseConfig(overrides: Partial<OcxConfig> = {}): OcxConfig {
         liveModels: false,
         models: ["m1", "m2"],
         modelContextWindows: { m1: 128_000 },
+        modelReasoningEfforts: { m1: ["none", "minimal", "low", "high"] },
       },
       b: {
         adapter: "openai-chat",
@@ -188,6 +196,7 @@ describe("GET /api/client-config", () => {
   }, 15_000);
 
   test("DSH response keeps management reasoning metadata in the rc.6 model map", async () => {
+    seedCodexModelEntitlementsForTests("main", ["gpt-5.6-luna"]);
     const response = await clientConfigApi(baseConfig(), "?client=dsh");
     expect(response.status).toBe(200);
     const body = await response.json() as ClientConfigEnvelope;
@@ -204,6 +213,22 @@ describe("GET /api/client-config", () => {
       xhigh: "xhigh",
       max: "max",
     });
+  }, 15_000);
+
+  test("MCode response carries catalog context and its usable reasoning ladder", async () => {
+    const response = await clientConfigApi(baseConfig(), "?client=mcode");
+    expect(response.status).toBe(200);
+    const body = await response.json() as ClientConfigEnvelope;
+    const provider = (body.config as McodeGeneratedConfig).custom_provider[OPENCODE_PROVIDER_ID]!;
+
+    expect(body.format).toBe("yaml");
+    expect(Bun.YAML.parse(body.text)).toEqual(body.config as Record<string, unknown>);
+    expect(provider.models["a/m1"]).toEqual({
+      limit: { context: 128_000 },
+      thinking: { effortOptions: ["minimal", "low", "high"] },
+    });
+    expect(provider.models["b/no-context"]).toEqual({});
+    expect(body.modelsWithoutLimits).toBe(2);
   }, 15_000);
 
   test("counts describe the emitted document, including models without limits", async () => {
@@ -315,12 +340,17 @@ describe("GET /api/client-config", () => {
 
   test("an accepted override still resolves through the route", async () => {
     const previous = process.env.PI_CODING_AGENT_DIR;
-    process.env.PI_CODING_AGENT_DIR = "/tmp/opencodex-pi-route-fixture";
+    // One binding for the override, so the env value and the expectation cannot
+    // drift apart, and `join` for the separator: the resolver builds the
+    // destination with `join`, which is `\` on win32, so a hard-coded POSIX
+    // string asserted the platform rather than the override taking effect.
+    const overrideDir = "/tmp/opencodex-pi-route-fixture";
+    process.env.PI_CODING_AGENT_DIR = overrideDir;
     try {
       const response = await clientConfigApi(baseConfig(), "?client=pi");
       expect(response.status).toBe(200);
       const body = await response.json() as ClientConfigEnvelope;
-      expect(body.destination).toBe(join("/tmp/opencodex-pi-route-fixture", "models.json"));
+      expect(body.destination).toBe(join(overrideDir, "models.json"));
     } finally {
       if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = previous;

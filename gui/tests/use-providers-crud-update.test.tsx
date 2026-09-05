@@ -3,7 +3,7 @@ import { act, useEffect, useRef, useState } from "react";
 import type { Root } from "react-dom/client";
 import { Window } from "happy-dom";
 import { useProvidersCrud } from "../src/pages/use-providers-crud";
-import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, ProviderUpdatePatch } from "../src/components/provider-workspace/types";
+import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, ProviderUpdatePatch, ProviderUpdateResult } from "../src/components/provider-workspace/types";
 
 const globals = ["document", "window", "navigator", "localStorage", "IS_REACT_ACT_ENVIRONMENT"] as const;
 const originalFetch = globalThis.fetch;
@@ -60,6 +60,22 @@ test("updateProvider awaits fetchConfig before returning success", async () => {
   await act(async () => { root.unmount(); });
 });
 
+test("updateProvider returns the xAI opt-in effective state echoed by PATCH", async () => {
+  globalThis.fetch = (async () => Response.json({
+    success: true,
+    xaiResponsesOptInState: "mixed",
+  })) as typeof fetch;
+  const { root, updateProvider } = await mountCrud();
+
+  let result: ProviderUpdateResult | undefined;
+  await act(async () => {
+    result = await updateProvider("xai", { xaiResponsesOptIn: true });
+  });
+
+  expect(result).toEqual({ ok: true, xaiResponsesOptInState: "mixed" });
+  await act(async () => { root.unmount(); });
+});
+
 async function mountCrud(overrides: {
   fetchConfig?: () => Promise<void>;
   fetchOauth?: () => Promise<void>;
@@ -71,7 +87,7 @@ async function mountCrud(overrides: {
   document.body.append(container);
   const { createRoot } = await import("react-dom/client");
   let root!: Root;
-  let updateProvider!: (name: string, patch: ProviderUpdatePatch) => Promise<{ ok: boolean; error?: string }>;
+  let updateProvider!: (name: string, patch: ProviderUpdatePatch) => Promise<ProviderUpdateResult>;
   let switchProviderPool!: (name: string, input: ProviderPoolSwitchInput) => Promise<ProviderPoolSwitchResult>;
 
   function Harness() {

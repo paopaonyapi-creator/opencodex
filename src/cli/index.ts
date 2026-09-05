@@ -12,6 +12,9 @@ import {
   codexAutoStartEnabled,
   getConfigDir,
   loadConfig,
+  saveConfig,
+} from "../config";
+import {
   readPid,
   readPidFileValue,
   readRuntimePort,
@@ -19,11 +22,11 @@ import {
   removePidIfValueIs,
   removeRuntimePort,
   removeRuntimePortIfPidIs,
-  saveConfig,
   writePid,
   writeRuntimePort,
-} from "../config";
-import { collectStatus } from "./status";
+} from "../config/process-state";
+import { collectStatus, unusedProxyWarningLines } from "./status";
+import { takeFlag } from "./runtime-api";
 
 import {
   discoverStableProxyForRestart,
@@ -43,8 +46,8 @@ import { runReady, type ReadyArgs } from "./ready";
 import { runCli } from "./root";
 import { ProxyOwnershipRefusedError, stopProxy } from "../lib/process-control";
 import { loadServiceTokenFromFile } from "../lib/service-secrets";
-import { diagnoseService, isServiceOwnershipError, serviceCommand, serviceEnvironmentOwnedHere, serviceStartableFromTray, serviceStatusSummary, stopServiceIfInstalled, uninstallServiceIfInstalled } from "../service";
-import { startupHealthSummary } from "../codex/autostart-health";
+import { assertNotAdminToken, diagnoseService, isServiceOwnershipError, serviceCommand, serviceEnvironmentOwnedHere, serviceStartableFromTray, serviceStatusSummary, stopServiceIfInstalled, uninstallServiceIfInstalled } from "../service";
+import { formatStartupRoutingDetail, startupHealthSummary } from "../codex/autostart-health";
 import { drainAndShutdown, isRecyclingForExit, startServer } from "../server";
 import { injectSystemEnv, reconcileShellHook, revertSystemEnv, uninstallShellHook } from "../server/system-env";
 import { buildDesktop3pRegistry } from "../claude/desktop-3p";
@@ -54,7 +57,18 @@ import { maybeShowStarPrompt } from "./star-prompt";
 import { scheduleCatalogPrewarm } from "./catalog-prewarm";
 import { maybeShowUpdatePrompt } from "../update/notify";
 import { syncModelsToCodex } from "../codex/sync";
-import { setIntegrationEnabled, shouldSyncCodexOnStart, shouldSyncGrokOnStart, syncCodexOnStartIfEnabled } from "../codex/desired-state";
+import {
+  shouldSyncGrokOnStart,
+  syncCodexOnStartIfEnabled,
+} from "../codex/desired-state";
+import {
+  reconcileClientStartupBeforeReady,
+  syncClaudeAgentDefsAtProxyStartup,
+} from "./claude-agent-startup-sync";
+import {
+  grokSyncFailureMessage,
+  reconcileEnsureDesiredIntegrations,
+} from "./ensure-desired-integrations";
 
 /**
  * A failed shell-hook reconcile is not cosmetic: a stale hook keeps sourcing
@@ -114,21 +128,6 @@ async function waitForProxy(timeoutMs = 8_000): Promise<LiveProxy | null> {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
   return null;
-}
-
-/**
- * A Grok fence sync that throws is best-effort by design — it must never block startup.
- * Reporting nothing, however, is what lets a STALE fence survive: `~/.grok/config.toml`
- * keeps naming whatever port the last successful sync wrote, and once that listener is
- * gone every grok turn retries against a refused connection while our own log stays
- * silent (2026-07-27 field report: 8 entries pinned to a dead 127.0.0.1:4179).
- * So say what failed and name the single command that repairs it.
- */
-function grokSyncFailureMessage(err: unknown): string {
-  const detail = err instanceof Error ? err.message : String(err);
-  return `Grok Build config sync failed: ${detail}. `
-    + "~/.grok/config.toml may still point at a previous proxy port — "
-    + "run 'ocx ensure' (or apply from the dashboard's Grok page) to repoint it.";
 }
 
 /** Argv for detached `start`, optionally hard-pinning the listen port. */
@@ -225,6 +224,11 @@ async function handleStart(options: { block?: boolean } = {}) {
   // auth path reads OPENCODEX_API_AUTH_TOKEN from the environment.
   const serviceToken = loadServiceTokenFromFile(process.env);
   if (serviceToken) process.env.OPENCODEX_API_AUTH_TOKEN = serviceToken;
+  // The service wrapper (and WinSW via OCX_API_TOKEN_FILE) can still export a colliding
+  // token that install now refuses to write. Refuse it here too, before bind, so an
+  // already-broken file cannot fence /api/* closed at boot (#2696).
+  const present = process.env.OPENCODEX_API_AUTH_TOKEN?.trim();
+  if (present) assertNotAdminToken(present);
   const requestedPort = parsePortOption();
   const owner = await findProxyOwnerBeforeJournalRecovery();
   if (owner.live) {
@@ -381,14 +385,18 @@ async function handleStart(options: { block?: boolean } = {}) {
   // The hook is useful only for an installed Claude Code CLI. Reconcile instead of
   // appending unconditionally so stale OpenCodex-owned hooks are removed as well.
   reportShellHookFailure(reconcileShellHook(systemEnv.injected));
-
   await maybeShowStarPrompt(); // once-only Yes/No GitHub-star prompt on first interactive start
-  // Post-startup sync drives the readiness gate AND the #1046 stale app-server
-  // warning. `syncCodexOnStartIfEnabled` respects the Codex integration toggle
-  // (OFF → no sync) and reports whether anything was written; the readiness gate
-  // observes the real sync outcome (ok/warning) so /readyz never advertises a
-  // half-synced proxy as ready while /healthz stays live.
-  const startupSync = await syncCodexOnStartIfEnabled(port, config, undefined, readinessGate);
+  // Codex sync owns the ready/failed verdict, but its successful transition is
+  // deferred until the best-effort Claude roster reconciliation settles. This
+  // keeps /readyz closed across both startup writes without making an optional
+  // Claude integration failure prevent the proxy from starting.
+  const startupSync = await reconcileClientStartupBeforeReady(
+    readinessGate,
+    gate => syncCodexOnStartIfEnabled(port, config, undefined, gate),
+    () => systemEnv.injected
+      ? Promise.resolve(null)
+      : syncClaudeAgentDefsAtProxyStartup(config, port),
+  );
   if (!startupSync.ran) console.log("   Codex integration OFF; startup left Codex native.");
   // #1046: one warning per startup, after BOTH writes. The server's cache
   // invalidation happens first and the catalog sync second, so the mtime is only
@@ -469,14 +477,15 @@ async function handleEnsure(options: { existingIsSuccess?: boolean } = {}): Prom
       // Ensure env file exists for already-running proxy (may have been deleted or pre-dates this feature).
       const systemEnv = await injectSystemEnv(live.port, config).catch(() => ({ injected: false }));
       reportShellHookFailure(reconcileShellHook(systemEnv.injected));
+      if (!systemEnv.injected) await syncClaudeAgentDefsAtProxyStartup(config, live.port);
       // Refresh the Grok Build fence too (same contract as start). live.hostname is the
       // hostname the running proxy actually bound — config.hostname may have drifted.
-      try {
-        const { syncGrokConfig } = await import("../grok/sync");
-        const g = await syncGrokConfig(live.port, config, live.hostname ? { hostname: live.hostname } : {});
-        if (g.changed) console.log("   + Grok Build config updated (~/.grok/config.toml)");
-        else if (!g.ok) console.error(`⚠️  ${g.message}`);
-      } catch (err) { console.error(`⚠️  ${grokSyncFailureMessage(err)}`); }
+      // The reconciler re-reads immediately before each client-file mutation; only
+      // the live proxy's observed bind host is safe to carry across this boundary.
+      await reconcileEnsureDesiredIntegrations(
+        live.port,
+        { kind: "live", hostname: live.hostname },
+      );
       console.log(`✅ Proxy running on port ${live.port}`);
       return true;
     }
@@ -496,15 +505,12 @@ async function handleEnsure(options: { existingIsSuccess?: boolean } = {}): Prom
     process.exitCode = 1;
     return false;
   }
-  // Deterministic fence guarantee: the spawned child injects late in its own startup, but
-  // this parent returns as soon as /healthz responds — inject here too (idempotent block
-  // replace) so `ocx ensure` never returns without the Grok fence in place.
-  try {
-    const { syncGrokConfig } = await import("../grok/sync");
-    const g = await syncGrokConfig(port, config, config.hostname ? { hostname: config.hostname } : {});
-    if (g.changed) console.log("   + Grok Build config updated (~/.grok/config.toml)");
-    else if (!g.ok) console.error(`⚠️  ${g.message}`);
-  } catch (err) { console.error(`⚠️  ${grokSyncFailureMessage(err)}`); }
+  // Deterministic fence guarantee when the durable switch is ON: the spawned child
+  // injects late in its own startup, but this parent returns as soon as /healthz
+  // responds — align here too so `ocx ensure` never returns with a stale ON/OFF mismatch.
+  // Persisted state is loaded inside each mutation after waitForProxy, so a
+  // toggle while the child starts wins over the pre-spawn snapshot.
+  await reconcileEnsureDesiredIntegrations(port, { kind: "spawned" });
   // Always sync the LIVE port: after a fallback-port start, config.port still names the
   // busy preferred port — syncing that would point Codex at a dead listener.
   const synced = await syncModelsToCodex(port).catch(e => {
@@ -512,6 +518,10 @@ async function handleEnsure(options: { existingIsSuccess?: boolean } = {}): Prom
     return null;
   });
   if (synced?.status === "skipped") console.log("   Codex integration OFF; startup left Codex native.");
+  // The child opens /healthz before its best-effort roster reconcile. Await the same idempotent
+  // operation in the parent so `ocx ensure` cannot report success while stale ocx-*.md files are
+  // still observable. Always use the live port, including fallback-port starts.
+  await syncClaudeAgentDefsAtProxyStartup(config, port);
   console.log(`✅ Proxy running on port ${port}`);
   return true;
 }
@@ -826,8 +836,12 @@ async function handleUninstall() {
 
 async function handleStatus() {
   const statusArgs = args.slice(1);
-  const wantsJson = statusArgs.length === 1 && statusArgs[0] === "--json";
-  if (statusArgs.length > 1 || (statusArgs.length === 1 && !wantsJson)) {
+  // Order-independent: the previous form only honoured `--json` as the LONE argument, so
+  // `ocx status --json --anything` silently printed human output to a caller that asked
+  // for JSON. Take the flag out of argv, then reject whatever is left over -- which keeps
+  // the strict unknown-argument behaviour rather than trading one defect for another.
+  const wantsJson = takeFlag(statusArgs, "--json");
+  if (statusArgs.length > 0) {
     console.error("Usage: ocx status [--json]");
     process.exit(1);
   }
@@ -844,6 +858,23 @@ async function handleStatus() {
     console.log(`❌ Proxy: ${status.proxyLabel}`);
   }
   console.log(`   Health: ${status.healthLabel}`);
+  if (status.json.claudeDesktop.desiredEnabled && !status.json.claudeDesktop.policy.ok) {
+    console.log(`   ⚠️  Claude Desktop 3P health: ${status.json.claudeDesktop.policy.status}`);
+    console.log(`      ${status.json.claudeDesktop.policy.message}`);
+    console.log(`      Action: ${status.json.claudeDesktop.policy.action}`);
+  }
+  // Printed here, not only in --json: a stale ocx on PATH is exactly the situation where
+  // the operator is reading human output and wondering why the CLI disagrees with the
+  // dashboard. Adding the JSON field alone would satisfy a test and help nobody (#2701).
+  if (status.json.versionSkew.warning) {
+    console.log(`   ⚠️  ${status.json.versionSkew.warning}`);
+  }
+  for (const line of unusedProxyWarningLines({
+    proxyUp: Boolean(status.json.proxy.pid || status.json.proxy.health.ok),
+    routingKind: status.json.startup.routingKind,
+  })) {
+    console.log(`   ${line}`);
+  }
   if (!(status.json.proxy.pid || status.json.proxy.health.ok)) {
     console.log("   ↳ Not running — Codex/Claude requests will fail with connection errors.");
     // The service summary a few lines below already tells a registered-but-not-serving
@@ -851,6 +882,17 @@ async function handleStatus() {
     // contradicted it in the same report, and install re-registers: UAC on Windows and a
     // possible WinSW-to-scheduler switch for someone who already has a service.
     const installed = status.json.startup.serviceInstalled && !status.json.startup.serviceConflict;
+    // #1419: the records outliving the process is the only evidence the user gets that a
+    // previous run ended without cleanup. Deliberately hedged and cause-neutral — cleanup
+    // ignores unlink failures and the records carry no session provenance, so this cannot
+    // prove a crash, only that the last run left state behind. The restart advice below is
+    // not repeated here; one recommendation per report.
+    if (status.json.proxy.staleProcessState) {
+      console.log("     Stale process records remain, so the previous run may have exited unexpectedly.");
+      if (!installed) {
+        console.log("     No background service was available to restart it.");
+      }
+    }
     console.log(installed
       ? "     Restart with 'ocx start', or refresh the installed service: 'ocx service repair'."
       : "     Restart with 'ocx start', or install the persistent service: 'ocx service install'.");
@@ -863,6 +905,7 @@ async function handleStatus() {
   console.log(`   Default provider: ${status.json.defaultProvider}`);
   console.log(`   Codex autostart: ${status.json.codexAutostart ? "enabled" : "disabled"}`);
   console.log(`   Restart safety: ${startupHealthSummary(status.json.startup)}`);
+  console.log(`   ${formatStartupRoutingDetail(status.json.startup)}`);
   console.log(`   Service: ${status.json.service.summary}`);
   console.log(`   ${status.json.codexShim.summary}`);
   console.log(`   Codex runtime: ${status.json.codexRuntime.path}`);
@@ -903,8 +946,13 @@ async function handleStatus() {
 
 async function handleRecoverHistory() {
   if (args[1] !== "--legacy-openai") {
-    console.error("Usage: ocx recover-history --legacy-openai");
-    console.error("Only use this if an older syncResumeHistory build already remapped OpenAI Codex App history to opencodex before backup support existed.");
+    console.error("Usage: ocx recover-history --legacy-openai --yes");
+    console.error("This force-relabels every user-message opencodex row to OpenAI, including legitimate dedicated-provider history. Back up first and use it only for pre-backup legacy recovery.");
+    process.exit(1);
+  }
+  console.error("WARNING: this force-relabels every user-message opencodex row to OpenAI, normalizes exec to cli, and includes legitimate dedicated-provider history.");
+  if (args.length !== 3 || args[2] !== "--yes") {
+    console.error("Re-run with explicit confirmation: ocx recover-history --legacy-openai --yes");
     process.exit(1);
   }
   // Manifest-independent legacy ejection, serialized like every other history

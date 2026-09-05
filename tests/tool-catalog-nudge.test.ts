@@ -6,6 +6,7 @@ import {
   shouldInjectNonOpenAIToolCatalogNudge,
   isCanonicalNativeOpenAIRoute,
 } from "../src/adapters/tool-catalog-nudge";
+import { CODE_MODE_RESULT_ECHO_SENTENCE, EMPTY_EXEC_OUTPUT_MESSAGE } from "../src/adapters/exec-tool-result-normalize";
 import type { OcxTool } from "../src/types";
 
 describe("non-OpenAI tool catalog nudge", () => {
@@ -73,8 +74,12 @@ describe("non-OpenAI tool catalog nudge", () => {
     expect(note).toContain("await tools.codex_app__list_threads({})");
     expect(note).toContain("isolate global `ALL_TOOLS`, not `tools.ALL_TOOLS`");
     expect(note).toContain("Do not skip an available nested helper");
+    expect(note).toContain("`*** Begin Patch`");
+    expect(note).toContain("`*** End Patch`");
+    expect(note).toContain("no trailing `***`");
+    expect(note).toContain("OpenCodex does not rewrite JavaScript inside exec");
+    expect(note).toContain("Nested `tools.apply_patch(input)` is host-executed");
     expect(note).not.toContain("call the listed parent tool and use those helpers only inside that tool's input");
-    expect(note).not.toContain("apply_patch");
   });
 
   test("keeps the generic nested-helper parent-tool rule when exec is not listed", () => {
@@ -246,7 +251,11 @@ describe("non-OpenAI tool catalog nudge", () => {
     expect(nestedInput).toContain("tools.exec_command");
     expect(buildNonOpenAIToolCatalogNudgeForTools([exec("JavaScript; apply_patch is mentioned in prose")])).not.toContain("targeted code edits");
     expect(buildNonOpenAIToolCatalogNudgeForTools([exec("For example, tools.apply_patch({ patch: '...' }) may exist")])).not.toContain("targeted code edits");
-    expect(buildNonOpenAIToolCatalogNudgeForTools([exec("declare const tools: { apply_patch(input: string): Promise<unknown> }")])).not.toContain("exec_command");
+    const applyPatchOnly = buildNonOpenAIToolCatalogNudgeForTools([exec("declare const tools: { apply_patch(input: string): Promise<unknown> }")]);
+    expect(applyPatchOnly).toContain("targeted code edits");
+    // The generic code-mode orientation paragraph names exec_command only as a nested-call
+    // syntax example; the contextual patch guidance itself must stay scoped to declared helpers.
+    expect(applyPatchOnly?.split("For targeted code edits")[1]).not.toContain("exec_command");
   });
 
   test("suppresses contextual guidance for disallowed, planned, structured, and MCP tools", () => {
@@ -259,5 +268,39 @@ describe("non-OpenAI tool catalog nudge", () => {
     expect(buildNonOpenAIToolCatalogNudgeForTools([exec], undefined, undefined, ["Do not use apply_patch"])).not.toContain("targeted code edits");
     expect(buildNonOpenAIToolCatalogNudgeForTools([{ ...exec, freeform: undefined }])).not.toContain("targeted code edits");
     expect(buildNonOpenAIToolCatalogNudgeForTools([{ ...exec, namespace: "mcp__tools" }])).not.toContain("targeted code edits");
+  });
+
+  // The empty-result guidance in exec-tool-result-normalize only fires AFTER a wasted call. Live
+  // 2026-08-28: a routed Kiro session read a blank result, reported it as possible context loss,
+  // and learned the echo rule only from the repair text. Stating it up front is the prevention.
+  describe("code-mode result echo rule", () => {
+    test("states the echo rule before the first call when code mode is advertised", () => {
+      const note = buildNonOpenAIToolCatalogNudgeFromNames(["exec"], name => name, "exec");
+
+      if (!note) throw new Error("Expected a nudge for a code-mode catalog");
+      expect(note).toContain("Nothing in the isolate is echoed automatically");
+      expect(note).toContain("is DISCARDED");
+      expect(note).toContain("text(...)");
+      // Names the wrong conclusions, so a blank result is not read as a failed command.
+      expect(note).toContain("rather than a failed command or lost context");
+    });
+
+    test("omits the echo rule when the turn has no code-mode exec", () => {
+      const note = buildNonOpenAIToolCatalogNudgeFromNames(["exec_command", "mcp__fs__read_file"]);
+
+      if (!note) throw new Error("Expected a nudge for a flat catalog");
+      // A flat shell bridge echoes stdout on its own; this guidance would be a lie there.
+      expect(note).not.toContain("Nothing in the isolate is echoed automatically");
+    });
+
+    test("shares one wording with the post-hoc empty-result guidance", () => {
+      const note = buildNonOpenAIToolCatalogNudgeFromNames(["exec"], name => name, "exec");
+
+      if (!note) throw new Error("Expected a nudge for a code-mode catalog");
+      // Both surfaces must describe the same isolate. Drift here is how a model gets told two
+      // different things about whether its output survived.
+      expect(note).toContain(CODE_MODE_RESULT_ECHO_SENTENCE);
+      expect(EMPTY_EXEC_OUTPUT_MESSAGE).toContain("text(...)");
+    });
   });
 });

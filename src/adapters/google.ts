@@ -14,7 +14,7 @@ import type {
   OcxToolResultMessage,
   OcxUsage,
 } from "../types";
-import { isAllowedToolChoice, namespacedToolName, resolveToolChoiceWireName, toolAllowedByChoice } from "../types";
+import { isAllowedToolChoice, namespacedToolName, resolveToolChoiceWireName, toolChoiceToolPredicate } from "../types";
 import { contentPartsToText, parseDataUrl } from "./image";
 import { getVertexAccessToken } from "../lib/gcp-adc";
 import { fetchAntigravityWithRetry, fetchVertexWithRetry } from "./google-http";
@@ -24,10 +24,16 @@ import { ANTIGRAVITY_REQUEST_UA, antigravitySessionId, isLikelyRealThoughtSignat
 import { stripTrailingClaudePrefill } from "./google-antigravity-tools";
 import { compileGoogleWireBody } from "./google-wire-compiler";
 import { identifyRoutedModel } from "./identity";
-import { antigravityUsesReplayCache, applyAntigravityReplay, clearAntigravityReplay, observeAntigravityReplay } from "./google-antigravity-replay";
+import {
+  antigravityUsesReplayCache,
+  applyAntigravityReplay,
+  applyAntigravityThoughtSignatureFallback,
+  clearAntigravityReplay,
+  observeAntigravityReplay,
+} from "./google-antigravity-replay";
 import { resolveAntigravityEffortWireModel } from "../providers/antigravity-models";
 import { googleVertexLocationConfigError } from "../providers/google-vertex-location";
-import { lookupReplayThoughtSignature } from "../responses/thought-signature-replay";
+import { forgetThoughtSignatureForReplay, lookupReplayThoughtSignature } from "../responses/thought-signature-replay";
 import {
   isTranslatorBudgetExceededError,
   retainTranslatedEventBatch,
@@ -48,6 +54,53 @@ const GOOGLE_BREVITY_INSTRUCTION = [
   "- Prefer taking the next tool action over explaining; keep calling tools until the task is complete.",
   "- This applies only to intermediate progress text. Your final answer after the work is done is exempt: write it in full and at whatever length the task requires.",
 ].join("\n");
+
+const ANTIGRAVITY_REJECTED_CLAUDE_SDK_PARAGRAPH =
+  "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+
+function stripAntigravityRejectedClaudeSdkParagraph(systemText: string): string {
+  return systemText
+    .split("\n\n")
+    .filter(paragraph => paragraph !== ANTIGRAVITY_REJECTED_CLAUDE_SDK_PARAGRAPH)
+    .join("\n\n");
+}
+
+/**
+ * Documented output ceiling for a Google-surface model, or `undefined` when the id is not
+ * recognized.
+ *
+ * Unknown ids return `undefined` deliberately. An earlier revision returned a 16,384 floor for
+ * anything unmatched, which silently truncated aliases, gateway ids, and any model added after
+ * this table was written — the operator asked for N tokens and got 16,384 with no signal. A cap
+ * we cannot justify is worse than no cap: `structure/02_config-and-codex-home.md` is explicit
+ * that an explicit request value wins, so an unrecognized model passes through untouched and the
+ * upstream remains the authority on its own limit.
+ *
+ * Matching is prefix/family based rather than substring based for the same reason: `includes("pro")`
+ * matched any id containing "pro" (`my-prototype-model`), and `includes("oss")` matched any id
+ * containing "oss" (`crossover-v2`).
+ */
+export function maxOutputTokensForGoogleModel(modelId: string): number | undefined {
+  const lower = modelId.toLowerCase().trim();
+  if (lower.startsWith("gemini")) {
+    // Pro tops out one token below the flash/other Gemini ceiling; both are documented values.
+    return /(^|[-.])pro([-.]|$)/.test(lower) ? 65535 : 65536;
+  }
+  if (lower.startsWith("claude")) return 64000;
+  if (lower.startsWith("gpt-oss")) return 32768;
+  return undefined;
+}
+
+export function clampGoogleMaxOutputTokens(
+  modelId: string,
+  requestedTokens?: number,
+): number | undefined {
+  if (requestedTokens === undefined || requestedTokens <= 0) return undefined;
+  const modelMax = maxOutputTokensForGoogleModel(modelId);
+  // Unknown model: honour the request as-is rather than inventing a ceiling for it.
+  if (modelMax === undefined) return requestedTokens;
+  return Math.min(requestedTokens, modelMax);
+}
 
 /**
  * Some Google direct deployments expose current Gemini Flash generations with a `-tiered`
@@ -142,7 +195,7 @@ function geminiTextPart(text: unknown): { text: string } | undefined {
  */
 function geminiToolResultText(content: string | OcxContentPart[]): string {
   if (typeof content === "string") return content || GEMINI_EMPTY_TOOL_OUTPUT_PLACEHOLDER;
-  const hasContent = content.some(p => p.type === "image" || (typeof p.text === "string" && p.text.length > 0));
+  const hasContent = content.some(p => p.type !== "text" || p.text.length > 0);
   return hasContent ? contentPartsToText(content) : GEMINI_EMPTY_TOOL_OUTPUT_PLACEHOLDER;
 }
 
@@ -185,18 +238,23 @@ function geminiOrphanToolResultParts(msg: OcxToolResultMessage): unknown[] {
 function messagesToGeminiFormat(
   parsed: OcxParsedRequest,
   identityModelId: string,
-): { systemInstruction?: unknown; contents: unknown[] } {
+  stripRejectedClaudeSdkParagraph = false,
+): { systemInstruction?: unknown; contents: unknown[]; replayedCallIds: string[] } {
   // Neutralize Codex's GPT-5 identity line (Gemini/Antigravity share this path) so a routed model
   // never misreports as GPT-5/OpenAI, and never leaks the proxy identity upstream.
   const toolCatalogNudge = buildNonOpenAIToolCatalogNudgeForTools(parsed.context.tools, parsed.options.toolChoice, undefined, effectiveInstructionText(parsed.context.messages, parsed.context.systemPrompt));
-  const systemText = identifyRoutedModel([
+  const identifiedSystemText = identifyRoutedModel([
     ...(parsed.context.systemPrompt ?? []),
     ...(toolCatalogNudge ? [toolCatalogNudge] : []),
     GOOGLE_BREVITY_INSTRUCTION,
   ].join("\n\n"), identityModelId);
+  const systemText = stripRejectedClaudeSdkParagraph
+    ? stripAntigravityRejectedClaudeSdkParagraph(identifiedSystemText)
+    : identifiedSystemText;
   const systemInstruction = { parts: [{ text: systemText }] };
 
   const contents: unknown[] = [];
+  const replayedCallIds: string[] = [];
 
   const callIds = createToolCallIdAllocator();
   for (const msg of parsed.context.messages) {
@@ -223,6 +281,13 @@ function messagesToGeminiFormat(
               // Gemini takes base64 via inline_data; a remote URL needs a mime type we don't have, so
               // fall back to a short marker rather than inlining the URL as a huge text blob.
               parts.push(data ? { inline_data: { mime_type: data.mediaType, data: data.base64 } } : { text: `[image: ${p.imageUrl}]` });
+              continue;
+            }
+            if (p.type === "video") {
+              const data = parseDataUrl(p.videoUrl);
+              // Gemini accepts inline video bytes in the same Part union as images. Arbitrary
+              // remote URLs are not valid fileData references, so retain only a short marker.
+              parts.push(data ? { inline_data: { mime_type: data.mediaType, data: data.base64 } } : { text: `[video: ${p.videoUrl}]` });
               continue;
             }
             // Drop empty/malformed text instead of emitting `{ text: "" }` or a bare `{}` part.
@@ -272,7 +337,10 @@ function messagesToGeminiFormat(
             const signature = tc.providerMetadata?.google?.thoughtSignature
               ?? tc.thoughtSignature
               ?? lookupReplayThoughtSignature(tc.id, parsed._reasoningReplayScope);
-            if (isLikelyRealThoughtSignature(signature)) part.thoughtSignature = signature;
+            if (isLikelyRealThoughtSignature(signature)) {
+              part.thoughtSignature = signature;
+              replayedCallIds.push(tc.id);
+            }
             parts.push(part);
           }
         }
@@ -324,16 +392,13 @@ function messagesToGeminiFormat(
     }
   }
 
-  return { systemInstruction, contents };
+  return { systemInstruction, contents, replayedCallIds };
 }
 
 function toolsToGeminiFormat(parsed: OcxParsedRequest): unknown[] | undefined {
   if (!parsed.context.tools?.length) return undefined;
-  const allowed = isAllowedToolChoice(parsed.options.toolChoice)
-    ? new Set(parsed.options.toolChoice.allowedTools)
-    : undefined;
-  const tools = allowed
-    ? parsed.context.tools.filter(t => toolAllowedByChoice(t, allowed, parsed.context.tools))
+  const tools = isAllowedToolChoice(parsed.options.toolChoice)
+    ? parsed.context.tools.filter(toolChoiceToolPredicate(parsed.options.toolChoice, parsed.context.tools))
     : parsed.context.tools;
   if (tools.length === 0) return undefined;
   return [{
@@ -433,11 +498,29 @@ function artifactMarkdownUrl(filePath: string): string {
 }
 
 interface GoogleResponsePart {
-  text?: string;
+  text?: unknown;
   thought?: boolean;
   thoughtSignature?: string;
   thought_signature?: string;
-  functionCall?: { name: string; args: unknown };
+  extra_content?: { google?: { thought_signature?: unknown } };
+  functionCall?: unknown;
+}
+
+interface GoogleFunctionCall {
+  name: string;
+  args?: unknown;
+}
+
+/**
+ * Read a Gemini/Antigravity thought signature from a response part. Antigravity can place it
+ * either directly on the part (`thoughtSignature` / `thought_signature`) or inside the same
+ * nested `extra_content.google.thought_signature` shape used on the Responses wire.
+ */
+function googlePartThoughtSignature(part: GoogleResponsePart): string | undefined {
+  const direct = part.thoughtSignature ?? part.thought_signature;
+  if (typeof direct === "string" && direct.length > 0) return direct;
+  const nested = part.extra_content?.google?.thought_signature;
+  return typeof nested === "string" && nested.length > 0 ? nested : undefined;
 }
 
 /**
@@ -449,7 +532,7 @@ function googleToolCallMetadataFromPart(
   part: GoogleResponsePart,
   fallbackSignature?: string,
 ): { providerMetadata: OcxProviderOpaqueToolCallMetadata } | undefined {
-  const signature = part.thoughtSignature ?? part.thought_signature ?? fallbackSignature;
+  const signature = googlePartThoughtSignature(part) ?? fallbackSignature;
   if (!isLikelyRealThoughtSignature(signature)) return undefined;
   return { providerMetadata: { google: { thoughtSignature: signature } } };
 }
@@ -460,10 +543,22 @@ function googleToolCallMetadataFromPart(
  * cannot accidentally expose the same hidden reasoning through different event types.
  */
 function googlePartTextEvent(part: GoogleResponsePart): AdapterEvent | undefined {
-  if (!part.text) return undefined;
+  // A malformed scalar/object is not text and must not cross the AdapterEvent boundary. Dropping
+  // only this optional field preserves the rest of the part without inventing assistant output by
+  // coercion; an empty string keeps its existing no-event behavior.
+  if (typeof part.text !== "string" || part.text.length === 0) return undefined;
   return part.thought === true
     ? { type: "reasoning_raw_delta", text: part.text }
     : { type: "text_delta", text: part.text };
+}
+
+interface InvalidGoogleFunctionCallDiagnostic {
+  reason:
+    | "function_call_not_object"
+    | "function_call_name_invalid"
+    | "function_call_name_blank";
+  partIndex: number;
+  valueType: string;
 }
 
 interface InvalidGoogleShapeDiagnostic {
@@ -484,6 +579,63 @@ function isGoogleRecord(value: unknown): value is Record<string, unknown> {
 function googleStructuralValueType(value: unknown): string {
   if (value === null) return "null";
   return Array.isArray(value) ? "array" : typeof value;
+}
+
+/**
+ * Gemini delivers one complete functionCall per part, so a missing name cannot be repaired by a
+ * later delta. Validate the whole parts array before observing signatures or emitting content: a
+ * malformed call must terminate the claimed response rather than enter replay state or reach the
+ * bridge as a nameless dispatch. Null remains an absence encoding, matching other optional fields.
+ */
+function diagnoseGoogleFunctionCalls(
+  parts: readonly GoogleResponsePart[],
+): InvalidGoogleFunctionCallDiagnostic | undefined {
+  for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+    const functionCall = parts[partIndex]?.functionCall;
+    if (functionCall === undefined || functionCall === null) continue;
+    if (!isGoogleRecord(functionCall)) {
+      return {
+        reason: "function_call_not_object",
+        partIndex,
+        valueType: googleStructuralValueType(functionCall),
+      };
+    }
+    if (typeof functionCall.name !== "string") {
+      return {
+        reason: "function_call_name_invalid",
+        partIndex,
+        valueType: googleStructuralValueType(functionCall.name),
+      };
+    }
+    if (functionCall.name.trim().length === 0) {
+      return {
+        reason: "function_call_name_blank",
+        partIndex,
+        valueType: "string",
+      };
+    }
+  }
+  return undefined;
+}
+
+function googleFunctionCall(part: GoogleResponsePart): GoogleFunctionCall | undefined {
+  const functionCall = part.functionCall;
+  if (!isGoogleRecord(functionCall) || typeof functionCall.name !== "string") return undefined;
+  return { name: functionCall.name, args: functionCall.args };
+}
+
+function invalidGoogleFunctionCallEvent(
+  diagnostic: InvalidGoogleFunctionCallDiagnostic,
+): Extract<AdapterEvent, { type: "error" }> {
+  const subject = diagnostic.reason === "function_call_not_object"
+    ? "invalid function call"
+    : diagnostic.reason === "function_call_name_blank"
+      ? "blank function call name"
+      : "invalid function call name";
+  return {
+    type: "error",
+    message: `google response contained ${subject} (${diagnostic.reason}; partIndex=${diagnostic.partIndex}; valueType=${diagnostic.valueType}) — cannot dispatch`,
+  };
 }
 
 /**
@@ -550,6 +702,47 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
   let vertexReplayModel: string | undefined;
   let vertexReplaySession: string | undefined;
   let restoreGoogleToolName = (name: string): string => name;
+  let lastInjectedCallIds: string[] = [];
+  let lastReasoningReplayScope: OcxParsedRequest["_reasoningReplayScope"];
+
+  // Conservative batch invalidation: upstream Gemini/Antigravity errors (e.g.
+  // "Function call is missing a thought_signature in functionCall parts") do not specify which
+  // specific call_id was rejected. When a request containing replayed signatures is rejected,
+  // we evict all callIds injected in that turn (lastInjectedCallIds) from the durable store
+  // and clear the session replay cache, preventing poisoned-signature loops while allowing
+  // subsequent turns to re-accumulate valid signatures. Unrelated calls from other turns remain intact.
+  //
+  // Memory-cache clearing stays broad (any invalid-argument/signature error can poison the
+  // session replay cache), but durable-store eviction is intentionally narrower: it only runs
+  // when the error text explicitly mentions a signature, so a generic tool-schema
+  // INVALID_ARGUMENT does not destroy valid durable signatures.
+  function handleSignatureRejection(errorMessage?: string) {
+    const replayModel = provider.googleMode === "cloud-code-assist" ? antigravityModel : vertexReplayModel;
+    const replaySession = provider.googleMode === "cloud-code-assist" ? antigravitySession : vertexReplaySession;
+    const text = errorMessage ?? "";
+    const isInvalidArgument = /invalid_argument|invalid argument/i.test(text);
+    const isSignatureError = /signature|thought_signature|thoughtSignature/i.test(text);
+    // The in-memory Antigravity replay cache only exists for CCA/Vertex, so clearing it stays
+    // scoped to those modes (replayModel/replaySession are undefined elsewhere anyway).
+    if (
+      (provider.googleMode === "cloud-code-assist" || provider.googleMode === "vertex")
+      && replayModel && replaySession && (isInvalidArgument || isSignatureError)
+    ) {
+      clearAntigravityReplay(replayModel, replaySession);
+    }
+    // The DURABLE store is not mode-scoped: signatures are remembered through
+    // rememberAndSerializeExtraContent and read back by lookupReplayThoughtSignature on every
+    // Google mode, including AI Studio. Gating eviction on CCA/Vertex therefore left AI Studio
+    // with rejected signatures cached forever, replaying them into every subsequent turn — the
+    // store poisons itself and the request keeps failing. Eviction follows the same scope the
+    // write does.
+    if (isSignatureError) {
+      for (const callId of lastInjectedCallIds) {
+        forgetThoughtSignatureForReplay(callId, lastReasoningReplayScope);
+      }
+    }
+  }
+
   return {
     name: "google",
 
@@ -578,7 +771,15 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
           : resolveDirectGeminiWireModelId(parsed.modelId, provider.directGeminiWireRenames !== false);
       // AI Studio's `-tiered` spelling is wire-only; CCA aliases may migrate to another generation.
       const identityModelId = provider.googleMode === "cloud-code-assist" ? routedModelId : parsed.modelId;
-      const { systemInstruction, contents } = messagesToGeminiFormat(parsed, identityModelId);
+      const stripRejectedClaudeSdkParagraph = provider.googleMode === "cloud-code-assist"
+        && parsed.modelId === "gemini-3.7-flash";
+      const { systemInstruction, contents, replayedCallIds } = messagesToGeminiFormat(
+        parsed,
+        identityModelId,
+        stripRejectedClaudeSdkParagraph,
+      );
+      lastInjectedCallIds = [...replayedCallIds];
+      lastReasoningReplayScope = parsed._reasoningReplayScope;
       const tools = toolsToGeminiFormat(parsed);
 
       const body: Record<string, unknown> = { contents };
@@ -590,7 +791,8 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
       if (toolConfig) body.toolConfig = toolConfig;
 
       const generationConfig: Record<string, unknown> = {};
-      if (parsed.options.maxOutputTokens) generationConfig.maxOutputTokens = parsed.options.maxOutputTokens;
+      const clampedMaxOutputTokens = clampGoogleMaxOutputTokens(identityModelId, parsed.options.maxOutputTokens);
+      if (clampedMaxOutputTokens !== undefined) generationConfig.maxOutputTokens = clampedMaxOutputTokens;
       if (parsed.options.temperature !== undefined) generationConfig.temperature = parsed.options.temperature;
       if (parsed.options.topP !== undefined) generationConfig.topP = parsed.options.topP;
       if (parsed.options.stopSequences) generationConfig.stopSequences = parsed.options.stopSequences;
@@ -682,6 +884,10 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
           } else {
             sanitizeAntigravityClaudeSignatures(contents);
           }
+          // After replay, not instead of it: a real signature always wins, and the sentinel only
+          // fills a first functionCall that replay could not sign. Outside the cache branch too,
+          // because the turn still needs a signature when no session was ever recorded.
+          applyAntigravityThoughtSignatureFallback(wireModelId, contents);
           // Claude-on-Antigravity rejects assistant-tail (model-tail in Gemini terms) histories
           // as prefill: "This model does not support assistant message prefill. The conversation
           // must end with a user message." Context compaction, previous_response_id expansion,
@@ -727,6 +933,10 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
           applyAntigravityReplay(
             vertexReplayModel,
             vertexReplaySession,
+            (compiled.body as { contents: unknown[] }).contents,
+          );
+          applyAntigravityThoughtSignatureFallback(
+            vertexReplayModel,
             (compiled.body as { contents: unknown[] }).contents,
           );
         }
@@ -819,14 +1029,9 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
         if (chunk.error) {
           const err = chunk.error as { message?: string } | undefined;
           // Clear-on-invalid: a signature rejection means our replayed thoughtSignatures are stale.
-          // Drop the cache entry so the next turn starts clean instead of re-injecting a bad sig.
-          const replayModel = provider.googleMode === "cloud-code-assist" ? antigravityModel : vertexReplayModel;
-          const replaySession = provider.googleMode === "cloud-code-assist" ? antigravitySession : vertexReplaySession;
-          if ((provider.googleMode === "cloud-code-assist" || provider.googleMode === "vertex")
-            && replayModel && replaySession
-            && /signature|invalid_argument|invalid argument/i.test(err?.message ?? "")) {
-            clearAntigravityReplay(replayModel, replaySession);
-          }
+          // Drop the cache entry and durable store entry for rejected calls so the next turn
+          // starts clean instead of re-injecting a bad sig.
+          handleSignatureRejection(err?.message);
           yield { type: "error", message: err?.message ?? "upstream error" };
           return "terminate";
         }
@@ -904,6 +1109,11 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
             return "terminate";
           }
           parts = rawParts as GoogleResponsePart[];
+          const invalidFunctionCall = diagnoseGoogleFunctionCalls(parts);
+          if (invalidFunctionCall) {
+            yield invalidGoogleFunctionCallEvent(invalidFunctionCall);
+            return "terminate";
+          }
         }
         // Record Gemini thought signatures for the next stateless tool-result turn. Vertex and
         // Antigravity use separate model namespaces so opaque provider state cannot cross routes.
@@ -911,7 +1121,9 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
         const replaySession = provider.googleMode === "cloud-code-assist" ? antigravitySession : vertexReplaySession;
         if ((provider.googleMode === "cloud-code-assist" || provider.googleMode === "vertex")
           && parts && replayModel && replaySession) {
-          pendingStreamThoughtSig = observeAntigravityReplay(
+          // Observation may scan the whole frame, so use it only for replay-cache side effects.
+          // The source-order loop below exclusively owns stream carry and cannot pair backwards.
+          observeAntigravityReplay(
             replayModel,
             replaySession,
             parts as unknown[],
@@ -920,7 +1132,7 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
         }
         if (parts) {
           for (const part of parts) {
-            const sig = part.thoughtSignature ?? part.thought_signature;
+            const sig = googlePartThoughtSignature(part);
             if (part.thought === true && sig && isLikelyRealThoughtSignature(sig)) {
               pendingStreamThoughtSig = sig;
             }
@@ -944,18 +1156,19 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
                 }
               }
             }
-            if (part.functionCall) {
+            const functionCall = googleFunctionCall(part);
+            if (functionCall) {
               const id = `call_${crypto.randomUUID().slice(0, 8)}`;
               toolCallsStarted++;
               emittedContentEvent = true;
-              const restoredName = restoreGoogleToolName(part.functionCall.name);
+              const restoredName = restoreGoogleToolName(functionCall.name);
               yield {
                 type: "tool_call_start",
                 id,
                 name: restoredName,
                 ...googleToolCallMetadataFromPart(part, pendingStreamThoughtSig),
               };
-              yield { type: "tool_call_delta", arguments: JSON.stringify(part.functionCall.args ?? {}) };
+              yield { type: "tool_call_delta", arguments: JSON.stringify(functionCall.args ?? {}) };
               yield { type: "tool_call_end" };
             }
           }
@@ -1122,7 +1335,18 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
       let raw: Record<string, unknown>;
       let rawBytes = 0;
       try {
-        raw = JSON.parse(rawText) as Record<string, unknown>;
+        const parsedRaw: unknown = JSON.parse(rawText);
+        // `JSON.parse("null")` returns null instead of throwing, so the catch below cannot see it
+        // and the `raw.error` read crashed the turn — #1219 at the buffered body root, which #1240
+        // never reached because that audit swept SSE frame parsers only. There is no next frame to
+        // recover into here, so unlike a stream frame this fails closed, matching the
+        // unparseable-body branch just below and the buffered candidate guards added in #2232.
+        if (!isGoogleRecord(parsedRaw)) {
+          budget.releaseRetained(rawTextBytes, { kind: "retained_collectors" });
+          const valueType = googleStructuralValueType(parsedRaw);
+          return [{ type: "error", message: `google response was not a JSON object (${valueType})` }];
+        }
+        raw = parsedRaw;
         rawBytes = new TextEncoder().encode(JSON.stringify(raw)).byteLength;
         const rawReservation = budget.reserveTransient(rawBytes, { kind: "retained_collectors" });
         rawReservation.commitRetained();
@@ -1139,6 +1363,7 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
       };
       if (raw.error) {
         const err = raw.error as { message?: string };
+        handleSignatureRejection(err.message);
         return finish([{ type: "error", message: err.message ?? "upstream error" }]);
       }
       const json = raw;
@@ -1180,6 +1405,8 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
         const invalidParts = diagnoseGoogleParts(rawParts);
         if (invalidParts) return finish([invalidGoogleShapeEvent(invalidParts)]);
         const parts = rawParts as GoogleResponsePart[];
+        const invalidFunctionCall = diagnoseGoogleFunctionCalls(parts);
+        if (invalidFunctionCall) return finish([invalidGoogleFunctionCallEvent(invalidFunctionCall)]);
         // Non-streaming Google-family response: observe thought signatures for the next turn,
         // using the same transport-scoped namespace as the streaming path.
         // CCA never reaches the buffered path (delegated to parseStream above), so only the
@@ -1192,7 +1419,7 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
         }
         let pendingThoughtSig: string | undefined;
         for (const part of parts) {
-          const sig = part.thoughtSignature ?? part.thought_signature;
+          const sig = googlePartThoughtSignature(part);
           if (part.thought === true && sig && isLikelyRealThoughtSignature(sig)) {
             pendingThoughtSig = sig;
           }
@@ -1212,16 +1439,17 @@ export function createGoogleAdapter(provider: OcxProviderConfig): ProviderAdapte
               }
             }
           }
-          if (part.functionCall) {
+          const functionCall = googleFunctionCall(part);
+          if (functionCall) {
             const id = `call_${crypto.randomUUID().slice(0, 8)}`;
             toolCallsStarted++;
             events.push({
               type: "tool_call_start",
               id,
-              name: restoreGoogleToolName(part.functionCall.name),
+              name: restoreGoogleToolName(functionCall.name),
               ...googleToolCallMetadataFromPart(part, pendingThoughtSig),
             });
-            events.push({ type: "tool_call_delta", arguments: JSON.stringify(part.functionCall.args ?? {}) });
+            events.push({ type: "tool_call_delta", arguments: JSON.stringify(functionCall.args ?? {}) });
             events.push({ type: "tool_call_end" });
           }
         }

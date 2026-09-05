@@ -13,6 +13,7 @@ import type { RawEntry } from "../src/codex/catalog/parsing";
 import { providerConfigSeed, enrichProviderFromRegistry } from "../src/providers/derive";
 import { decideTier } from "../src/providers/fastwire";
 import { getProviderRegistryEntry } from "../src/providers/registry";
+import { decideTier } from "../src/providers/fastwire";
 import type { RequestLogContext } from "../src/server/request-log";
 import { applyServiceTierGate, handleResponses } from "../src/server/responses/core";
 import {

@@ -19,7 +19,7 @@ import { openAiAccountProviderState } from "../../provider-payload";
 import { providerSupportsLiveModelDiscovery } from "../../provider-workspace/catalog";
 import type { CatalogPreset } from "../provider-catalog/provider-presets";
 import { authModeLabel } from "./ProviderRail";
-import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, WorkspaceItem, ProviderUpdatePatch } from "./types";
+import type { ProviderPoolSwitchInput, ProviderPoolSwitchResult, WorkspaceItem, ProviderUpdatePatch, ProviderUpdateResult } from "./types";
 
 const ADAPTERS = ["openai-responses", "openai-chat", "anthropic", "google", "azure-openai", "cursor"] as const;
 const EMPTY_MODELS: string[] = [];
@@ -63,7 +63,7 @@ export default function ProviderSettings({
   availableModels?: string[];
   /** When set, load endpoint choices for catalog providers that expose baseUrlChoices. */
   apiBase?: string;
-  onUpdateProvider?: (name: string, patch: ProviderUpdatePatch) => Promise<{ ok: boolean; error?: string }>;
+  onUpdateProvider?: (name: string, patch: ProviderUpdatePatch) => Promise<ProviderUpdateResult>;
   /** Atomic test-then-switch for pool-scoped gateways; see /api/providers/switch-pool. */
   onSwitchPool?: (name: string, input: ProviderPoolSwitchInput) => Promise<ProviderPoolSwitchResult>;
   onDirtyChange?: (dirty: boolean) => void;

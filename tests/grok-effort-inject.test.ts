@@ -7,6 +7,10 @@ import {
   nativeReasoningEfforts,
   type CatalogModel,
 } from "../src/codex/catalog";
+import {
+  resetCodexModelEntitlementCacheForTests,
+  seedCodexModelEntitlementsForTests,
+} from "../src/codex/model-entitlements";
 import { buildGrokManagedBlock, injectGrokConfig, type GrokInjectModel } from "../src/grok/inject";
 import { grokDefaultReasoningEffort, sanitizeGrokReasoningEfforts } from "../src/grok/effort";
 import { buildGrokInjectModels } from "../src/grok/models";
@@ -29,6 +33,14 @@ const ROUTED_EMPTY_LADDER: CatalogModel = {
   contextWindow: 262_144,
   reasoningEfforts: [],
 };
+
+beforeEach(() => {
+  seedCodexModelEntitlementsForTests("main", [NATIVE_SOL]);
+});
+
+afterEach(() => {
+  resetCodexModelEntitlementCacheForTests();
+});
 
 type GrokTomlModel = {
   model?: string;

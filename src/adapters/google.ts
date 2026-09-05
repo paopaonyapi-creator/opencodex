@@ -257,13 +257,14 @@ function messagesToGeminiFormat(
   const replayedCallIds: string[] = [];
 
   const callIds = createToolCallIdAllocator();
+  // Only assistant tool calls claim id space. Results resolve through lookup against
+  // their call's mapping; reserving result ids would let an orphan carrying an
+  // already-normalized id steal the slot its real call's rewrite needs.
   for (const msg of parsed.context.messages) {
     if (msg.role === "assistant") {
       for (const part of (msg as OcxAssistantMessage).content) {
         if (part.type === "toolCall") callIds.reserve((part as OcxToolCall).id);
       }
-    } else if (msg.role === "toolResult") {
-      callIds.reserve((msg as OcxToolResultMessage).toolCallId);
     }
   }
   for (let i = 0; i < parsed.context.messages.length; i++) {

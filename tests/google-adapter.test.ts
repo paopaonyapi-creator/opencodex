@@ -191,14 +191,18 @@ describe("google adapter — tool-call ids on the wire", () => {
     expect(frPart.functionResponse.id).toBe("call_abc");
   });
 
-  test("orphan tool results are omitted instead of emitting an unmatched functionResponse", async () => {
+  test("orphan tool results are preserved as text instead of emitting an unmatched functionResponse", async () => {
     const contents = await geminiContents(parsedWith([
       { role: "toolResult", toolCallId: "orphan", toolName: "missing", content: "discard", isError: false },
       { role: "user", content: "continue" },
     ]));
 
     expect(contents.flatMap(content => content.parts).some(part => "functionResponse" in part)).toBe(false);
-    expect(JSON.stringify(contents)).not.toContain("orphan");
+    // The result is kept as explicit user text (id included) rather than dropped or
+    // sent as a functionResponse no functionCall can pair with.
+    const text = JSON.stringify(contents);
+    expect(text).toContain("[tool_result without adjacent tool_use:");
+    expect(text).toContain("orphan");
   });
 
   test("orphan result ids do not reserve allocator slots", async () => {

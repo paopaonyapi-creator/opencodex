@@ -519,6 +519,30 @@ describe("anthropic tool result history repair", () => {
     expect(JSON.stringify(results)).not.toContain("missing tool_result");
   });
 
+  test("an orphan result id does not steal a rewritten call's allocator slot", async () => {
+    // Same collision as above, but the normalized id arrives on an orphan result instead
+    // of a second call. Result ids never claim id space (lookup only), so the real call
+    // still gets the canonical rewrite and the orphan stays text.
+    const rawId = "call:a";
+    const normalizedId = anthropicToolCallId(rawId)!;
+    const body = await replay([
+      { role: "user", content: "start", timestamp: 0 },
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: rawId, name: "bash", arguments: {} }],
+        model: "claude-sonnet",
+        timestamp: 0,
+      },
+      { role: "toolResult", toolCallId: rawId, toolName: "bash", content: "ok", isError: false, timestamp: 0 },
+      { role: "toolResult", toolCallId: normalizedId, toolName: "missing", content: "discard", isError: false, timestamp: 0 },
+      { role: "user", content: "continue", timestamp: 0 },
+    ]);
+
+    const uses = (body.messages[1].content as any[]).filter(b => b.type === "tool_use");
+    expect(uses).toHaveLength(1);
+    expect(uses[0].id).toBe(normalizedId);
+  });
+
   test("a result with no matching call does not mint a tool_use identity", async () => {
     const body = await replay(callThenResult("call_1", "call_other"));
 

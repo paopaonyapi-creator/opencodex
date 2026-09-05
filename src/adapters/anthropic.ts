@@ -656,13 +656,14 @@ function messagesToAnthropicFormat(
   // call got, and two distinct raw ids must never collapse into one. Conforming ids are claimed
   // first so a rewritten id can never squat on an id another call legitimately owns.
   const callIds = createToolCallIdAllocator();
+  // Only assistant tool calls claim id space. Results resolve through lookup against
+  // their call's mapping; reserving result ids would let an orphan carrying an
+  // already-normalized id steal the slot its real call's rewrite needs.
   for (const message of parsed.context.messages) {
     if (message.role === "assistant") {
       for (const part of (message as OcxAssistantMessage).content) {
         if (part.type === "toolCall") callIds.reserve((part as OcxToolCall).id);
       }
-    } else if (message.role === "toolResult") {
-      callIds.reserve((message as OcxToolResultMessage).toolCallId);
     }
   }
   const toolCatalogNudge = buildNonOpenAIToolCatalogNudgeForTools(

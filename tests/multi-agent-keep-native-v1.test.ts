@@ -89,6 +89,14 @@ function isolateHomes(): void {
   process.env.CODEX_HOME = mkdtempSync(join(tmpdir(), "codex-keep-native-"));
 }
 
+// win-exec routes through `ComSpec /d /s /c "<line>"` on Windows (shell-less
+// .cmd spawns are refused); on POSIX the invocation is plain argv. Normalize
+// both to the effective command line so spawn assertions hold everywhere.
+function spawnedCommandLine(args: string[]): string {
+  const line = args[0] === "/d" && args[1] === "/s" && args[2] === "/c" ? args.slice(3).join(" ") : args.join(" ");
+  return line.replace(/\^/g, "").replace(/"/g, "");
+}
+
 function captureLog(): { logs: string[]; errors: string[]; log: { log: (m?: unknown) => void; error: (m?: unknown) => void } } {
   const logs: string[] = [];
   const errors: string[] = [];
@@ -173,7 +181,7 @@ describe("ocx v2 keep-native-v1", () => {
 
     const code = await cmdV2(["keep-native-v1", "on"], {
       execFile: (_file, args) => {
-        events.push(args.join(" "));
+        events.push(spawnedCommandLine(args));
         writeFileSync(codexConfig, readFileSync(codexConfig, "utf8").replace("enabled = true", "enabled = false"));
       },
       sync: async () => { events.push("sync"); },
@@ -182,7 +190,9 @@ describe("ocx v2 keep-native-v1", () => {
 
     expect(code).toBe(0);
     expect(isMultiAgentV2Enabled(codexConfig)).toBe(false);
-    expect(events).toEqual(["features disable multi_agent_v2", "sync"]);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toContain("features disable multi_agent_v2");
+    expect(events[1]).toBe("sync");
   });
 
   test("an explicit global V2 enable is rejected while the hybrid native-v1 pin is active", async () => {
@@ -212,7 +222,7 @@ describe("ocx v2 keep-native-v1", () => {
 
     expect(await cmdV2(["mode", "v2"], {
       execFile: (_file, args) => {
-        actions.push(args[1]!);
+        actions.push(spawnedCommandLine(args));
         writeFileSync(codexConfig, readFileSync(codexConfig, "utf8").replace("enabled = true", "enabled = false"));
       },
       sync: async () => {},
@@ -220,7 +230,8 @@ describe("ocx v2 keep-native-v1", () => {
     })).toBe(0);
     expect(loadConfig().multiAgentMode).toBe("v2");
     expect(isMultiAgentV2Enabled(codexConfig)).toBe(false);
-    expect(actions).toEqual(["disable"]);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toContain("disable multi_agent_v2");
   });
 
   test("on/off persist, always re-sync the catalog, and reject bad args", async () => {

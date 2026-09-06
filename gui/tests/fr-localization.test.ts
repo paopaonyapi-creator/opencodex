@@ -38,6 +38,18 @@ const INTENTIONAL_ENGLISH = new Set<TKey>([
   // "Instructions" is the same word in French. Inventing a synonym to make this
   // check happy would be worse copy for a French reader.
   "codexSet.custom.bodyLabel",
+  // Pao SEO surface brands. "Pao SEO" and "Pao SEO Agent OS" are product names
+  // in every locale, like "Grok Build" and "Brain Universe" above.
+  "nav.seo",
+  "seo.title",
+  // "Mode" is the same word in French; a synonym would be worse copy.
+  "seo.mode",
+  // Acronym, filename, and example domain - not prose. "E-E-A-T" has no French
+  // form, "llms.txt" is the literal file crawlers read, and "example.com" is a
+  // placeholder domain like any URL field.
+  "seo.geoEeat",
+  "seo.geoLlms",
+  "seo.domainPlaceholder",
   "common.ok",
   "nav.api",
   "nav.grok",

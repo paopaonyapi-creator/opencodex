@@ -2265,7 +2265,10 @@ describe("server local API auth", () => {
         ws.addEventListener("error", () => reject(new Error("websocket failed to open")), { once: true });
       });
       const waitForTerminal = () => new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("websocket terminal timeout")), watchdogMs(1000));
+        // 5 s like the sibling WS tests: a turn here spans an auth refresh plus
+        // two proxied legs, and the 1 s budget flaked under ordinary local load.
+        // The watchdog still bounds a genuine hang well under CI ceilings.
+        const timer = setTimeout(() => reject(new Error("websocket terminal timeout")), watchdogMs(5_000));
         const onMessage = (event: MessageEvent) => {
           const text = typeof event.data === "string" ? event.data : "";
           if (text.includes('"type":"response.completed"')) {

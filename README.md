@@ -300,7 +300,9 @@ cd gui; bun install; bun run build; cd ..
 bun run src/cli/index.ts start --port 10100
 ```
 
-หรือดับเบิลคลิก `start.cmd`
+หรือดับเบิลคลิก `start.cmd` (หยุดด้วย `stop.cmd`)
+
+`start.cmd` เช็กให้เอง: ถ้ารันอยู่แล้วจะเปิดแดชบอร์ดให้เลย ไม่ start ซ้ำ
 
 ภาษาเริ่มต้นคือ **ไทย** (เปลี่ยนได้ที่ตัวเลือกภาษาด้านซ้าย)
 

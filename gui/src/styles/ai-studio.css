@@ -1,0 +1,370 @@
+/* Phase 19 — Pao AI Generation Studio */
+
+.ai-studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.ai-studio-health {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ai-studio-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border, #e2e2e6);
+  margin-bottom: 14px;
+}
+
+.ai-tab {
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.ai-tab--active {
+  border-bottom-color: var(--accent, #4f7cff);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.ai-card {
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.ai-form-grid label,
+.ai-full,
+.ai-card > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.ai-toggles {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.ai-toggle-inline { display: flex; align-items: center; gap: 6px; }
+
+.ai-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border, #d8d8de);
+  white-space: nowrap;
+}
+
+.ai-pill--ok { background: rgba(34, 160, 90, 0.12); border-color: rgba(34, 160, 90, 0.5); }
+.ai-pill--warn { background: rgba(230, 160, 20, 0.12); border-color: rgba(230, 160, 20, 0.5); }
+.ai-pill--err { background: rgba(220, 60, 60, 0.12); border-color: rgba(220, 60, 60, 0.5); }
+.ai-pill--off { background: rgba(120, 120, 130, 0.15); }
+
+.ai-job-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.ai-job { border: 1px solid var(--border, #e2e2e6); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ai-job-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ai-job-prompt { margin: 0; font-size: 12px; }
+.ai-job-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ai-progress {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--border, #e2e2e6);
+  overflow: hidden;
+}
+
+.ai-progress-fill { height: 100%; background: var(--accent, #4f7cff); transition: width 0.4s ease; }
+
+.ai-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.ai-asset-card {
+  margin: 0;
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-asset-card img { width: 100%; aspect-ratio: 1; object-fit: cover; background: rgba(128, 128, 128, 0.08); }
+.ai-asset-card figcaption { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ai-asset-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+.ai-simple-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.ai-simple-list li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.ai-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ai-table th, .ai-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border, #e2e2e6); }
+
+.ai-studio-err { color: #d33; font-size: 12px; margin: 0; }
+.ai-validate-result { font-size: 11px; background: rgba(128, 128, 128, 0.08); padding: 10px; border-radius: 8px; white-space: pre-wrap; }
+
+/* Phase 20 — Compute Grid, RunPod Manager & FinOps Styles */
+.ai-compute-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.ai-stat-card {
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--card-bg, rgba(128, 128, 128, 0.03));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-stat-card h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.ai-budget-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.ai-budget-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border, #e2e2e6);
+  overflow: hidden;
+}
+
+.ai-budget-fill {
+  height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.ai-danger-btn {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
+
+.ai-danger-btn:hover {
+  background: #b91c1c !important;
+}
+
+.ai-preview-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(79, 124, 255, 0.08);
+  border: 1px solid rgba(79, 124, 255, 0.25);
+  font-size: 12px;
+}
+
+.ai-preview-badge--cloud {
+  background: rgba(147, 51, 234, 0.08);
+  border-color: rgba(147, 51, 234, 0.3);
+}
+
+.ai-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.ai-modal {
+  background: var(--bg-surface, #fff);
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 12px;
+  padding: 20px;
+  width: min(480px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.ai-modal h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.ai-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.ai-explain-card {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.06);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Phase 20.1: Smart Queue & Cloud Burst Hub Styles */
+.sq-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.sq-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(79, 124, 255, 0.05) 0%, rgba(147, 51, 234, 0.05) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+.sq-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sq-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sq-lanes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.sq-lane-card {
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--bg-surface, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.2s ease;
+}
+
+.sq-lane-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.sq-lane-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.sq-slots-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sq-slot-box {
+  border: 1px dashed var(--border, #d1d5db);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(128, 128, 128, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.sq-slot-box--active {
+  border: 1px solid #10b981;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.sq-slot-box--prefetch {
+  border: 1px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.sq-plan-banner {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sq-plan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sq-reconcile-box {
+  border: 1px solid var(--border, #e2e2e6);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(128, 128, 128, 0.03);
+}

@@ -29,6 +29,44 @@ const BRAND_LITERALS = new Set([
   "opencodex",
   "OAuth",
   "API",
+  "RunPod",
+  "ComfyUI",
+  "NVIDIA",
+  "RTX",
+  "GeForce",
+  "Pao",
+  "Pao Brain",
+  "Living Knowledge Brain",
+  "Living Wiki",
+  "Knowledge Graph",
+  "MiniMax",
+  "MiniMax H3",
+  "Qwen",
+  "Qwen 2511",
+  "REF2VA",
+  "FL2VA",
+  "Apache-2.0",
+  "Unlicense",
+  "Adobe Stock",
+  "MoneyPrinterTurbo",
+  "MPT",
+  "Seedance",
+  "Volcano Engine",
+  "OFox",
+  "Wan",
+  "Pexels",
+  "Pixabay",
+  "Coverr",
+  "Video Factory",
+  "Metaso",
+  "Agency Agents",
+  "Agency Center",
+  "Agency Intelligence Layer",
+  "Hermes",
+  "MCP",
+  "Model Context Protocol",
+  "Reality Checker",
+  "Reviewer Council",
 ]);
 
 const BRAND_LITERALS_LOWER = new Set(
@@ -38,6 +76,7 @@ const BRAND_LITERALS_LOWER = new Set(
 /** Single-token technical units / abbreviations shown next to numbers. */
 const TECHNICAL_UNITS = new Set([
   "ms",
+  "s",
   "k",
   "1M",
   "c",
@@ -49,6 +88,12 @@ const TECHNICAL_UNITS = new Set([
   "HTTP",
   // IEC binary unit rendered next to a formatted number; a unit symbol, not UI prose.
   "GiB",
+  "GB",
+  "VRAM",
+  "GPU",
+  "hr",
+  "h",
+  "x",
 ]);
 
 /** Non-UI technical strings (API paths, CSS, shell, headers, debug fields). */
@@ -126,7 +171,7 @@ export function isTechnicalLiteral(value: string): boolean {
 
   // API field column labels (debug tables) — protocol keys, not prose
   if (
-    /^(thinking|effort|beta|metadata|system|model|resolved|requestedTier|configuredTier|responseTier|supportsTier)$/i.test(
+    /^(thinking|effort|beta|metadata|system|model|resolved|requestedTier|configuredTier|responseTier|supportsTier|subject|predicate|status|severity|confidence|claims|contradictions|entities|wiki|linter|health|provenance|canonical|historical|quality|balanced|fast|general|eyes|hands|edges|texture|text_to_image|image_to_image|reference_edit|detail_refiner|video_factory|adobe_stock|commercial_stock|cinematic_broll|social_shorts|explainer_video|raw_video|processed_video|16:9|9:16|1:1|4:3|21:9)$/i.test(
       trimmed,
     )
   ) {

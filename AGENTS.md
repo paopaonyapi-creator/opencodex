@@ -341,3 +341,20 @@ reviewers (Codex, CodeRabbit).
   keep translated locales from contradicting the English source).
 - **Privacy:** `bun run privacy:scan` must stay green; never introduce logging
   of request bodies, API keys, or account identifiers.
+
+## Minimal-code governance (Ponytail)
+
+`src/agent-os/governance/` implements Pao-hubPro's minimal-code governance layer.
+Before authoring new abstractions, coding agents must follow the 7-rung decision
+ladder (YAGNI -> Reuse -> Stdlib -> Native -> Installed dependency -> Small local patch -> Minimal new subsystem).
+
+- **Reviewer exclusion:** Reviewer agents (`ReviewerCouncil`, `Code Reviewer`,
+  `Security Auditor`) have governance mode strictly set to `"off"` so their
+  critical evaluation is never constrained.
+- **Security boundaries:** High-risk tasks (authentication, database schema,
+  permissions, destructive operations) always trigger the Reviewer Council and
+  cannot be bypassed by minimal-code preferences.
+- **Dependency Guard:** Rejects third-party packages when standard library or Bun
+  native capabilities provide identical functionality.
+- **Debt Tracking:** Deliberate architectural shortcuts must be registered in
+  `docs/governance/technical-debt.md`.

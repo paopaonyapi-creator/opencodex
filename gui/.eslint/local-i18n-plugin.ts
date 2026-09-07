@@ -170,6 +170,7 @@ const NON_UI_CALLEES = new Set([
   "JSON.stringify",
   "String",
   "URL",
+  "Error",
 ]);
 
 function jsxElementName(node: JSXElement): string | null {

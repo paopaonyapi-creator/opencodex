@@ -15,6 +15,10 @@ export type Page =
   | "integrations"
   | "brain"
   | "seo"
+  | "ai-studio"
+  | "agency"
+  | "desktop-agent"
+  | "sdlc"
   | "demo";
 
 export const VALID_PAGES = new Set<Page>([
@@ -30,6 +34,10 @@ export const VALID_PAGES = new Set<Page>([
   "integrations",
   "brain",
   "seo",
+  "ai-studio",
+  "agency",
+  "desktop-agent",
+  "sdlc",
   "demo",
 ]);
 
@@ -41,6 +49,7 @@ export function readPageFromHash(hash?: string): Page {
   const pageId = raw.split("/")[0] as Page;
   // Legacy: Debug used to be a standalone page; it now lives as a tab on Logs.
   if (pageId === ("debug" as Page)) return "logs";
+  if (pageId === ("agent-control-center" as Page)) return "desktop-agent";
   // Legacy: Codex Auth became the Multi-auth tab of Codex Set. #codex-auth is a
   // bookmarkable URL that has shipped, and use-app-route-state reads the initial
   // page straight from the hash, so without this an old bookmark lands on an

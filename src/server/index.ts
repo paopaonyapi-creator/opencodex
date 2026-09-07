@@ -49,6 +49,8 @@ import {
   registerDefaultAppOwnedObservedBuffers,
 } from "../lib/app-owned-memory-stores";
 import { acquireServerBackgroundLifecycle } from "./background-lifecycle";
+import { getGenerationOrchestrator } from "../agent-os/generation/orchestrator";
+import { registerOptionalShutdownHook } from "../lib/optional-shutdown-hooks";
 import { activateLab, labActivationRequired } from "../lib/lab-activation";
 import { runOpenAiTierStartupMigration } from "../providers/openai-tier-startup";
 import { runAlibabaRegionStartupMigration } from "../providers/alibaba-region-startup";
@@ -1992,6 +1994,19 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
   // Opt-in storage policy (default OFF). Never blocks listen; cancellable on shutdown.
   backgroundLifecycle.scheduleStartupRun();
 
+  // Phase 19: Generation Studio worker. Feature-flagged; ComfyUI offline only
+  // degrades generation, never the rest of the server. Startup sweeps recover
+  // stale jobs and clean expired temp dirs, then the worker polls in the
+  // background. Runs in the same synchronous turn as Bun.serve's return.
+  try {
+    const generation = getGenerationOrchestrator();
+    const diagnostics = generation.startup();
+    if (diagnostics.enabled) generation.start();
+  } catch (error) {
+    // Config validation errors must not take the whole proxy down (spec section 66).
+    console.warn("[generation] subsystem disabled due to startup error:", error instanceof Error ? error.message : error);
+  }
+
   // Compatibility Lab is optional: wire it only for installs that actually use it -- any
   // routing profile, or automation enabled on disk. This runs synchronously before
   // startServer returns, in the same turn as Bun.serve, so a policy route can never be
@@ -2001,6 +2016,10 @@ export function startServer(port?: number, deps: StartServerDeps = {}): Server<W
   if (labActivationRequired(config, labConfigDir)) {
     activateLab(config, labConfigDir);
   }
+
+  registerOptionalShutdownHook("generation-orchestrator", () => {
+    try { getGenerationOrchestrator().stop(); } catch { /* already stopped */ }
+  });
 
   return server;
 }

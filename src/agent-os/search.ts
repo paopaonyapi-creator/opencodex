@@ -6,7 +6,7 @@
 import { openAgentOsDb } from "./db";
 
 export interface SearchHit {
-  kind: "memory" | "skill" | "task" | "review";
+  kind: "memory" | "skill" | "task" | "review" | "wiki" | "claim" | "entity";
   id: string;
   title: string;
   snippet: string;
@@ -19,6 +19,25 @@ export function searchAgentOs(query: string, limit = 20): SearchHit[] {
   const db = openAgentOsDb();
   const esc = (s: string | null | undefined, n = 120) => (s ?? "").length > n ? `${(s ?? "").slice(0, n)}...` : (s ?? "");
   const hits: SearchHit[] = [];
+
+  // Phase 20.5: Living Wiki Pages
+  const wikiPages = db
+    .query("SELECT id, slug, title FROM wiki_pages WHERE title LIKE ? ESCAPE '!' OR slug LIKE ? ESCAPE '!' ORDER BY updated_at DESC LIMIT ?")
+    .all(like, like, limit) as { id: string; slug: string; title: string }[];
+  for (const wp of wikiPages) hits.push({ kind: "wiki", id: wp.slug, title: wp.title, snippet: `Wiki: ${wp.slug}` });
+
+  // Phase 20.5: Knowledge Claims
+  const claims = db
+    .query(`
+      SELECT kc.id, kc.predicate, kc.object_value, ke.canonical_name
+      FROM knowledge_claims kc
+      JOIN knowledge_entities ke ON kc.subject_entity_id = ke.id
+      WHERE kc.predicate LIKE ? ESCAPE '!' OR kc.object_value LIKE ? ESCAPE '!' OR ke.canonical_name LIKE ? ESCAPE '!'
+      ORDER BY kc.updated_at DESC LIMIT ?
+    `)
+    .all(like, like, like, limit) as { id: string; predicate: string; object_value: string; canonical_name: string }[];
+  for (const c of claims) hits.push({ kind: "claim", id: c.id, title: `${c.canonical_name} → ${c.predicate}`, snippet: esc(c.object_value) });
+
   const memories = db
     .query("SELECT id, title, content FROM memories WHERE title LIKE ? ESCAPE '!' OR content LIKE ? ESCAPE '!' ORDER BY updated_at DESC LIMIT ?")
     .all(like, like, limit) as { id: string; title: string; content: string }[];

@@ -73,6 +73,13 @@ import { handleCodexPromptRoutes } from "./management/codex-prompt-routes";
 import { handleIntegrationRoutes } from "./management/integration-routes";
 import { handleNativeIntegrationRoutes } from "./management/native-integration-routes";
 import { handleAgentOsRoutes } from "./management/agent-os-routes";
+import { handleBrainRoutes } from "./management/brain-routes";
+import { handleH3Routes } from "./management/h3-routes";
+import { handleVideoRoutes } from "./management/video-routes";
+import { handleAgencyRoutes } from "./management/agency-routes";
+import { handleDesktopAgentRoutes } from "./management/desktop-agent-routes";
+import { handleGenerationRoutes } from "./management/generation-routes";
+import { handleSdlcRoutes } from "./management/sdlc-routes";
 import type { ManagementContext } from "./management/context";
 import type { ManagementPrincipal } from "./management-auth";
 export type { ManagementApiDeps } from "./management/context";
@@ -129,6 +136,13 @@ async function handleLabRoutesOnDemand(ctx: ManagementContext): Promise<Response
   }
   const { handleLabRoutes } = await import("./management/lab-routes");
   return handleLabRoutes(ctx);
+}
+
+async function handleSmartQueueAliasRoutes(ctx: ManagementContext): Promise<Response | null> {
+  if (!ctx.url.pathname.startsWith("/api/v1/smart-queue/")) return null;
+  const { handleSmartQueueRoutes } = await import("./management/smart-queue-routes");
+  const subPath = "smart-queue/" + ctx.url.pathname.slice("/api/v1/smart-queue/".length);
+  return handleSmartQueueRoutes(ctx, subPath);
 }
 
 export async function handleManagementAPI(
@@ -224,6 +238,9 @@ export async function handleManagementAPI(
   try {
     routed = (await handleConfigRoutes(ctx))
     ??     (await handleStorageLogGuardRoutes(ctx))
+    ??     (await handleGenerationRoutes(ctx))
+    ??     (await handleSmartQueueAliasRoutes(ctx))
+    ??     (await handleSdlcRoutes(ctx))
     ??     (await handleLogsUsageRoutes(ctx))
     ??     (await handleRequestHistoryRoutes(ctx))
     ??     (await handleRoutingAnalyticsRoutes(ctx))
@@ -238,6 +255,11 @@ export async function handleManagementAPI(
     ??     (await handleComboRoutes(ctx))
     ??     (await handleSystemRoutes(ctx))
     ??     (await handleLabRoutesOnDemand(ctx))
+    ??     (await handleBrainRoutes(ctx))
+    ??     (await handleH3Routes(ctx))
+    ??     (await handleVideoRoutes(ctx))
+    ??     (await handleAgencyRoutes(ctx))
+    ??     (await handleDesktopAgentRoutes(ctx))
     ??     (await handleAgentOsRoutes(ctx))
       ?? (await handleSidebarRoutes(ctx));
   } catch (error) {

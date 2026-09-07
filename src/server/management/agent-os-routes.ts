@@ -56,6 +56,30 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleSeoRoutes(ctx);
   }
 
+  // Phase 20.5: Living Knowledge Brain Management API Routes
+  if (url.pathname === "/api/agent-os/brain" || url.pathname.startsWith("/api/agent-os/brain/")) {
+    const { handleBrainRoutes } = await import("./brain-routes");
+    return handleBrainRoutes(ctx);
+  }
+
+  // Phase 20.6: MiniMax H3 Image Studio Management API Routes
+  if (url.pathname === "/api/agent-os/h3" || url.pathname.startsWith("/api/agent-os/h3/")) {
+    const { handleH3Routes } = await import("./h3-routes");
+    return handleH3Routes(ctx);
+  }
+
+  // Phase 20.8: Agency Intelligence Layer Management API Routes
+  if (url.pathname === "/api/agent-os/agency" || url.pathname.startsWith("/api/agent-os/agency/")) {
+    const { handleAgencyRoutes } = await import("./agency-routes");
+    return handleAgencyRoutes(ctx);
+  }
+
+  // Phase 20.9: Pao-hubPro × Chatbox Agent Desktop Runtime
+  if (url.pathname === "/api/agent-os/desktop-agent" || url.pathname.startsWith("/api/agent-os/desktop-agent/")) {
+    const { handleDesktopAgentRoutes } = await import("./desktop-agent-routes");
+    return handleDesktopAgentRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

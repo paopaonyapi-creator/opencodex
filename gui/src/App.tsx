@@ -11,11 +11,15 @@ import CodexSet from "./pages/CodexSet";
 import Integrations from "./pages/Integrations";
 import BrainUniverse from "./pages/BrainUniverse";
 import PaoSeo from "./pages/PaoSeo";
+import AiStudio from "./pages/AiStudio";
+import AgencyCenter from "./pages/AgencyCenter";
+import AgentControlCenter from "./pages/AgentControlCenter";
+import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
-import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch } from "./icons";
+import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal } from "./icons";
 import { useI18n, useT, LOCALES, localeDisplayName, type Locale, type TKey } from "./i18n/shared";
 import { Select } from "./ui";
 import { installApiAuthFetch } from "./api";
@@ -42,6 +46,10 @@ const PAGE_TKEY: Record<Page, TKey> = {
   integrations: "nav.integrations",
   brain: "nav.brain",
   seo: "nav.seo",
+  "ai-studio": "nav.aiStudio",
+  agency: "nav.agency",
+  "desktop-agent": "nav.desktopAgent",
+  sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
 
@@ -74,6 +82,10 @@ const NAV: NavEntry[] = [
   { id: "integrations", tkey: "nav.integrations", Icon: IconGlobe },
   { id: "brain", tkey: "nav.brain", Icon: IconTicket },
   { id: "seo", tkey: "nav.seo", Icon: IconSearch },
+  { id: "ai-studio", tkey: "nav.aiStudio", Icon: IconBoxes },
+  { id: "agency", tkey: "nav.agency", Icon: IconBot },
+  { id: "desktop-agent", tkey: "nav.desktopAgent", Icon: IconTerminal },
+  { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
 
@@ -355,6 +367,10 @@ export default function App() {
             {page === "integrations" && <Integrations apiBase={API_BASE} />}
             {page === "brain" && <BrainUniverse apiBase={API_BASE} />}
             {page === "seo" && <PaoSeo apiBase={API_BASE} />}
+            {page === "ai-studio" && <AiStudio apiBase={API_BASE} />}
+            {page === "agency" && <AgencyCenter />}
+            {page === "desktop-agent" && <AgentControlCenter apiBase={API_BASE} />}
+            {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>
         </div>

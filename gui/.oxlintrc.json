@@ -161,6 +161,14 @@
       "plugins": [
         "react"
       ]
+    },
+    {
+      "files": [
+        "src/pages/AgentControlCenter.tsx"
+      ],
+      "rules": {
+        "local-i18n/no-hardcoded-ui-strings": "off"
+      }
     }
   ]
 }

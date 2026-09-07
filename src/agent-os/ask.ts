@@ -66,6 +66,23 @@ export function askPaoBrain(question: string): AskAnswer {
     };
   }
 
+  // Phase 20.5: Living Knowledge Brain Query Planner with Provenance
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { queryKnowledgeBrain } = require("./brain/query-planner");
+    const kAnswer = queryKnowledgeBrain(question);
+    if (kAnswer.confidence >= 0.5) {
+      return {
+        question,
+        intent: kAnswer.intent,
+        answer: kAnswer.answer,
+        sources: kAnswer.sources,
+      };
+    }
+  } catch {
+    // Fall back to local search if query planner encounters an issue
+  }
+
   const hits = searchAgentOs(question, 5);
   return {
     question,

@@ -139,7 +139,7 @@ function SearchResults({ hits, searching, t }: { hits: SearchHit[] | null; searc
 
 const EMPTY: BrainData = { agents: [], tasks: [], skills: [], skillIssues: [], nodes: [], memories: [] };
 
-type Section = "agents" | "tasks" | "skills" | "nodes" | "memory" | "search" | "policies" | "projects" | "atlas" | "universe" | "tools" | "activity";
+type Section = "agents" | "tasks" | "skills" | "nodes" | "memory" | "search" | "policies" | "projects" | "atlas" | "universe" | "tools" | "activity" | "wiki" | "knowledge" | "ask_brain" | "health";
 
 function StatusChip({ status }: { status: string }) {
   const tone = status === "online" || status === "succeeded" || status === "running" || status === "active" ? "ok"
@@ -168,9 +168,23 @@ export default function BrainUniverse({ apiBase }: { apiBase: string }) {
     availability: webMcpAvailability(),
     tools: [],
   }));
+  const [brainHealth, setBrainHealth] = useState<{
+    healthy: boolean;
+    sources: number;
+    sourceVersions: number;
+    chunks: number;
+    entities: number;
+    claims: number;
+    relations: number;
+    decisions: number;
+    wikiPages: number;
+    contradictions: number;
+    unresolvedContradictions: number;
+    healthScore: number;
+  } | null>(null);
 
   const load = useCallback(async (): Promise<BrainData> => {
-    const [agents, tasks, skillsRes, nodes, memories, permitsRes, policiesRes, projectsRes] = await Promise.all([
+    const [agents, tasks, skillsRes, nodes, memories, permitsRes, policiesRes, projectsRes, healthRes] = await Promise.all([
       getJson<{ agents: AgentRow[] }>(apiBase, "/api/agent-os/agents"),
       getJson<{ tasks: TaskRow[] }>(apiBase, "/api/agent-os/tasks"),
       getJson<{ skills: SkillRow[]; issues: { skillId: string; kind: string; detail: string }[] }>(apiBase, "/api/agent-os/skills"),
@@ -179,10 +193,25 @@ export default function BrainUniverse({ apiBase }: { apiBase: string }) {
       getJson<{ approvals: ApprovalRow[] }>(apiBase, "/api/agent-os/permits/pending"),
       getJson<{ policies: PolicyRow[] }>(apiBase, "/api/agent-os/policies"),
       getJson<{ projects: ProjectRow[] }>(apiBase, "/api/agent-os/projects"),
+      getJson<{
+        healthy: boolean;
+        sources: number;
+        sourceVersions: number;
+        chunks: number;
+        entities: number;
+        claims: number;
+        relations: number;
+        decisions: number;
+        wikiPages: number;
+        contradictions: number;
+        unresolvedContradictions: number;
+        healthScore: number;
+      }>(apiBase, "/api/agent-os/brain/health").catch(() => null),
     ]);
     setApprovals(permitsRes.approvals);
     setPolicies(policiesRes.policies);
     setProjects(projectsRes.projects);
+    if (healthRes) setBrainHealth(healthRes);
     setSelectedProjectId((current) => current ?? projectsRes.projects[0]?.id ?? null);
     return { agents: agents.agents, tasks: tasks.tasks, skills: skillsRes.skills, skillIssues: skillsRes.issues, nodes: nodes.nodes, memories: memories.memories };
   }, [apiBase]);
@@ -308,6 +337,10 @@ export default function BrainUniverse({ apiBase }: { apiBase: string }) {
   }, [apiBase]);
 
   const sections: { id: Section; label: string; count: number }[] = [
+    { id: "wiki", label: "Living Wiki", count: brainHealth?.wikiPages ?? 0 },
+    { id: "knowledge", label: "Knowledge Graph", count: (brainHealth?.claims ?? 0) + (brainHealth?.contradictions ?? 0) },
+    { id: "ask_brain", label: "Pao Brain", count: 0 },
+    { id: "health", label: "health", count: brainHealth?.healthScore ?? 100 },
     { id: "agents", label: t("brain.tab.agents"), count: data.agents.length },
     { id: "tasks", label: t("brain.tab.tasks"), count: data.tasks.length },
     { id: "skills", label: t("brain.tab.skills"), count: data.skills.length },
@@ -376,6 +409,10 @@ export default function BrainUniverse({ apiBase }: { apiBase: string }) {
       </nav>
 
       <div className="brain-body">
+        {section === "wiki" && <WikiPanel apiBase={apiBase} />}
+        {section === "knowledge" && <KnowledgePanel apiBase={apiBase} />}
+        {section === "ask_brain" && <AskBrainPanel apiBase={apiBase} />}
+        {section === "health" && <BrainHealthPanel apiBase={apiBase} initialHealth={brainHealth} />}
         {section === "agents" && <AgentList agents={data.agents} loading={surface.state.refreshing} t={t} />}
         {section === "tasks" && <TaskList tasks={data.tasks} loading={surface.state.refreshing} t={t} />}
         {section === "skills" && (
@@ -668,5 +705,654 @@ function AgentActivity({ events, t }: { events: AuditEventRow[]; t: TFn }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/* =========================================================================
+ * Phase 20.5: Living Knowledge Brain Components
+ * ========================================================================= */
+
+interface WikiPageItem {
+  slug: string;
+  domain: string;
+  title: string;
+  entity_id: string | null;
+  freshness_score: number;
+  is_human_curated: number;
+  last_compiled_at: number;
+  status: string;
+}
+
+function WikiPanel({ apiBase }: { apiBase: string }) {
+  const [pages, setPages] = useState<WikiPageItem[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [pageDetail, setPageDetail] = useState<{ page: WikiPageItem; markdown?: string } | null>(null);
+  const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const fetchPages = useCallback(() => {
+    setLoading(true);
+    void getJson<{ pages: WikiPageItem[] }>(apiBase, "/api/agent-os/brain/wiki")
+      .then((res) => {
+        setPages(res.pages || []);
+        if (!selectedSlug && res.pages?.[0]) {
+          setSelectedSlug(res.pages[0].slug);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [apiBase, selectedSlug]);
+
+  useEffect(() => {
+    let active = true;
+    void getJson<{ pages: WikiPageItem[] }>(apiBase, "/api/agent-os/brain/wiki")
+      .then((res) => {
+        if (!active) return;
+        setPages(res.pages || []);
+        if (!selectedSlug && res.pages?.[0]) {
+          setSelectedSlug(res.pages[0].slug);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [apiBase, selectedSlug]);
+
+  const fetchDetail = useCallback((slug: string) => {
+    void getJson<{ page: WikiPageItem; markdown?: string }>(apiBase, `/api/agent-os/brain/wiki/${encodeURIComponent(slug)}`)
+      .then((res) => {
+        setPageDetail(res);
+      })
+      .catch(() => {
+        setPageDetail(null);
+      });
+  }, [apiBase]);
+
+  useEffect(() => {
+    if (!selectedSlug) return;
+    let active = true;
+    void getJson<{ page: WikiPageItem; markdown?: string }>(apiBase, `/api/agent-os/brain/wiki/${encodeURIComponent(selectedSlug)}`)
+      .then((res) => {
+        if (!active) return;
+        setPageDetail(res);
+      })
+      .catch(() => {
+        if (active) setPageDetail(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiBase, selectedSlug]);
+
+  const handleBootstrap = async () => {
+    setActionBusy(true);
+    try {
+      await fetch(`${apiBase}/api/agent-os/brain/bootstrap`, { method: "POST" });
+      fetchPages();
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleCompile = async (slug: string) => {
+    setActionBusy(true);
+    try {
+      await fetch(`${apiBase}/api/agent-os/brain/wiki/${encodeURIComponent(slug)}/compile`, { method: "POST" });
+      fetchDetail(slug);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const filteredPages = domainFilter === "all" ? pages : pages.filter((p) => p.domain === domainFilter);
+
+  return (
+    <div>
+      <div className="brain-lkb-toolbar">
+        <div className="brain-subnav" style={{ marginBottom: 0 }}>
+          {["all", "projects", "phases", "architecture", "concepts"].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`brain-subnav-btn${domainFilter === d ? " brain-subnav-btn--active" : ""}`}
+              onClick={() => setDomainFilter(d)}
+            >
+              <code>{d.toUpperCase()}</code>
+            </button>
+          ))}
+        </div>
+        <div className="brain-lkb-actions">
+          {actionBusy && <span className="brain-sub"><code>busy</code></span>}
+          <button type="button" className="btn" onClick={() => void handleBootstrap()}>
+            <code>Bootstrap Phase Specs</code>
+          </button>
+        </div>
+      </div>
+
+      {loading && pages.length === 0 ? (
+        <p className="brain-loading"><code>Loading Living Wiki...</code></p>
+      ) : (
+        <div className="brain-wiki-layout">
+          <div className="brain-wiki-list">
+            {filteredPages.length === 0 ? (
+              <p className="brain-sub"><code>No wiki pages found in this domain.</code></p>
+            ) : (
+              filteredPages.map((p) => (
+                <button
+                  key={p.slug}
+                  type="button"
+                  className={`brain-wiki-item${selectedSlug === p.slug ? " brain-wiki-item--selected" : ""}`}
+                  onClick={() => setSelectedSlug(p.slug)}
+                >
+                  <div className="brain-wiki-item-head">
+                    <span className="brain-wiki-item-title">{p.title}</span>
+                    <span className={`brain-chip ${p.freshness_score > 0.8 ? "brain-chip-ok" : "brain-chip-warn"}`}>
+                      <code>{(p.freshness_score * 100).toFixed(0)}%</code>
+                    </span>
+                  </div>
+                  <div className="brain-wiki-item-meta">
+                    <code>{p.slug}</code>
+                    {p.is_human_curated ? (
+                      <span className="brain-chip brain-chip-ok">
+                        <code>HUMAN</code>
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="brain-wiki-view">
+            {pageDetail ? (
+              <div>
+                <div className="brain-wiki-view-header">
+                  <div>
+                    <h3 className="brain-wiki-view-title">{pageDetail.page.title}</h3>
+                    <div className="brain-wiki-item-meta">
+                      <code>{pageDetail.page.slug}</code> &bull; <code>domain: {pageDetail.page.domain}</code>
+                    </div>
+                  </div>
+                  <button type="button" className="btn" onClick={() => void handleCompile(pageDetail.page.slug)}>
+                    <code>Recompile Page</code>
+                  </button>
+                </div>
+
+                {pageDetail.markdown?.includes("<!-- PAO:HUMAN-START -->") && (
+                  <div className="brain-wiki-human-banner">
+                    <code>&#9889; Human-curated sections are preserved across all wiki recompilations.</code>
+                  </div>
+                )}
+
+                <div className="brain-wiki-markdown">
+                  <code>{pageDetail.markdown || "No markdown content compiled yet."}</code>
+                </div>
+              </div>
+            ) : (
+              <p className="brain-sub"><code>Select a wiki page to view contents.</code></p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ClaimItem {
+  id: string;
+  subject_entity: string;
+  predicate: string;
+  object_value: string;
+  confidence: number;
+  status: string;
+  valid_from: string;
+}
+
+interface ContradictionItem {
+  id: string;
+  topic: string;
+  claim_a_id: string;
+  claim_b_id: string;
+  severity: string;
+  status: string;
+  resolution_strategy: string | null;
+  resolution_notes: string | null;
+}
+
+interface EntityItem {
+  id: string;
+  canonical_name: string;
+  kind: string;
+}
+
+function KnowledgePanel({ apiBase }: { apiBase: string }) {
+  const [subTab, setSubTab] = useState<"claims" | "contradictions" | "entities">("claims");
+  const [claims, setClaims] = useState<ClaimItem[]>([]);
+  const [contradictions, setContradictions] = useState<ContradictionItem[]>([]);
+  const [entities, setEntities] = useState<EntityItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  const loadData = useCallback(() => {
+    setLoading(true);
+    void Promise.all([
+      getJson<{ claims: ClaimItem[] }>(apiBase, "/api/agent-os/brain/claims"),
+      getJson<{ contradictions: ContradictionItem[] }>(apiBase, "/api/agent-os/brain/contradictions"),
+      getJson<{ entities: EntityItem[] }>(apiBase, "/api/agent-os/brain/entities"),
+    ])
+      .then(([cRes, contRes, eRes]) => {
+        setClaims(cRes.claims || []);
+        setContradictions(contRes.contradictions || []);
+        setEntities(eRes.entities || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [apiBase]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      getJson<{ claims: ClaimItem[] }>(apiBase, "/api/agent-os/brain/claims"),
+      getJson<{ contradictions: ContradictionItem[] }>(apiBase, "/api/agent-os/brain/contradictions"),
+      getJson<{ entities: EntityItem[] }>(apiBase, "/api/agent-os/brain/entities"),
+    ])
+      .then(([cRes, contRes, eRes]) => {
+        if (!active) return;
+        setClaims(cRes.claims || []);
+        setContradictions(contRes.contradictions || []);
+        setEntities(eRes.entities || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [apiBase]);
+
+  const handleResolve = async (contradictionId: string) => {
+    setResolvingId(contradictionId);
+    try {
+      await fetch(`${apiBase}/api/agent-os/brain/contradictions/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contradictionId,
+          strategy: "SOURCE_PRIORITY",
+          resolutionNotes: "Resolved manually by operator in GUI via source priority.",
+        }),
+      });
+      loadData();
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  return (
+    <div>
+      <div className="brain-subnav">
+        <button
+          type="button"
+          className={`brain-subnav-btn${subTab === "claims" ? " brain-subnav-btn--active" : ""}`}
+          onClick={() => setSubTab("claims")}
+        >
+          <code>Claims ({claims.length})</code>
+        </button>
+        <button
+          type="button"
+          className={`brain-subnav-btn${subTab === "contradictions" ? " brain-subnav-btn--active" : ""}`}
+          onClick={() => setSubTab("contradictions")}
+        >
+          <code>Contradictions Inbox ({contradictions.length})</code>
+        </button>
+        <button
+          type="button"
+          className={`brain-subnav-btn${subTab === "entities" ? " brain-subnav-btn--active" : ""}`}
+          onClick={() => setSubTab("entities")}
+        >
+          <code>Entities ({entities.length})</code>
+        </button>
+      </div>
+
+      {loading && <p className="brain-loading"><code>Loading Knowledge Graph...</code></p>}
+
+      {subTab === "claims" && (
+        <table className="brain-table">
+          <thead>
+            <tr>
+              <th><code>Subject</code></th>
+              <th><code>Predicate</code></th>
+              <th><code>Object Value</code></th>
+              <th><code>Confidence</code></th>
+              <th><code>Status</code></th>
+            </tr>
+          </thead>
+          <tbody>
+            {claims.map((c) => (
+              <tr key={c.id}>
+                <td><strong>{c.subject_entity}</strong></td>
+                <td><code>{c.predicate}</code></td>
+                <td><code>{c.object_value}</code></td>
+                <td><code>{(c.confidence * 100).toFixed(0)}%</code></td>
+                <td><StatusChip status={c.status.toLowerCase()} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {subTab === "contradictions" && (
+        <div>
+          {contradictions.length === 0 ? (
+            <p className="brain-sub"><code>No contradictions detected in Knowledge Base.</code></p>
+          ) : (
+            contradictions.map((c) => (
+              <div
+                key={c.id}
+                className={`brain-contradiction-card ${c.status === "OPEN" ? "brain-contradiction-card--open" : "brain-contradiction-card--resolved"}`}
+              >
+                <div className="brain-contradiction-header">
+                  <strong>{c.topic}</strong>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span className={`brain-chip ${c.severity === "CRITICAL" ? "brain-chip-bad" : "brain-chip-warn"}`}>
+                      <code>{c.severity}</code>
+                    </span>
+                    <StatusChip status={c.status.toLowerCase()} />
+                  </div>
+                </div>
+                <p className="brain-sub">
+                  <code>Conflicting claims: {c.claim_a_id} vs {c.claim_b_id}</code>
+                </p>
+                {c.resolution_notes && (
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ok, #2e7d32)" }}>
+                    <code>{c.resolution_notes}</code>
+                  </p>
+                )}
+                {c.status === "OPEN" && (
+                  <div>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={resolvingId === c.id}
+                      onClick={() => void handleResolve(c.id)}
+                    >
+                      <code>{resolvingId === c.id ? "Resolving..." : "Auto-Resolve via Source Priority"}</code>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {subTab === "entities" && (
+        <table className="brain-table">
+          <thead>
+            <tr>
+              <th><code>Canonical Name</code></th>
+              <th><code>Kind</code></th>
+              <th><code>ID</code></th>
+            </tr>
+          </thead>
+          <tbody>
+            {entities.map((e) => (
+              <tr key={e.id}>
+                <td><strong>{e.canonical_name}</strong></td>
+                <td><span className="brain-chip brain-chip-ok"><code>{e.kind}</code></span></td>
+                <td><code>{e.id}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+interface CitationItem {
+  sourceTitle: string;
+  versionHash?: string;
+  chunkSnippet: string;
+  lineRange?: string;
+}
+
+interface QueryResult {
+  answer: string;
+  confidence: number;
+  strategy: string;
+  citations: CitationItem[];
+}
+
+function AskBrainPanel({ apiBase }: { apiBase: string }) {
+  const [askQuery, setAskQuery] = useState("What is Phase 20.3?");
+  const [mode, setMode] = useState<"canonical" | "historical">("canonical");
+  const [result, setResult] = useState<QueryResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleAsk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!askQuery.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/agent-os/brain/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: askQuery, mode }),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as QueryResult;
+        setResult(body);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="brain-ask-container">
+      <form className="brain-ask-form" onSubmit={handleAsk}>
+        <input
+          type="text"
+          className="brain-ask-input"
+          value={askQuery}
+          onChange={(e) => setAskQuery(e.target.value)}
+          placeholder="ocx: brain query [query] --mode=canonical"
+        />
+        <select
+          value={mode}
+          onChange={(e) => setMode(e.target.value as "canonical" | "historical")}
+          style={{ padding: "10px", borderRadius: "8px", background: "var(--bg-input, #222)", color: "#fff", border: "1px solid var(--line, #444)" }}
+        >
+          <option value="canonical">canonical</option>
+          <option value="historical">historical</option>
+        </select>
+        <button type="submit" className="btn" disabled={loading}>
+          <code>{loading ? "querying..." : "Ask Brain"}</code>
+        </button>
+      </form>
+
+      {result && (
+        <div className="brain-ask-response">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span className="brain-chip brain-chip-ok"><code>strategy: {result.strategy}</code></span>
+            <span className="brain-chip brain-chip-ok"><code>confidence: {(result.confidence * 100).toFixed(0)}%</code></span>
+          </div>
+
+          <div className="brain-ask-answer">{result.answer}</div>
+
+          {result.citations && result.citations.length > 0 && (
+            <div className="brain-citations">
+              <strong><code>Evidence &amp; Provenance Citations ({result.citations.length}):</code></strong>
+              {result.citations.map((cit, idx) => (
+                <div key={idx} className="brain-citation-item">
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <strong>{cit.sourceTitle}</strong>
+                    {cit.lineRange && <span className="brain-sub"><code>{cit.lineRange}</code></span>}
+                  </div>
+                  <p style={{ margin: 0, color: "var(--muted, #9ca3af)" }}><code>{cit.chunkSnippet}</code></p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrainHealthPanel({ apiBase, initialHealth }: { apiBase: string; initialHealth: {
+  healthy: boolean;
+  sources: number;
+  sourceVersions: number;
+  chunks: number;
+  entities: number;
+  claims: number;
+  relations: number;
+  decisions: number;
+  wikiPages: number;
+  contradictions: number;
+  unresolvedContradictions: number;
+  healthScore: number;
+} | null }) {
+  const [health, setHealth] = useState(initialHealth);
+  const [lint, setLint] = useState<{
+    valid: boolean;
+    issuesCount: number;
+    openContradictions: Array<{ id: string; topic: string; severity: string }>;
+    missingProvenance: Array<{ claimId: string }>;
+    orphanPages: Array<{ slug: string }>;
+    brokenLinks: Array<{ sourceSlug: string; targetSlug: string }>;
+  } | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const refreshHealth = useCallback(() => {
+    void Promise.all([
+      getJson<typeof initialHealth>(apiBase, "/api/agent-os/brain/health"),
+      getJson<typeof lint>(apiBase, "/api/agent-os/brain/lint"),
+    ])
+      .then(([hRes, lRes]) => {
+        setHealth(hRes);
+        setLint(lRes);
+      })
+      .catch(() => {});
+  }, [apiBase]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      getJson<typeof initialHealth>(apiBase, "/api/agent-os/brain/health"),
+      getJson<typeof lint>(apiBase, "/api/agent-os/brain/lint"),
+    ])
+      .then(([hRes, lRes]) => {
+        if (!active) return;
+        setHealth(hRes);
+        setLint(lRes);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [apiBase]);
+
+  const handleRebuild = async () => {
+    setRebuilding(true);
+    try {
+      await fetch(`${apiBase}/api/agent-os/brain/rebuild`, { method: "POST" });
+      refreshHealth();
+    } finally {
+      setRebuilding(false);
+    }
+  };
+
+  const handlePrune = async () => {
+    setBusy(true);
+    try {
+      await fetch(`${apiBase}/api/agent-os/brain/prune`, { method: "POST" });
+      refreshHealth();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="brain-lkb-toolbar">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <h3><code>Knowledge Brain Observatory</code></h3>
+          {busy && <span className="brain-sub"><code>busy</code></span>}
+        </div>
+        <div className="brain-lkb-actions">
+          <button type="button" className="btn" onClick={() => void refreshHealth()}>
+            <code>Run Linter</code>
+          </button>
+          <button type="button" className="btn" disabled={rebuilding} onClick={() => void handleRebuild()}>
+            <code>{rebuilding ? "Rebuilding..." : "Rebuild All Indices"}</code>
+          </button>
+          <button type="button" className="btn" onClick={() => void handlePrune()}>
+            <code>Prune Old Generations</code>
+          </button>
+        </div>
+      </div>
+
+      <div className="brain-scorecard-grid">
+        <div className="brain-stat-card">
+          <span className="brain-stat-label"><code>Health Score</code></span>
+          <span className="brain-stat-value" style={{ color: "var(--ok, #10b981)" }}>
+            <code>{health?.healthScore ?? 100}/100</code>
+          </span>
+          <span className="brain-stat-note"><code>Zero data loss guaranteed</code></span>
+        </div>
+
+        <div className="brain-stat-card">
+          <span className="brain-stat-label"><code>Registered Sources</code></span>
+          <span className="brain-stat-value"><code>{health?.sources ?? 0}</code></span>
+          <span className="brain-stat-note"><code>{health?.chunks ?? 0} section chunks</code></span>
+        </div>
+
+        <div className="brain-stat-card">
+          <span className="brain-stat-label"><code>Atomic Claims</code></span>
+          <span className="brain-stat-value"><code>{health?.claims ?? 0}</code></span>
+          <span className="brain-stat-note"><code>{health?.relations ?? 0} graph relations</code></span>
+        </div>
+
+        <div className="brain-stat-card">
+          <span className="brain-stat-label"><code>Living Wiki Pages</code></span>
+          <span className="brain-stat-value"><code>{health?.wikiPages ?? 0}</code></span>
+          <span className="brain-stat-note"><code>Preserved human sections</code></span>
+        </div>
+
+        <div className="brain-stat-card">
+          <span className="brain-stat-label"><code>Contradictions</code></span>
+          <span className="brain-stat-value" style={{ color: (health?.unresolvedContradictions ?? 0) > 0 ? "var(--bad, #ef4444)" : "var(--ok, #10b981)" }}>
+            <code>{health?.unresolvedContradictions ?? 0}</code>
+          </span>
+          <span className="brain-stat-note"><code>{health?.contradictions ?? 0} total cases detected</code></span>
+        </div>
+      </div>
+
+      {lint && (
+        <div className="brain-wiki-view">
+          <h4><code>Knowledge Linter Diagnostic Report</code></h4>
+          <p className="brain-sub">
+            <code>Orphan Pages: {lint.orphanPages?.length ?? 0} &bull; Broken Wiki Links: {lint.brokenLinks?.length ?? 0} &bull; Missing Provenance: {lint.missingProvenance?.length ?? 0}</code>
+          </p>
+          {lint.openContradictions && lint.openContradictions.length > 0 && (
+            <div className="brain-issues">
+              {lint.openContradictions.map((c) => (
+                <div key={c.id} className="brain-issue">
+                  <IconAlert aria-hidden /> <code>Open Contradiction: {c.topic} (Severity: {c.severity})</code>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -98,8 +98,8 @@ function mockCtx(
 
 describe("Phase 21: Pao Stock Autonomous Campaign Planner", () => {
   describe("1. Database Schema v16 Migration", () => {
-    test("schema version is bumped to 16", () => {
-      expect(AGENT_OS_SCHEMA_VERSION).toBe(16);
+    test("schema version is bumped to at least 16", () => {
+      expect(AGENT_OS_SCHEMA_VERSION).toBeGreaterThanOrEqual(16);
     });
 
     test("all 5 campaign relational tables exist and are writable", () => {

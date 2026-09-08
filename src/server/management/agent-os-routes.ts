@@ -98,6 +98,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleCouncilRoutes(ctx);
   }
 
+  // Phase 20.10: Pao Trend Intelligence × Apify MCP × Adobe Stock Research Engine
+  if (url.pathname === "/api/agent-os/trends" || url.pathname.startsWith("/api/agent-os/trends/")) {
+    const { handleTrendRoutes } = await import("./trend-routes");
+    return handleTrendRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

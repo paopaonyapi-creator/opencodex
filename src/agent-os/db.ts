@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v18: trend_research_jobs, trend_actor_registry, trend_actor_runs, trend_signals,
+// trend_opportunity_scores, trend_stock_concepts, trend_usage_costs (Phase 20.10 Pao Trend Intelligence × Apify MCP × Adobe Stock Research Engine).
 // v17: council_runs, council_parallelization_plans, council_agent_profiles,
 // council_agent_runs, council_worktrees, council_task_leases, council_changesets,
 // council_review_assignments, council_review_results, council_verification_bundles,
@@ -58,7 +60,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 17;
+export const AGENT_OS_SCHEMA_VERSION = 18;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2470,6 +2472,131 @@ function migrate(db: Database): void {
         recorded_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_council_usage_run ON council_resource_usage(council_run_id, recorded_at);
+
+      -- v18: Phase 20.10 Pao Trend Intelligence × Apify MCP × Adobe Stock Research Engine.
+      CREATE TABLE IF NOT EXISTS trend_research_jobs (
+        id TEXT PRIMARY KEY,
+        query TEXT NOT NULL,
+        market TEXT NOT NULL DEFAULT 'US',
+        asset_type TEXT NOT NULL DEFAULT 'all',
+        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+        requested_sources_json TEXT NOT NULL DEFAULT '[]',
+        config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_research_jobs_status ON trend_research_jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_trend_research_jobs_market ON trend_research_jobs(market);
+
+      CREATE TABLE IF NOT EXISTS trend_actor_registry (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        priority INTEGER NOT NULL DEFAULT 0,
+        health_score REAL NOT NULL DEFAULT 100.0,
+        pricing_json TEXT NOT NULL DEFAULT '{}',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_actor_reg_provider ON trend_actor_registry(provider, enabled);
+
+      CREATE TABLE IF NOT EXISTS trend_actor_runs (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES trend_research_jobs(id) ON DELETE CASCADE,
+        actor_registry_id TEXT NOT NULL,
+        provider_run_id TEXT,
+        status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'succeeded', 'failed', 'timed_out')),
+        result_count INTEGER NOT NULL DEFAULT 0,
+        estimated_cost REAL NOT NULL DEFAULT 0.0,
+        actual_cost REAL NOT NULL DEFAULT 0.0,
+        runtime_ms INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_actor_runs_job ON trend_actor_runs(research_job_id);
+
+      CREATE TABLE IF NOT EXISTS trend_signals (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES trend_research_jobs(id) ON DELETE CASCADE,
+        source TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        keywords_json TEXT NOT NULL DEFAULT '[]',
+        hashtags_json TEXT NOT NULL DEFAULT '[]',
+        published_at TEXT,
+        views INTEGER,
+        likes INTEGER,
+        comments_count INTEGER,
+        shares INTEGER,
+        downloads INTEGER,
+        engagement_rate REAL,
+        ai_generated INTEGER DEFAULT 0,
+        source_url TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_signals_job ON trend_signals(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_trend_signals_source ON trend_signals(source);
+
+      CREATE TABLE IF NOT EXISTS trend_opportunity_scores (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES trend_research_jobs(id) ON DELETE CASCADE,
+        topic TEXT NOT NULL,
+        demand_score REAL NOT NULL,
+        momentum_score REAL NOT NULL,
+        buyer_intent_score REAL NOT NULL,
+        competition_score REAL NOT NULL,
+        competition_gap_score REAL NOT NULL,
+        freshness_score REAL NOT NULL,
+        production_feasibility_score REAL NOT NULL,
+        ai_saturation_score REAL NOT NULL,
+        opportunity_score REAL NOT NULL,
+        recommendation TEXT NOT NULL CHECK(recommendation IN ('MUST_PRODUCE', 'GOOD_OPPORTUNITY', 'EXPLORE', 'AVOID')),
+        reasoning_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_opp_job ON trend_opportunity_scores(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_trend_opp_rec ON trend_opportunity_scores(recommendation);
+
+      CREATE TABLE IF NOT EXISTS trend_stock_concepts (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES trend_research_jobs(id) ON DELETE CASCADE,
+        opportunity_score_id TEXT REFERENCES trend_opportunity_scores(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        buyer_json TEXT NOT NULL DEFAULT '{}',
+        asset_types_json TEXT NOT NULL DEFAULT '[]',
+        visual_direction TEXT NOT NULL,
+        must_include_json TEXT NOT NULL DEFAULT '[]',
+        must_avoid_json TEXT NOT NULL DEFAULT '[]',
+        commercial_use_cases_json TEXT NOT NULL DEFAULT '[]',
+        production_difficulty REAL NOT NULL DEFAULT 5.0,
+        status TEXT NOT NULL DEFAULT 'draft',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_concepts_job ON trend_stock_concepts(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_trend_concepts_status ON trend_stock_concepts(status);
+
+      CREATE TABLE IF NOT EXISTS trend_usage_costs (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES trend_research_jobs(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        provider_run_id TEXT,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        units REAL NOT NULL DEFAULT 0.0,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trend_usage_job ON trend_usage_costs(research_job_id);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

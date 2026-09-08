@@ -2728,4 +2728,5 @@ export const ru: Record<TKey, string> = {
   "sdlc.acCoverage": "Покрытие критериев приемки",
   "sdlc.tasksCoverage": "Прослеживаемость задач",
   "nav.desktopAgent": "Desktop Agent",
+  "nav.browser": "Browser Studio",
 };

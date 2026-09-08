@@ -164,7 +164,8 @@
     },
     {
       "files": [
-        "src/pages/AgentControlCenter.tsx"
+        "src/pages/AgentControlCenter.tsx",
+        "src/pages/BrowserStudio.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

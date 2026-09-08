@@ -2727,4 +2727,5 @@ export const ko: Record<TKey, string> = {
   "sdlc.acCoverage": "인수 기준 커버리지",
   "sdlc.tasksCoverage": "태스크 추적성",
   "nav.desktopAgent": "Desktop Agent",
+  "nav.browser": "Browser Studio",
 };

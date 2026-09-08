@@ -2728,4 +2728,5 @@ export const tr: Record<TKey, string> = {
   "sdlc.acCoverage": "Kabul Kriteri Kapsamı",
   "sdlc.tasksCoverage": "Görev İzlenebilirliği",
   "nav.desktopAgent": "Desktop Agent",
+  "nav.browser": "Browser Studio",
 };

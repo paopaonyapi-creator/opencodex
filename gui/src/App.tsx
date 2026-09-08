@@ -14,12 +14,13 @@ import PaoSeo from "./pages/PaoSeo";
 import AiStudio from "./pages/AiStudio";
 import AgencyCenter from "./pages/AgencyCenter";
 import AgentControlCenter from "./pages/AgentControlCenter";
+import BrowserStudio from "./pages/BrowserStudio";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
-import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal } from "./icons";
+import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser } from "./icons";
 import { useI18n, useT, LOCALES, localeDisplayName, type Locale, type TKey } from "./i18n/shared";
 import { Select } from "./ui";
 import { installApiAuthFetch } from "./api";
@@ -49,6 +50,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "ai-studio": "nav.aiStudio",
   agency: "nav.agency",
   "desktop-agent": "nav.desktopAgent",
+  browser: "nav.browser",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
@@ -85,6 +87,7 @@ const NAV: NavEntry[] = [
   { id: "ai-studio", tkey: "nav.aiStudio", Icon: IconBoxes },
   { id: "agency", tkey: "nav.agency", Icon: IconBot },
   { id: "desktop-agent", tkey: "nav.desktopAgent", Icon: IconTerminal },
+  { id: "browser", tkey: "nav.browser", Icon: IconBrowser },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
@@ -370,6 +373,7 @@ export default function App() {
             {page === "ai-studio" && <AiStudio apiBase={API_BASE} />}
             {page === "agency" && <AgencyCenter />}
             {page === "desktop-agent" && <AgentControlCenter apiBase={API_BASE} />}
+            {page === "browser" && <BrowserStudio apiBase={API_BASE} />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>

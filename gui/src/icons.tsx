@@ -68,3 +68,12 @@ export const IconStar = (p: P) => (<svg {...S(p)}><path d="m12 2 3.09 6.26L22 9.
 export const IconFilter = (p: P) => (<svg {...S(p)}><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>);
 export const IconCode = (p: P) => (<svg {...S(p)}><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>);
 export const IconShield = (p: P) => (<svg {...S(p)}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>);
+export const IconBrowser = (p: P) => (
+  <svg {...S(p)}>
+    <rect x="2" y="3" width="20" height="18" rx="2" />
+    <path d="M2 9h20" />
+    <circle cx="6" cy="6" r="1" fill="currentColor" />
+    <circle cx="10" cy="6" r="1" fill="currentColor" />
+    <circle cx="14" cy="6" r="1" fill="currentColor" />
+  </svg>
+);

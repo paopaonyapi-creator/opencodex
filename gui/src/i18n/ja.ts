@@ -2726,4 +2726,5 @@ export const ja: Record<TKey, string> = {
   "sdlc.acCoverage": "受入基準カバレッジ",
   "sdlc.tasksCoverage": "タスク追跡性",
   "nav.desktopAgent": "Desktop Agent",
+  "nav.browser": "Browser Studio",
 };

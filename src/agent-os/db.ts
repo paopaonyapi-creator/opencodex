@@ -12,6 +12,7 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v24: stock_autonomous_pipeline_runs (End-to-End Autonomous Stock Production & Submission Pipeline).
 // v23: browser_remote_workers, browser_remote_job_dispatches
 // (Phase 20.14 Pao-hubPro Browser Remote Worker & Cloud VM Fleet).
 // v22: browser_multi_agent_missions, browser_agent_dispatches, browser_web_handshakes,
@@ -70,7 +71,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 23;
+export const AGENT_OS_SCHEMA_VERSION = 24;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2903,6 +2904,31 @@ function migrate(db: Database): void {
       );
       CREATE INDEX IF NOT EXISTS idx_browser_job_worker ON browser_remote_job_dispatches(worker_id);
       CREATE INDEX IF NOT EXISTS idx_browser_job_status ON browser_remote_job_dispatches(status);
+
+      -- v24: End-to-End Autonomous Stock Production & Submission Pipeline.
+      CREATE TABLE IF NOT EXISTS stock_autonomous_pipeline_runs (
+        id TEXT PRIMARY KEY,
+        query TEXT NOT NULL,
+        market TEXT NOT NULL DEFAULT 'US',
+        target_asset_count INTEGER NOT NULL DEFAULT 10,
+        status TEXT NOT NULL DEFAULT 'pending',
+        current_stage INTEGER NOT NULL DEFAULT 1,
+        trend_job_id TEXT,
+        campaign_id TEXT,
+        browser_mission_id TEXT,
+        approval_id TEXT,
+        concept_summary_json TEXT NOT NULL DEFAULT '{}',
+        campaign_summary_json TEXT NOT NULL DEFAULT '{}',
+        qc_summary_json TEXT NOT NULL DEFAULT '{}',
+        browser_summary_json TEXT NOT NULL DEFAULT '{}',
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        error_message TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        completed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_pipe_status ON stock_autonomous_pipeline_runs(status);
+      CREATE INDEX IF NOT EXISTS idx_stock_pipe_created ON stock_autonomous_pipeline_runs(created_at);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

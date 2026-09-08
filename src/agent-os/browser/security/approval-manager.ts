@@ -20,15 +20,14 @@ export class BrowserApprovalManager {
     return this.sessionApprovedKeys.has(key) || this.sessionApprovedKeys.has(defaultKey);
   }
 
-  public async requestApproval(
+  public createPendingApproval(
     agent: string,
     actionTool: string,
     website: string,
     reason: string,
     affectedData: Record<string, unknown> = {},
     sessionId = "default",
-  ): Promise<{ status: "approved_once" | "approved_session" | "rejected"; request: ApprovalRequest }> {
-    // Check if session already approved
+  ): ApprovalRequest {
     if (this.isSessionApproved(sessionId, website, actionTool)) {
       const autoApproved: ApprovalRequest = {
         id: `appr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -42,7 +41,7 @@ export class BrowserApprovalManager {
         createdAt: Date.now(),
         reviewedAt: Date.now(),
       };
-      return { status: "approved_session", request: autoApproved };
+      return autoApproved;
     }
 
     const id = `appr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -74,15 +73,31 @@ export class BrowserApprovalManager {
       request.createdAt,
     );
 
+    return request;
+  }
+
+  public async requestApproval(
+    agent: string,
+    actionTool: string,
+    website: string,
+    reason: string,
+    affectedData: Record<string, unknown> = {},
+    sessionId = "default",
+  ): Promise<{ status: "approved_once" | "approved_session" | "rejected"; request: ApprovalRequest }> {
+    const request = this.createPendingApproval(agent, actionTool, website, reason, affectedData, sessionId);
+    if (request.status !== "pending") {
+      return { status: request.status as "approved_session", request };
+    }
+
     // Wait for resolution or timeout (default 30s)
     const decisionPromise = new Promise<"approved_once" | "approved_session" | "rejected">(
       (resolve) => {
-        this.pendingResolvers.set(id, resolve);
+        this.pendingResolvers.set(request.id, resolve);
 
         // Auto-reject on timeout if unhandled
         setTimeout(() => {
-          if (this.pendingResolvers.has(id)) {
-            this.reject(id, "system_timeout");
+          if (this.pendingResolvers.has(request.id)) {
+            this.reject(request.id, "system_timeout");
           }
         }, 30000);
       },

@@ -55,8 +55,24 @@ export class ReviewerWebAgent {
   public async submitForHumanApproval(
     proposal: ApprovalProposal,
     agent = "multi-agent-squad",
+    waitForDecision = true,
   ): Promise<{ approvalId: string; status: string }> {
     const approvalMgr = getBrowserApprovalManager();
+
+    if (!waitForDecision) {
+      const req = approvalMgr.createPendingApproval(
+        agent,
+        proposal.action,
+        proposal.website,
+        proposal.reason,
+        proposal.affectedData,
+      );
+      return {
+        approvalId: req.id,
+        status: req.status,
+      };
+    }
+
     const req = await approvalMgr.requestApproval(
       agent,
       proposal.action,

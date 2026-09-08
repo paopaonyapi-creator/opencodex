@@ -7,10 +7,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/shared";
+import "../styles/stock-campaign.css";
 
-type Tab = "generate" | "h3-studio" | "video-factory" | "queue" | "compute" | "gallery" | "projects" | "models" | "workflows" | "providers" | "stock-review" | "exports" | "settings";
+type Tab = "generate" | "h3-studio" | "video-factory" | "campaign" | "queue" | "compute" | "gallery" | "projects" | "models" | "workflows" | "providers" | "stock-review" | "exports" | "settings";
 
-const TABS: readonly Tab[] = ["generate", "h3-studio", "video-factory", "queue", "compute", "gallery", "projects", "models", "workflows", "providers", "stock-review", "exports", "settings"];
+const TABS: readonly Tab[] = ["generate", "h3-studio", "video-factory", "campaign", "queue", "compute", "gallery", "projects", "models", "workflows", "providers", "stock-review", "exports", "settings"];
 
 interface WorkflowSummary { id: string; version: number; name: string; category: string; enabled: boolean; status: string; capabilities: string[]; bindings: Record<string, unknown>; requiredInputs: string[]; }
 interface ModelSummary { id: string; displayName: string; family: string; commercialUseNotes: string; enabled: boolean; }
@@ -119,7 +120,7 @@ export default function AiStudio({ apiBase }: { apiBase: string }) {
           <button key={entry} type="button" role="tab" aria-selected={tab === entry}
             className={tab === entry ? "ai-tab ai-tab--active" : "ai-tab"}
             onClick={() => setTab(entry)}>
-            {entry === "h3-studio" ? "MiniMax H3 Studio" : entry === "video-factory" ? "Video Factory" : t(`aiStudio.tab.${entry}` as never)}
+            {entry === "h3-studio" ? "MiniMax H3 Studio" : entry === "video-factory" ? "Video Factory" : entry === "campaign" ? "Campaign Planner" : t(`aiStudio.tab.${entry}` as never)}
           </button>
         ))}
       </nav>
@@ -127,6 +128,7 @@ export default function AiStudio({ apiBase }: { apiBase: string }) {
         {tab === "generate" && <GenerateTab apiBase={apiBase} onSubmitted={() => { setTab("queue"); }} />}
         {tab === "h3-studio" && <H3StudioTab apiBase={apiBase} />}
         {tab === "video-factory" && <VideoFactoryTab apiBase={apiBase} />}
+        {tab === "campaign" && <CampaignPlannerTab apiBase={apiBase} />}
         {tab === "queue" && <QueueTab apiBase={apiBase} />}
         {tab === "compute" && <ComputeTab apiBase={apiBase} />}
         {tab === "gallery" && <GalleryTab apiBase={apiBase} />}
@@ -2805,4 +2807,704 @@ function VideoFactoryTab({ apiBase }: { apiBase: string }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------- Phase 21: Stock Campaign Planner
+
+interface StockTrendSignal {
+  id: string;
+  keyword: string;
+  category: string;
+  source: string;
+  searchVelocity: number;
+  commercialIntent: number;
+  saturationIndex: number;
+  nicheViabilityScore: number;
+  priorityTier: "high_priority" | "secondary" | "rejected";
+  status: string;
+  createdAt: string;
+}
+
+interface StockCampaign {
+  id: string;
+  title: string;
+  trendSignalId: string | null;
+  targetPlatform: string;
+  targetAssetCount: number;
+  completedAssetCount: number;
+  budgetCents: number;
+  spentCents: number;
+  status: string;
+  metadataJson: string;
+  createdAt: string;
+}
+
+interface StockCampaignItem {
+  id: string;
+  campaignId: string;
+  assetType: "video_4k" | "photo_raw" | "isolated_element";
+  prompt: string;
+  negativePrompt: string;
+  aspectRatio: string;
+  assignedProvider: string;
+  gpuJobId: string | null;
+  renderStatus: "pending" | "rendering" | "passed_qc" | "failed_qc";
+  createdAt: string;
+}
+
+interface StockQcRecord {
+  id: string;
+  campaignItemId: string;
+  sharpnessScore: number;
+  artifactPenalty: number;
+  ipClearanceStatus: string;
+  councilVerdict: "approve" | "human_review" | "reject";
+  verifiedAt: string;
+}
+
+function CampaignPlannerTab({ apiBase }: { apiBase: string }) {
+  const [signals, setSignals] = useState<StockTrendSignal[]>([]);
+  const [selectedSignal, setSelectedSignal] = useState<StockTrendSignal | null>(null);
+  const [scanning, setScanning] = useState<boolean>(false);
+
+  const [campaigns, setCampaigns] = useState<StockCampaign[]>([]);
+  const [activeCampaign, setActiveCampaign] = useState<StockCampaign | null>(null);
+  const [items, setItems] = useState<StockCampaignItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<StockCampaignItem | null>(null);
+  const [qcRecord, setQcRecord] = useState<StockQcRecord | null>(null);
+
+  const [keyword, setKeyword] = useState<string>("Autonomous Delivery Drone Logistics");
+  const [category, setCategory] = useState<string>("logistics");
+  const [targetCount, setTargetCount] = useState<number>(10);
+  const [videoRatio, setVideoRatio] = useState<number>(0.4);
+  const [photoRatio, setPhotoRatio] = useState<number>(0.4);
+  const [elementRatio, setElementRatio] = useState<number>(0.2);
+
+  const [planning, setPlanning] = useState<boolean>(false);
+  const [dispatching, setDispatching] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [inspectingQc, setInspectingQc] = useState<boolean>(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [csvContent, setCsvContent] = useState<string | null>(null);
+
+  const loadSignals = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/trends`);
+      if (res.ok) {
+        const data = await res.json() as { signals?: StockTrendSignal[] };
+        setSignals(data.signals || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, [apiBase]);
+
+  const loadItemQc = useCallback(async (itemId: string) => {
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/items/${itemId}/qc`);
+      if (res.ok) {
+        const data = await res.json() as { qcRecord?: StockQcRecord | null };
+        setQcRecord(data.qcRecord || null);
+      } else {
+        setQcRecord(null);
+      }
+    } catch {
+      setQcRecord(null);
+    }
+  }, [apiBase]);
+
+  const loadCampaignDetails = useCallback(async (campaignId: string) => {
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/${campaignId}`);
+      if (res.ok) {
+        const data = await res.json() as { campaign: StockCampaign; items: StockCampaignItem[] };
+        setActiveCampaign(data.campaign);
+        setItems(data.items || []);
+        if (data.items && data.items.length > 0) {
+          setSelectedItem(data.items[0]);
+          void loadItemQc(data.items[0].id);
+        } else {
+          setSelectedItem(null);
+          setQcRecord(null);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [apiBase, loadItemQc]);
+
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/list?limit=25`);
+      if (res.ok) {
+        const data = await res.json() as { campaigns?: StockCampaign[] };
+        setCampaigns(data.campaigns || []);
+        if (data.campaigns && data.campaigns.length > 0 && !activeCampaign) {
+          void loadCampaignDetails(data.campaigns[0].id);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [apiBase, activeCampaign, loadCampaignDetails]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadSignals();
+      void loadCampaigns();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadSignals, loadCampaigns]);
+
+  const handleScanTrends = async () => {
+    setScanning(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/trends/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json() as { count: number; signals: StockTrendSignal[] };
+        setSignals(data.signals || []);
+        setStatusMsg("scan_ok:" + String(data.count));
+      } else {
+        setErrorMsg("scan_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleSelectSignal = (sig: StockTrendSignal) => {
+    setSelectedSignal(sig);
+    setKeyword(sig.keyword);
+    setCategory(sig.category);
+  };
+
+  const handlePlanCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!keyword.trim()) return;
+    setPlanning(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signalId: selectedSignal?.id,
+          keyword: keyword.trim(),
+          category: category.trim() || undefined,
+          targetCount: Number(targetCount) || 10,
+          ratio: {
+            video_4k: Number(videoRatio),
+            photo_raw: Number(photoRatio),
+            isolated_element: Number(elementRatio),
+          },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { campaign: StockCampaign; items: StockCampaignItem[] };
+        setActiveCampaign(data.campaign);
+        setItems(data.items || []);
+        if (data.items && data.items.length > 0) {
+          setSelectedItem(data.items[0]);
+        }
+        setCampaigns(prev => [data.campaign, ...prev]);
+        setStatusMsg("campaign_created:" + data.campaign.title);
+      } else {
+        setErrorMsg("plan_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const handleDispatch = async () => {
+    if (!activeCampaign) return;
+    setDispatching(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/${activeCampaign.id}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json() as { dispatchedCount: number; skippedCount: number };
+        setStatusMsg("dispatched:" + String(data.dispatchedCount));
+        void loadCampaignDetails(activeCampaign.id);
+      } else {
+        setErrorMsg("dispatch_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    } finally {
+      setDispatching(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!activeCampaign) return;
+    setSyncing(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/${activeCampaign.id}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json() as { status: string; completedCount: number; targetCount: number };
+        setStatusMsg("sync_ok:" + String(data.completedCount) + "/" + String(data.targetCount));
+        void loadCampaignDetails(activeCampaign.id);
+      } else {
+        setErrorMsg("sync_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleRunQc = async () => {
+    if (!selectedItem) return;
+    setInspectingQc(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/items/${selectedItem.id}/qc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          width: 3840,
+          height: 2160,
+          sharpness: 0.94,
+          artifacts: 0.05,
+          brandMentions: [],
+          hasModelRelease: true,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { passed: boolean; record: StockQcRecord; councilVerdict: string };
+        setQcRecord(data.record);
+        setStatusMsg("qc_complete:" + (data.passed ? "PASSED" : "FAILED"));
+        if (activeCampaign) void loadCampaignDetails(activeCampaign.id);
+      } else {
+        setErrorMsg("qc_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    } finally {
+      setInspectingQc(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!activeCampaign) return;
+    try {
+      const res = await fetch(`${apiBase}/api/campaign/${activeCampaign.id}/export?format=csv`);
+      if (res.ok) {
+        const csv = await res.text();
+        setCsvContent(csv);
+        setStatusMsg("export_ok");
+      } else {
+        setErrorMsg("export_failed");
+      }
+    } catch (err) {
+      setErrorMsg(String(err));
+    }
+  };
+
+  return (
+    <div className="camp-container">
+      {/* ─── Hero Banner ─── */}
+      <div className="camp-hero-banner">
+        <div className="camp-hero-title">
+          <h3>
+            <span>📈</span> <code>Pao Stock Autonomous Campaign Planner</code>
+          </h3>
+          <p>
+            <code>Transforms commercial market trend signals into coherent, high-yield multi-asset stock portfolios (4K Video, RAW Photos, Isolated Elements) governed by the Reviewer Council and Adobe Stock specifications.</code>
+          </p>
+        </div>
+        <div className="camp-badge-cluster">
+          <span className="camp-badge camp-badge--engine"><code>Engine: NVS Niche Scorer</code></span>
+          <span className="camp-badge camp-badge--nvs"><code>Formula: (0.4C + 0.35V - 0.25S) / (1+P)</code></span>
+          <span className="camp-badge camp-badge--stock"><code>Platform: Adobe Stock 4MP+</code></span>
+        </div>
+      </div>
+
+      {statusMsg && (
+        <div className="ai-pill ai-pill--ok" style={{ padding: "8px 12px", width: "100%" }}>
+          <code>{statusMsg}</code>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="ai-pill ai-pill--warn" style={{ padding: "8px 12px", width: "100%", color: "#ef4444" }}>
+          <code>{errorMsg}</code>
+        </div>
+      )}
+
+      {/* ─── Main 3-Column Grid ─── */}
+      <div className="camp-grid">
+        {/* Column 1: Trend Signals & Opportunities */}
+        <div className="camp-panel">
+          <div className="camp-panel-header">
+            <h4><span>🔍</span> <code>Market Trend Signals ({signals.length})</code></h4>
+            <button
+              type="button"
+              className="camp-btn camp-btn-secondary"
+              onClick={() => void handleScanTrends()}
+              disabled={scanning}
+            >
+              <code>{scanning ? "Scanning…" : "Scan Trends"}</code>
+            </button>
+          </div>
+
+          <div className="camp-trend-list">
+            {signals.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#64748b", padding: 12, textAlign: "center" }}>
+                <code>No trend signals found. Click "Scan Trends" to analyze commercial seeds.</code>
+              </div>
+            ) : (
+              signals.map(sig => {
+                const isSelected = selectedSignal?.id === sig.id;
+                const fillClass =
+                  sig.nicheViabilityScore >= 0.75
+                    ? "camp-nvs-fill--high"
+                    : sig.nicheViabilityScore >= 0.5
+                    ? "camp-nvs-fill--sec"
+                    : "camp-nvs-fill--rej";
+
+                return (
+                  <div
+                    key={sig.id}
+                    className={`camp-trend-card ${isSelected ? "camp-trend-card--selected" : ""}`}
+                    onClick={() => handleSelectSignal(sig)}
+                  >
+                    <div className="camp-trend-header">
+                      <span className="camp-trend-keyword"><code>{sig.keyword}</code></span>
+                      <span className="camp-trend-category"><code>{sig.category}</code></span>
+                    </div>
+
+                    <div className="camp-nvs-meter">
+                      <span><code>NVS: {(sig.nicheViabilityScore * 100).toFixed(0)}%</code></span>
+                      <div className="camp-nvs-bar">
+                        <div
+                          className={`camp-nvs-fill ${fillClass}`}
+                          style={{ width: `${Math.min(100, sig.nicheViabilityScore * 100)}%` }}
+                        />
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: sig.nicheViabilityScore >= 0.75 ? "#34d399" : "#fbbf24" }}>
+                        <code>{sig.priorityTier.replace("_", " ").toUpperCase()}</code>
+                      </span>
+                    </div>
+
+                    <div className="camp-metrics-row">
+                      <div className="camp-metrics-col">
+                        <span><code>Intent (C)</code></span>
+                        <span className="val"><code>{sig.commercialIntent.toFixed(2)}</code></span>
+                      </div>
+                      <div className="camp-metrics-col">
+                        <span><code>Velocity (V)</code></span>
+                        <span className="val"><code>{sig.searchVelocity.toFixed(2)}</code></span>
+                      </div>
+                      <div className="camp-metrics-col">
+                        <span><code>Sat (S)</code></span>
+                        <span className="val"><code>{sig.saturationIndex.toFixed(2)}</code></span>
+                      </div>
+                      <div className="camp-metrics-col">
+                        <span><code>Status</code></span>
+                        <span className="val"><code>{sig.status}</code></span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Column 2: Campaign Formulator & Prompt Matrix */}
+        <div className="camp-panel">
+          <div className="camp-panel-header">
+            <h4><span>📋</span> <code>Campaign Matrix Formulator</code></h4>
+          </div>
+
+          <form onSubmit={handlePlanCampaign} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="camp-form-group">
+              <label><code>Target Commercial Keyword / Niche</code></label>
+              <input
+                type="text"
+                className="camp-input"
+                value={keyword}
+                onChange={e => setKeyword(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div className="camp-form-group" style={{ flex: 1 }}>
+                <label><code>Category Intent</code></label>
+                <input
+                  type="text"
+                  className="camp-input"
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                />
+              </div>
+              <div className="camp-form-group" style={{ width: 110 }}>
+                <label><code>Target Assets</code></label>
+                <select
+                  className="camp-select"
+                  value={targetCount}
+                  onChange={e => setTargetCount(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="camp-ratio-sliders">
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>
+                <code>Asset Distribution Mix (Total: {(videoRatio + photoRatio + elementRatio).toFixed(1)})</code>
+              </span>
+              <div className="camp-slider-row">
+                <span><code>4K Video ({(videoRatio * 100).toFixed(0)}%)</code></span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={videoRatio}
+                  onChange={e => setVideoRatio(parseFloat(e.target.value))}
+                />
+              </div>
+              <div className="camp-slider-row">
+                <span><code>RAW Stock Photo ({(photoRatio * 100).toFixed(0)}%)</code></span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={photoRatio}
+                  onChange={e => setPhotoRatio(parseFloat(e.target.value))}
+                />
+              </div>
+              <div className="camp-slider-row">
+                <span><code>Isolated Element ({(elementRatio * 100).toFixed(0)}%)</code></span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={elementRatio}
+                  onChange={e => setElementRatio(parseFloat(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="camp-btn camp-btn-primary"
+              disabled={planning || !keyword.trim()}
+              style={{ width: "100%", marginTop: 4 }}
+            >
+              <code>{planning ? "Formulating Campaign Matrix…" : "Plan Autonomous Campaign Matrix"}</code>
+            </button>
+          </form>
+
+          {/* Active Campaign Items Matrix */}
+          {activeCampaign && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#f8fafc" }}>
+                  <code>{activeCampaign.title} ({items.length} assets)</code>
+                </span>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <code>Status: {activeCampaign.status}</code>
+                </span>
+              </div>
+
+              {campaigns.length > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 11, color: "#94a3b8" }}><code>Select:</code></span>
+                  <select
+                    className="camp-select"
+                    style={{ flex: 1, padding: "3px 8px", fontSize: 11 }}
+                    value={activeCampaign.id}
+                    onChange={e => void loadCampaignDetails(e.target.value)}
+                  >
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="camp-btn-cluster">
+                <button
+                  type="button"
+                  className="camp-btn camp-btn-primary"
+                  onClick={() => void handleDispatch()}
+                  disabled={dispatching}
+                >
+                  <code>{dispatching ? "Dispatching…" : "Dispatch to Generation Queue"}</code>
+                </button>
+                <button
+                  type="button"
+                  className="camp-btn camp-btn-secondary"
+                  onClick={() => void handleSync()}
+                  disabled={syncing}
+                >
+                  <code>{syncing ? "Syncing…" : "Sync Progress"}</code>
+                </button>
+              </div>
+
+              <div className="camp-items-list">
+                {items.map(it => {
+                  const isSelected = selectedItem?.id === it.id;
+                  const badgeClass = `camp-asset-badge--${it.assetType}`;
+
+                  return (
+                    <div
+                      key={it.id}
+                      className={`camp-item-card ${isSelected ? "camp-item-card--active" : ""}`}
+                      onClick={() => {
+                        setSelectedItem(it);
+                        void loadItemQc(it.id);
+                      }}
+                    >
+                      <div className="camp-item-head">
+                        <span className={`camp-asset-badge ${badgeClass}`}>
+                          <code>{it.assetType.replace("_", " ")}</code>
+                        </span>
+                        <span style={{ fontSize: 11, color: it.renderStatus === "passed_qc" ? "#34d399" : "#94a3b8" }}>
+                          <code>{it.renderStatus}</code>
+                        </span>
+                      </div>
+                      <div className="camp-item-prompt"><code>{it.prompt}</code></div>
+                      <div className="camp-item-meta">
+                        <span><code>Aspect: {it.aspectRatio}</code></span>
+                        <span><code>Provider: {it.assignedProvider}</code></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Column 3: Reviewer Council, Quality Control & CSV Export */}
+        <div className="camp-panel">
+          <div className="camp-panel-header">
+            <h4><span>🛡️</span> <code>Technical QC & Reviewer Council</code></h4>
+          </div>
+
+          {selectedItem ? (
+            <div className="camp-qc-panel">
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                <span><code>Item ID: </code></span>
+                <code>{selectedItem.id.slice(0, 16)}…</code>
+              </div>
+
+              {/* Council Verdict */}
+              {qcRecord ? (
+                <div className={`camp-verdict-banner camp-verdict-banner--${qcRecord.councilVerdict}`}>
+                  <span><code>Council Verdict:</code></span>
+                  <span style={{ textTransform: "uppercase" }}><code>{qcRecord.councilVerdict}</code></span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: 8 }}>
+                  <code>No QC record yet. Click below to inspect.</code>
+                </div>
+              )}
+
+              {/* QC Metrics */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div className="camp-qc-item">
+                  <span><code>Sharpness Score</code></span>
+                  <span style={{ color: "#38bdf8", fontWeight: 700 }}>
+                    <code>{qcRecord ? `${(qcRecord.sharpnessScore * 100).toFixed(1)}%` : "Pending"}</code>
+                  </span>
+                </div>
+                <div className="camp-qc-item">
+                  <span><code>Artifact Penalty</code></span>
+                  <span style={{ color: "#f87171", fontWeight: 700 }}>
+                    <code>{qcRecord ? `${(qcRecord.artifactPenalty * 100).toFixed(1)}%` : "Pending"}</code>
+                  </span>
+                </div>
+                <div className="camp-qc-item">
+                  <span><code>IP Clearance</code></span>
+                  <span style={{ color: "#34d399", fontWeight: 700 }}>
+                    <code>{qcRecord ? qcRecord.ipClearanceStatus : "Pending"}</code>
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="camp-btn camp-btn-primary"
+                onClick={() => void handleRunQc()}
+                disabled={inspectingQc}
+                style={{ width: "100%" }}
+              >
+                <code>{inspectingQc ? "Inspecting QC…" : "Run Visual QC & Council Evaluation"}</code>
+              </button>
+
+              {/* Adobe Stock Manifest Export */}
+              <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12, marginTop: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>
+                    <code>Adobe Stock Export Manifest</code>
+                  </span>
+                  <button
+                    type="button"
+                    className="camp-btn camp-btn-secondary"
+                    onClick={() => void handleExportCsv()}
+                    disabled={!activeCampaign}
+                  >
+                    <code>Generate CSV</code>
+                  </button>
+                </div>
+
+                {csvContent ? (
+                  <div className="camp-csv-box">
+                    <code>{csvContent}</code>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "#64748b", textAlign: "center", padding: 8 }}>
+                    <code>Click Generate CSV to assemble RFC 4180 Adobe Stock manifest.</code>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: 24 }}>
+              <code>Select a campaign item to inspect QC checks and export metadata.</code>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 

@@ -653,6 +653,33 @@ export default function AgentControlCenter({ apiBase = "" }: { apiBase?: string 
                     placeholder="Describe what the agent should accomplish..."
                   />
                 </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}><code>Presets:</code></span>
+                  <button
+                    type="button"
+                    className="acc-btn acc-btn-secondary"
+                    style={{ fontSize: "0.72rem", padding: "2px 8px" }}
+                    onClick={() => setMissionInput("Scan emerging commercial stock niches using builtin__campaign_scan_trends and rank by NVS.")}
+                  >
+                    <code>📈 Scan Stock Trends</code>
+                  </button>
+                  <button
+                    type="button"
+                    className="acc-btn acc-btn-secondary"
+                    style={{ fontSize: "0.72rem", padding: "2px 8px" }}
+                    onClick={() => setMissionInput("Plan an autonomous 25-asset commercial stock media campaign matrix with diverse lighting and camera angles.")}
+                  >
+                    <code>📋 Plan Stock Campaign</code>
+                  </button>
+                  <button
+                    type="button"
+                    className="acc-btn acc-btn-secondary"
+                    style={{ fontSize: "0.72rem", padding: "2px 8px" }}
+                    onClick={() => setMissionInput("Dispatch the latest planned stock campaign into the generation queue and sync execution status.")}
+                  >
+                    <code>⚡ Dispatch & Sync</code>
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: "200px" }}>

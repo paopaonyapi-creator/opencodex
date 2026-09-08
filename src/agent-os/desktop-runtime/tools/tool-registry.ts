@@ -10,6 +10,14 @@ import type {
   ToolExecutionResult,
 } from "../types";
 import { getToolRiskClassifier } from "./risk-classifier";
+import {
+  scanMarketTrends,
+  planCampaign,
+  dispatchCampaign,
+  syncCampaignExecution,
+  generateCampaignCsvManifest,
+  getCampaign,
+} from "../../campaign";
 
 export class ToolRegistry {
   private tools = new Map<string, ToolDescriptor>();
@@ -265,6 +273,139 @@ export class ToolRegistry {
       requiresApproval: false,
       execute: async (args) => {
         return { testFile: args.testFile, passed: true };
+      },
+    });
+
+    // 8. builtin__campaign_scan_trends
+    this.registerTool({
+      id: "builtin__campaign_scan_trends",
+      namespace: "builtin",
+      name: "campaign_scan_trends",
+      description: "Scan commercial stock media search trends and calculate Niche Viability Scores (NVS).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          seeds: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional list of search seed keywords to scan",
+          },
+        },
+      },
+      risk: "read_only",
+      source: "builtin",
+      requiresApproval: false,
+      execute: async (_args) => {
+        const signals = await scanMarketTrends();
+        return { count: signals.length, signals };
+      },
+    });
+
+    // 9. builtin__campaign_plan
+    this.registerTool({
+      id: "builtin__campaign_plan",
+      namespace: "builtin",
+      name: "campaign_plan",
+      description: "Formulate an autonomous multi-asset stock media campaign from market trend signals.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          signalId: { type: "string", description: "Optional ID of existing trend signal" },
+          keyword: { type: "string", description: "Target niche keyword (e.g. 'Cyberpunk Street Food')" },
+          category: { type: "string", description: "Optional category intent" },
+          targetCount: { type: "number", description: "Target number of assets (e.g. 10, 25, 50)" },
+        },
+      },
+      risk: "low",
+      source: "builtin",
+      requiresApproval: false,
+      execute: async (args) => {
+        const targetAssetCount = typeof args.targetCount === "number" ? args.targetCount : 10;
+        const result = planCampaign({
+          trendSignalId: typeof args.signalId === "string" ? args.signalId : undefined,
+          keyword: typeof args.keyword === "string" ? args.keyword : undefined,
+          category: typeof args.category === "string" ? args.category : undefined,
+          targetAssetCount,
+        });
+        return result;
+      },
+    });
+
+    // 10. builtin__campaign_dispatch
+    this.registerTool({
+      id: "builtin__campaign_dispatch",
+      namespace: "builtin",
+      name: "campaign_dispatch",
+      description: "Dispatch planned stock campaign items into the generation queue (gen_jobs).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          campaignId: { type: "string", description: "ID of the planned campaign to dispatch" },
+        },
+        required: ["campaignId"],
+      },
+      risk: "medium",
+      source: "builtin",
+      requiresApproval: true,
+      execute: async (args) => {
+        const campaignId = String(args.campaignId || "");
+        if (!campaignId) return { error: "campaignId is required" };
+        const result = dispatchCampaign(campaignId);
+        return result;
+      },
+    });
+
+    // 11. builtin__campaign_sync
+    this.registerTool({
+      id: "builtin__campaign_sync",
+      namespace: "builtin",
+      name: "campaign_sync",
+      description: "Synchronize campaign items status against generation job queue progress.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          campaignId: { type: "string", description: "ID of the campaign to sync" },
+        },
+        required: ["campaignId"],
+      },
+      risk: "read_only",
+      source: "builtin",
+      requiresApproval: false,
+      execute: async (args) => {
+        const campaignId = String(args.campaignId || "");
+        if (!campaignId) return { error: "campaignId is required" };
+        const result = syncCampaignExecution(campaignId);
+        return result;
+      },
+    });
+
+    // 12. builtin__campaign_export
+    this.registerTool({
+      id: "builtin__campaign_export",
+      namespace: "builtin",
+      name: "campaign_export",
+      description: "Build Adobe Stock CSV export package and metadata manifest for a campaign.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          campaignId: { type: "string", description: "ID of the campaign to export" },
+        },
+        required: ["campaignId"],
+      },
+      risk: "read_only",
+      source: "builtin",
+      requiresApproval: false,
+      execute: async (args) => {
+        const campaignId = String(args.campaignId || "");
+        if (!campaignId) return { error: "campaignId is required" };
+        const campaign = getCampaign(campaignId);
+        if (!campaign) return { error: "Campaign not found" };
+        const manifestResult = generateCampaignCsvManifest(campaignId);
+        return {
+          campaign,
+          rowCount: manifestResult.rowCount,
+          csv: manifestResult.csv,
+        };
       },
     });
   }

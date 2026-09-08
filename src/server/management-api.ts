@@ -89,6 +89,7 @@ import { handleRemoteWorkerRoutes } from "./management/remote-worker-routes";
 import { handleGenerationRoutes } from "./management/generation-routes";
 import { handleCampaignRoutes } from "./management/campaign-routes";
 import { handleStockPipelineRoutes } from "./management/stock-pipeline-routes";
+import { handleMobileRoutes } from "./management/mobile-routes";
 import { handleSdlcRoutes } from "./management/sdlc-routes";
 import type { ManagementContext } from "./management/context";
 import type { ManagementPrincipal } from "./management-auth";
@@ -280,6 +281,7 @@ export async function handleManagementAPI(
     ??     (await handleWorkflowRoutes(ctx))
     ??     (await handleMultiAgentRoutes(ctx))
     ??     (await handleRemoteWorkerRoutes(ctx))
+    ??     (await handleMobileRoutes(ctx))
     ??     (await handleAgentOsRoutes(ctx))
       ?? (await handleSidebarRoutes(ctx));
   } catch (error) {

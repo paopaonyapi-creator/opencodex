@@ -47,6 +47,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/")) return null;
 
+  // Phase 20.12: Pao-hubPro × Google ARTEMIS Mobile Agent Gateway
+  if (url.pathname.startsWith("/api/agent-os/mobile") || url.pathname === "/api/agent-os/mobile") {
+    const { handleMobileRoutes } = await import("./mobile-routes");
+    return handleMobileRoutes(ctx);
+  }
+
   // Phase 21.1: End-to-End Autonomous Stock Production & Submission Pipeline
   if (url.pathname.startsWith("/api/agent-os/stock/pipeline") || url.pathname === "/api/agent-os/stock/pipeline") {
     const { handleStockPipelineRoutes } = await import("./stock-pipeline-routes");

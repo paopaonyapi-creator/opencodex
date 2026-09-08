@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v25: mobile_devices, mobile_tasks, mobile_task_events, mobile_artifacts, mobile_policy_decisions
+// (Phase 20.12 Pao-hubPro × Google ARTEMIS Mobile Agent Gateway).
 // v24: stock_autonomous_pipeline_runs (End-to-End Autonomous Stock Production & Submission Pipeline).
 // v23: browser_remote_workers, browser_remote_job_dispatches
 // (Phase 20.14 Pao-hubPro Browser Remote Worker & Cloud VM Fleet).
@@ -71,7 +73,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 24;
+export const AGENT_OS_SCHEMA_VERSION = 25;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2929,6 +2931,83 @@ function migrate(db: Database): void {
       );
       CREATE INDEX IF NOT EXISTS idx_stock_pipe_status ON stock_autonomous_pipeline_runs(status);
       CREATE INDEX IF NOT EXISTS idx_stock_pipe_created ON stock_autonomous_pipeline_runs(created_at);
+
+      -- v25: Pao-hubPro × Google ARTEMIS Mobile Agent Gateway (Phase 20.12).
+      CREATE TABLE IF NOT EXISTS mobile_devices (
+        id TEXT PRIMARY KEY,
+        alias TEXT NOT NULL UNIQUE,
+        provider TEXT NOT NULL DEFAULT 'artemis',
+        provider_device_id TEXT NOT NULL,
+        device_type TEXT NOT NULL DEFAULT 'emulator',
+        trust_level TEXT NOT NULL DEFAULT 'test',
+        status TEXT NOT NULL DEFAULT 'ready',
+        allow_agent INTEGER NOT NULL DEFAULT 1,
+        allow_shell INTEGER NOT NULL DEFAULT 0,
+        requires_approval INTEGER NOT NULL DEFAULT 0,
+        labels_json TEXT NOT NULL DEFAULT '[]',
+        last_seen_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mobile_device_alias ON mobile_devices(alias);
+      CREATE INDEX IF NOT EXISTS idx_mobile_device_status ON mobile_devices(status);
+      CREATE INDEX IF NOT EXISTS idx_mobile_device_trust ON mobile_devices(trust_level);
+
+      CREATE TABLE IF NOT EXISTS mobile_tasks (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        goal TEXT NOT NULL,
+        profile TEXT NOT NULL DEFAULT 'auto',
+        verification_level TEXT NOT NULL DEFAULT 'final',
+        risk_level TEXT NOT NULL DEFAULT 'R1',
+        status TEXT NOT NULL DEFAULT 'NEW',
+        provider_task_id TEXT,
+        trace_id TEXT,
+        requested_by_type TEXT NOT NULL DEFAULT 'agent',
+        requested_by_id TEXT NOT NULL DEFAULT 'codex',
+        approved_by TEXT,
+        error_message TEXT,
+        result_summary_json TEXT NOT NULL DEFAULT '{}',
+        started_at INTEGER,
+        finished_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mobile_task_device ON mobile_tasks(device_id);
+      CREATE INDEX IF NOT EXISTS idx_mobile_task_status ON mobile_tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_mobile_task_created ON mobile_tasks(created_at);
+
+      CREATE TABLE IF NOT EXISTS mobile_task_events (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mobile_event_task ON mobile_task_events(task_id);
+
+      CREATE TABLE IF NOT EXISTS mobile_artifacts (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        artifact_type TEXT NOT NULL,
+        storage_key TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mobile_artifact_task ON mobile_artifacts(task_id);
+
+      CREATE TABLE IF NOT EXISTS mobile_policy_decisions (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        rule_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mobile_policy_task ON mobile_policy_decisions(task_id);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

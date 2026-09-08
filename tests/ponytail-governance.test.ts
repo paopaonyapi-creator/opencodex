@@ -19,6 +19,7 @@ import {
 } from "../src/agent-os/governance";
 import { unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { getReviewerCouncilBridge } from "../src/agent-os/desktop-runtime";
 
 describe("Phase 20.9: Pao-hubPro × Ponytail Minimal-Code Governance Layer", () => {
   beforeEach(() => {
@@ -294,6 +295,33 @@ describe("Phase 20.9: Pao-hubPro × Ponytail Minimal-Code Governance Layer", () 
 
       expect(verdict.verdict).toBeDefined();
       expect(Array.isArray(verdict.recommendedMitigations)).toBe(true);
+    });
+
+    it("incorporates governance perspective into council evaluation", async () => {
+      const bridge = getReviewerCouncilBridge();
+      const councilRes = await bridge.evaluate({
+        runId: "test-run",
+        mission: "Create new color logger",
+        risk: "high",
+        toolCall: {
+          id: "call-1",
+          runId: "test-run",
+          toolId: "builtin__write_to_file",
+          namespace: "builtin",
+          name: "write_to_file",
+          risk: "high",
+          arguments: { path: "src/logger.ts" },
+        },
+        governanceEvidence: {
+          selectedRung: "rung_2_reuse",
+          taskType: "feature",
+          risk: "high",
+          reasoningSummary: "Existing logger found in src/agent-os/desktop-runtime/audit/audit-logger.ts",
+          existingCandidates: ["src/agent-os/desktop-runtime/audit/audit-logger.ts"],
+        },
+      });
+
+      expect(councilRes.reasons.some((r) => r.includes("Reuse candidates exist"))).toBe(true);
     });
   });
 

@@ -334,6 +334,13 @@ export class AgentRuntime {
               mission: options.mission,
               toolCall: toolReq,
               risk,
+              governanceEvidence: {
+                selectedRung: governanceDecision.selectedRung,
+                taskType: governanceDecision.taskType,
+                risk: governanceDecision.risk,
+                reasoningSummary: governanceDecision.reasoningSummary,
+                existingCandidates: governanceDecision.existingCandidates,
+              },
             });
 
             if (councilDecision.decision === "reject") {

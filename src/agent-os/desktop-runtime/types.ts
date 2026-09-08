@@ -242,6 +242,13 @@ export interface CouncilReviewInput {
   toolCall: ToolExecutionRequest;
   diff?: string;
   risk: ToolRisk;
+  governanceEvidence?: {
+    selectedRung?: string;
+    taskType?: string;
+    risk?: string;
+    reasoningSummary?: string;
+    existingCandidates?: string[];
+  };
 }
 
 export interface ApprovalCard {

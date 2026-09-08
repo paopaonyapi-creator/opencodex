@@ -37,6 +37,11 @@ export class ReviewerCouncilBridge {
     // Reviewer 3: Correctness & Rollback Safety (Local Reviewer perspective)
     reviews.push(this.evaluateCorrectnessPerspective(input));
 
+    // Reviewer 4: Ponytail Minimal-Code & Governance Perspective
+    if (input.governanceEvidence) {
+      reviews.push(this.evaluateGovernancePerspective(input));
+    }
+
     // Aggregate results
     const approvals = reviews.filter((r) => r.approve).length;
     const avgConfidence = reviews.reduce((sum, r) => sum + r.confidence, 0) / reviews.length;
@@ -92,6 +97,42 @@ export class ReviewerCouncilBridge {
       risk: input.risk,
       concerns: [],
       recommendations: ["Ensure automated tests cover any modified paths"],
+    };
+  }
+
+  private evaluateGovernancePerspective(input: CouncilReviewInput): ReviewResult {
+    const gov = input.governanceEvidence;
+    const concerns: string[] = [];
+    const recommendations: string[] = [];
+    let approve = true;
+
+    if (gov?.selectedRung === "rung_1_yagni") {
+      concerns.push("Proposed operation appears redundant under YAGNI (Rung 1)");
+      approve = false;
+    } else if (gov?.selectedRung === "rung_2_reuse" && (gov.existingCandidates?.length ?? 0) > 0) {
+      const toolName = input.toolCall.name.toLowerCase();
+      if (toolName.includes("write") || toolName.includes("create") || toolName.includes("new")) {
+        concerns.push(
+          `Reuse candidates exist (${gov.existingCandidates?.slice(0, 2).join(", ")}); prefer extending existing modules`,
+        );
+      } else {
+        recommendations.push(
+          `Leverage existing reuse candidates: ${gov.existingCandidates?.slice(0, 2).join(", ")}`,
+        );
+      }
+    }
+
+    if (gov?.reasoningSummary) {
+      recommendations.push(gov.reasoningSummary);
+    }
+
+    return {
+      reviewer: "governance-reviewer",
+      approve,
+      confidence: 0.92,
+      risk: input.risk,
+      concerns,
+      recommendations,
     };
   }
 }

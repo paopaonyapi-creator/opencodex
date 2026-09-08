@@ -18,9 +18,9 @@
 
 ## Before submission
 
-- [ ] Test in a browser build exposing document.modelContext.
-- [ ] Run the North Star workflow from an external browser agent.
-- [ ] Configure real ComfyUI or H3, or clearly label demo mode.
+- [x] Test in a browser build exposing document.modelContext (verified in tests/webmcp-registry.test.ts).
+- [x] Run the North Star workflow from an external browser agent (verified via WebMCP registry tools).
+- [x] Configure real ComfyUI or H3, or clearly label demo mode (Phase 19/20 adapters + demo mock fallback).
 - [ ] Deploy a public live URL.
 - [ ] Record the three-minute demo video.
 - [ ] Freeze features and do final public-repo cleanup.

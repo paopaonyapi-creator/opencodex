@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v19: kg_documents, kg_sections, kg_phase_relations, kg_evidence_packs,
+// kg_audit_events (Phase 21 Pao Knowledge Layer × Grounded Agent Gateway).
 // v18: trend_research_jobs, trend_actor_registry, trend_actor_runs, trend_signals,
 // trend_opportunity_scores, trend_stock_concepts, trend_usage_costs (Phase 20.10 Pao Trend Intelligence × Apify MCP × Adobe Stock Research Engine).
 // v17: council_runs, council_parallelization_plans, council_agent_profiles,
@@ -60,7 +62,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 18;
+export const AGENT_OS_SCHEMA_VERSION = 19;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2597,6 +2599,75 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_trend_usage_job ON trend_usage_costs(research_job_id);
+
+      -- v19: Phase 21 Pao Knowledge Layer × Grounded Agent Gateway.
+      CREATE TABLE IF NOT EXISTS kg_documents (
+        id TEXT PRIMARY KEY,
+        doc_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        path TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'active',
+        source_priority INTEGER NOT NULL DEFAULT 50,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        indexed_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kg_docs_type ON kg_documents(doc_type);
+      CREATE INDEX IF NOT EXISTS idx_kg_docs_path ON kg_documents(path);
+      CREATE INDEX IF NOT EXISTS idx_kg_docs_status ON kg_documents(status);
+
+      CREATE TABLE IF NOT EXISTS kg_sections (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL REFERENCES kg_documents(id) ON DELETE CASCADE,
+        heading TEXT NOT NULL,
+        content TEXT NOT NULL,
+        start_line INTEGER NOT NULL DEFAULT 1,
+        end_line INTEGER NOT NULL DEFAULT 1,
+        content_hash TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kg_sections_doc ON kg_sections(document_id);
+      CREATE INDEX IF NOT EXISTS idx_kg_sections_heading ON kg_sections(heading);
+
+      CREATE TABLE IF NOT EXISTS kg_phase_relations (
+        id TEXT PRIMARY KEY,
+        source_phase TEXT NOT NULL,
+        target_phase TEXT NOT NULL,
+        relation_type TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 1.0,
+        evidence_document_id TEXT REFERENCES kg_documents(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kg_phase_rel_src ON kg_phase_relations(source_phase);
+      CREATE INDEX IF NOT EXISTS idx_kg_phase_rel_tgt ON kg_phase_relations(target_phase);
+
+      CREATE TABLE IF NOT EXISTS kg_evidence_packs (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        risk_level TEXT NOT NULL CHECK(risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
+        recommendation TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kg_evidence_task ON kg_evidence_packs(task_id);
+      CREATE INDEX IF NOT EXISTS idx_kg_evidence_risk ON kg_evidence_packs(risk_level);
+
+      CREATE TABLE IF NOT EXISTS kg_audit_events (
+        id TEXT PRIMARY KEY,
+        agent TEXT NOT NULL,
+        action TEXT NOT NULL,
+        query TEXT NOT NULL DEFAULT '',
+        sources_json TEXT NOT NULL DEFAULT '[]',
+        result TEXT NOT NULL DEFAULT '',
+        error_code TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kg_audit_agent ON kg_audit_events(agent, created_at);
+      CREATE INDEX IF NOT EXISTS idx_kg_audit_action ON kg_audit_events(action, created_at);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

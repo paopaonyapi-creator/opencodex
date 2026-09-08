@@ -104,6 +104,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleTrendRoutes(ctx);
   }
 
+  // Phase 21: Pao Knowledge Layer × Grounded Agent Gateway
+  if (url.pathname === "/api/agent-os/knowledge" || url.pathname.startsWith("/api/agent-os/knowledge/")) {
+    const { handleKnowledgeRoutes } = await import("./knowledge-routes");
+    return handleKnowledgeRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

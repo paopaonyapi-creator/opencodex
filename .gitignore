@@ -68,3 +68,4 @@ go/
 # Local runtime SQLite database and exports
 data/
 export/
+scratch/

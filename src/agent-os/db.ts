@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v20: browser_action_logs, browser_sessions, browser_tabs, browser_downloads,
+// browser_approvals (Phase 20.11 Pao-hubPro Browser — Agent-Native Runtime).
 // v19: kg_documents, kg_sections, kg_phase_relations, kg_evidence_packs,
 // kg_audit_events (Phase 21 Pao Knowledge Layer × Grounded Agent Gateway).
 // v18: trend_research_jobs, trend_actor_registry, trend_actor_runs, trend_signals,
@@ -62,7 +64,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 19;
+export const AGENT_OS_SCHEMA_VERSION = 20;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2668,6 +2670,86 @@ function migrate(db: Database): void {
       );
       CREATE INDEX IF NOT EXISTS idx_kg_audit_agent ON kg_audit_events(agent, created_at);
       CREATE INDEX IF NOT EXISTS idx_kg_audit_action ON kg_audit_events(action, created_at);
+
+      -- v20: Phase 20.11 Pao-hubPro Browser — Agent-Native Runtime.
+      CREATE TABLE IF NOT EXISTS browser_action_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        workflow_id TEXT,
+        tab_id TEXT,
+        session_id TEXT,
+        tool TEXT NOT NULL,
+        arguments_json TEXT NOT NULL DEFAULT '{}',
+        url TEXT,
+        risk_level TEXT NOT NULL,
+        approval_status TEXT NOT NULL DEFAULT 'not_required',
+        result TEXT NOT NULL DEFAULT 'success',
+        error TEXT,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_logs_agent ON browser_action_logs(agent, created_at);
+      CREATE INDEX IF NOT EXISTS idx_browser_logs_tool ON browser_action_logs(tool);
+      CREATE INDEX IF NOT EXISTS idx_browser_logs_risk ON browser_action_logs(risk_level);
+
+      CREATE TABLE IF NOT EXISTS browser_sessions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        workspace TEXT NOT NULL DEFAULT 'default',
+        profile_dir TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        cookies_encrypted TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_sessions_workspace ON browser_sessions(workspace);
+      CREATE INDEX IF NOT EXISTS idx_browser_sessions_status ON browser_sessions(status);
+
+      CREATE TABLE IF NOT EXISTS browser_tabs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES browser_sessions(id) ON DELETE CASCADE,
+        title TEXT NOT NULL DEFAULT 'New Tab',
+        url TEXT NOT NULL DEFAULT 'about:blank',
+        active INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'ready',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_tabs_session ON browser_tabs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_browser_tabs_active ON browser_tabs(session_id, active);
+
+      CREATE TABLE IF NOT EXISTS browser_downloads (
+        id TEXT PRIMARY KEY,
+        tab_id TEXT REFERENCES browser_tabs(id) ON DELETE SET NULL,
+        filename TEXT NOT NULL,
+        url TEXT NOT NULL,
+        mime_type TEXT,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'started',
+        local_path TEXT,
+        initiating_agent TEXT,
+        workflow_id TEXT,
+        created_at INTEGER NOT NULL,
+        completed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_dl_status ON browser_downloads(status);
+      CREATE INDEX IF NOT EXISTS idx_browser_dl_tab ON browser_downloads(tab_id);
+
+      CREATE TABLE IF NOT EXISTS browser_approvals (
+        id TEXT PRIMARY KEY,
+        agent TEXT NOT NULL,
+        action_tool TEXT NOT NULL,
+        website TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        affected_data_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        reviewed_by TEXT,
+        created_at INTEGER NOT NULL,
+        reviewed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_appr_status ON browser_approvals(status);
+      CREATE INDEX IF NOT EXISTS idx_browser_appr_agent ON browser_approvals(agent, created_at);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

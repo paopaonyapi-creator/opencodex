@@ -110,6 +110,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleKnowledgeRoutes(ctx);
   }
 
+  // Phase 20.11: Pao-hubPro Browser — Agent-Native Runtime
+  if (url.pathname === "/api/agent-os/browser" || url.pathname.startsWith("/api/agent-os/browser/")) {
+    const { handleBrowserRoutes } = await import("./browser-routes");
+    return handleBrowserRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

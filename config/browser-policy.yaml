@@ -1,0 +1,51 @@
+# Pao-hubPro Browser Policy Configuration
+# Phase 20.11 — Security & Action Policy Rules
+
+default_policy: safe
+
+allow:
+  read:
+    - "*"
+  navigate:
+    - "*"
+
+confirm:
+  actions:
+    - submit
+    - publish
+    - send_message
+    - delete
+    - purchase
+    - payment
+    - account_change
+    - credential_submission
+
+deny:
+  actions:
+    - export_passwords
+    - read_browser_password_store
+    - dump_cookies
+    - dump_auth_tokens
+    - arbitrary_shell
+    - browser.execute_javascript
+    - execute_javascript
+
+domains:
+  stock.adobe.com:
+    allow:
+      - read
+      - click
+      - type
+      - upload
+    confirm:
+      - submit
+      - publish
+
+  github.com:
+    allow:
+      - read
+      - navigate
+    confirm:
+      - create_issue
+      - merge
+      - delete

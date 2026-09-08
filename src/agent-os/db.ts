@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v23: browser_remote_workers, browser_remote_job_dispatches
+// (Phase 20.14 Pao-hubPro Browser Remote Worker & Cloud VM Fleet).
 // v22: browser_multi_agent_missions, browser_agent_dispatches, browser_web_handshakes,
 // browser_qa_evaluations (Phase 20.13 Pao-hubPro Browser Multi-Agent Web Operations).
 // v21: browser_workflows, browser_workflow_runs, browser_step_logs, browser_task_memories
@@ -68,7 +70,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 22;
+export const AGENT_OS_SCHEMA_VERSION = 23;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2866,6 +2868,41 @@ function migrate(db: Database): void {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_browser_qa_mission ON browser_qa_evaluations(mission_id);
+
+      -- v23: Phase 20.14 Pao-hubPro Browser Remote Worker & Cloud VM Fleet.
+      CREATE TABLE IF NOT EXISTS browser_remote_workers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        endpoint_url TEXT NOT NULL,
+        auth_token_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'online', -- 'online' | 'busy' | 'draining' | 'offline'
+        geo_region TEXT NOT NULL DEFAULT 'global',
+        max_concurrent_jobs INTEGER NOT NULL DEFAULT 3,
+        active_jobs INTEGER NOT NULL DEFAULT 0,
+        capabilities_json TEXT NOT NULL DEFAULT '{}',
+        last_heartbeat_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_worker_status ON browser_remote_workers(status);
+      CREATE INDEX IF NOT EXISTS idx_browser_worker_geo ON browser_remote_workers(geo_region);
+      CREATE INDEX IF NOT EXISTS idx_browser_worker_hb ON browser_remote_workers(last_heartbeat_at);
+
+      CREATE TABLE IF NOT EXISTS browser_remote_job_dispatches (
+        id TEXT PRIMARY KEY,
+        worker_id TEXT NOT NULL REFERENCES browser_remote_workers(id) ON DELETE CASCADE,
+        job_type TEXT NOT NULL, -- 'action' | 'workflow' | 'mission'
+        target_domain TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'dispatched' | 'running' | 'completed' | 'failed' | 'cancelled'
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        result_json TEXT NOT NULL DEFAULT '{}',
+        error TEXT,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        completed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_job_worker ON browser_remote_job_dispatches(worker_id);
+      CREATE INDEX IF NOT EXISTS idx_browser_job_status ON browser_remote_job_dispatches(status);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

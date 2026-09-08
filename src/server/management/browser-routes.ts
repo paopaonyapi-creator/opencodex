@@ -53,6 +53,12 @@ export async function handleBrowserRoutes(ctx: ManagementContext): Promise<Respo
     return handleMultiAgentRoutes(ctx);
   }
 
+  // Remote Worker & Fleet routes
+  if (path === "remote" || path.startsWith("remote/")) {
+    const { handleRemoteWorkerRoutes } = await import("./remote-worker-routes");
+    return handleRemoteWorkerRoutes(ctx);
+  }
+
   // 1. GET /api/browser/status or /api/browser
   if (path === "" || path === "status") {
     if (req.method === "GET") {

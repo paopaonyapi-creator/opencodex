@@ -37,6 +37,7 @@ import { getBrainUniverse, getProjectAtlas } from "../../agent-os/brain-graph";
 import { listWebMcpCalls, recordWebMcpCall } from "../../agent-os/webmcp";
 import { handleStockRoutes } from "./stock-routes";
 import { handleSeoRoutes } from "./seo-routes";
+import { handleCampaignRoutes } from "./campaign-routes";
 
 function notFound(req: Request, message: string): Response {
   return jsonResponse({ error: { code: "not_found", message } }, 404, req, {});
@@ -54,6 +55,11 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   // Phase 18: SEO Agent OS Management API Routes
   if (url.pathname.startsWith("/api/agent-os/seo/")) {
     return handleSeoRoutes(ctx);
+  }
+
+  // Phase 21: Pao Stock Autonomous Campaign Planner Routes
+  if (url.pathname.startsWith("/api/agent-os/campaign/") || url.pathname === "/api/agent-os/campaign") {
+    return handleCampaignRoutes(ctx);
   }
 
   // Phase 20.5: Living Knowledge Brain Management API Routes

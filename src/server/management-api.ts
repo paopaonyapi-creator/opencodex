@@ -79,6 +79,7 @@ import { handleVideoRoutes } from "./management/video-routes";
 import { handleAgencyRoutes } from "./management/agency-routes";
 import { handleDesktopAgentRoutes } from "./management/desktop-agent-routes";
 import { handleGenerationRoutes } from "./management/generation-routes";
+import { handleCampaignRoutes } from "./management/campaign-routes";
 import { handleSdlcRoutes } from "./management/sdlc-routes";
 import type { ManagementContext } from "./management/context";
 import type { ManagementPrincipal } from "./management-auth";
@@ -239,6 +240,7 @@ export async function handleManagementAPI(
     routed = (await handleConfigRoutes(ctx))
     ??     (await handleStorageLogGuardRoutes(ctx))
     ??     (await handleGenerationRoutes(ctx))
+    ??     (await handleCampaignRoutes(ctx))
     ??     (await handleSmartQueueAliasRoutes(ctx))
     ??     (await handleSdlcRoutes(ctx))
     ??     (await handleLogsUsageRoutes(ctx))

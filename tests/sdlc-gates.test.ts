@@ -276,9 +276,9 @@ describe("SDLC Human Approval Gate", () => {
     expect(() => SafeImplementationRunner.assertApprovalGranted(cycleId, "HIGH")).toThrow("requires human approval");
 
     // Approve the request
-    const decided = ApprovalEngine.decideApproval(approval.token, "approve", "lead-engineer@pao.io");
+    const decided = ApprovalEngine.decideApproval(approval.token, "approve", "lead-engineer@example.com");
     expect(decided.status).toBe("approved");
-    expect(decided.decidedBy).toBe("lead-engineer@pao.io");
+    expect(decided.decidedBy).toBe("lead-engineer@example.com");
     expect(decided.decidedAt).toBeDefined();
 
     // Now Safe runner permits execution

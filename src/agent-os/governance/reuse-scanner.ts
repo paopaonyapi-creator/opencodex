@@ -1,7 +1,7 @@
 // Phase 20.9 — Pao-hubPro × Ponytail Minimal-Code Governance Layer
 // Reuse Scanner: Repository Inspection for Existing Implementations
 
-import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, statSync, readFileSync, existsSync, openSync, readSync, closeSync } from "node:fs";
 import { join, relative, basename } from "node:path";
 
 export interface ReuseScanResult {
@@ -118,10 +118,24 @@ export class ReuseScanner {
           }
         }
 
-        // Sample content for shallow inspection if file is small (< 50KB)
-        if (stat.size < 50000) {
+        // Also check full relative path (e.g. directory names like desktop-runtime)
+        const relPathLower = relPath.toLowerCase();
+        for (const kw of keywords) {
+          if (!matchedKeywords.includes(kw) && relPathLower.includes(kw)) {
+            score += 3;
+            matchedKeywords.push(kw);
+          }
+        }
+
+        // Sample header content (up to 4KB) for shallow inspection only if needed
+        if (matchedKeywords.length < keywords.length && stat.size > 0) {
           try {
-            const content = readFileSync(fullPath, "utf8").toLowerCase();
+            const fd = openSync(fullPath, "r");
+            const bufSize = Math.min(stat.size, 4096);
+            const buffer = Buffer.alloc(bufSize);
+            readSync(fd, buffer, 0, bufSize, 0);
+            closeSync(fd);
+            const content = buffer.toString("utf8").toLowerCase();
             for (const kw of keywords) {
               if (content.includes(kw) && !matchedKeywords.includes(kw)) {
                 score += 1;

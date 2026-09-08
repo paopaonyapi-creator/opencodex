@@ -52,7 +52,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 15;
+export const AGENT_OS_SCHEMA_VERSION = 16;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2129,6 +2129,81 @@ function migrate(db: Database): void {
         updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_desktop_agent_policies_scope ON desktop_agent_policies(scope);
+
+      -- Phase 21: Pao Stock Autonomous Campaign Planner (Schema v16)
+      CREATE TABLE IF NOT EXISTS stock_trend_signals (
+        id TEXT PRIMARY KEY,
+        keyword TEXT NOT NULL,
+        category TEXT NOT NULL,
+        source TEXT NOT NULL,
+        search_velocity REAL NOT NULL,
+        commercial_intent REAL NOT NULL,
+        saturation_index REAL NOT NULL,
+        niche_viability_score REAL NOT NULL,
+        priority_tier TEXT NOT NULL DEFAULT 'secondary',
+        status TEXT NOT NULL CHECK(status IN ('new', 'planned', 'producing', 'archived')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_trend_signals_nvs ON stock_trend_signals(niche_viability_score DESC);
+      CREATE INDEX IF NOT EXISTS idx_stock_trend_signals_status ON stock_trend_signals(status);
+
+      CREATE TABLE IF NOT EXISTS stock_campaigns (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        trend_signal_id TEXT REFERENCES stock_trend_signals(id) ON DELETE SET NULL,
+        target_platform TEXT NOT NULL DEFAULT 'adobe_stock',
+        target_asset_count INTEGER NOT NULL,
+        completed_asset_count INTEGER NOT NULL DEFAULT 0,
+        budget_cents INTEGER NOT NULL DEFAULT 0,
+        spent_cents INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'active', 'paused', 'completed')),
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_campaigns_status ON stock_campaigns(status);
+
+      CREATE TABLE IF NOT EXISTS stock_campaign_items (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL REFERENCES stock_campaigns(id) ON DELETE CASCADE,
+        asset_type TEXT NOT NULL CHECK(asset_type IN ('video_4k', 'photo_raw', 'isolated_element')),
+        title TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        negative_prompt TEXT NOT NULL DEFAULT '',
+        aspect_ratio TEXT NOT NULL DEFAULT '16:9',
+        lighting TEXT NOT NULL DEFAULT 'natural',
+        angle TEXT NOT NULL DEFAULT 'eye_level',
+        assigned_provider TEXT NOT NULL DEFAULT 'comfyui',
+        gpu_job_id TEXT,
+        render_status TEXT NOT NULL CHECK(render_status IN ('pending', 'rendering', 'passed_qc', 'failed_qc')),
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_campaign_items_camp ON stock_campaign_items(campaign_id);
+      CREATE INDEX IF NOT EXISTS idx_stock_campaign_items_status ON stock_campaign_items(render_status);
+
+      CREATE TABLE IF NOT EXISTS stock_qc_records (
+        id TEXT PRIMARY KEY,
+        campaign_item_id TEXT NOT NULL REFERENCES stock_campaign_items(id) ON DELETE CASCADE,
+        sharpness_score REAL NOT NULL,
+        artifact_penalty REAL NOT NULL,
+        ip_clearance_status TEXT NOT NULL CHECK(ip_clearance_status IN ('cleared', 'flagged_trademark', 'flagged_likeness')),
+        council_verdict TEXT NOT NULL CHECK(council_verdict IN ('approve', 'human_review', 'reject')),
+        verified_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_qc_records_item ON stock_qc_records(campaign_item_id);
+
+      CREATE TABLE IF NOT EXISTS stock_portfolio_performance (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL REFERENCES stock_campaigns(id) ON DELETE CASCADE,
+        submitted_count INTEGER NOT NULL DEFAULT 0,
+        accepted_count INTEGER NOT NULL DEFAULT 0,
+        rejected_count INTEGER NOT NULL DEFAULT 0,
+        downloads_count INTEGER NOT NULL DEFAULT 0,
+        revenue_usd REAL NOT NULL DEFAULT 0.0,
+        last_synced_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_portfolio_camp ON stock_portfolio_performance(campaign_id);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

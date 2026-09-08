@@ -299,6 +299,30 @@ export interface ObservationSnapshot {
   redactionApplied: boolean;
 }
 
+export interface DisplayMonitor {
+  id: number;
+  bounds: { x: number; y: number; width: number; height: number };
+  scaleFactor: number;
+  dpi: number;
+  isPrimary: boolean;
+}
+
+export interface DisplayTopology {
+  monitors: DisplayMonitor[];
+  topologyHash: string;
+}
+
+export interface ScreenCapture {
+  frameId: string;
+  capturedAt: string;
+  width: number;
+  height: number;
+  dpi: number;
+  monitorId: number;
+  screenHash: string;
+  dataBase64?: string;
+}
+
 export interface VisionMatch {
   candidateBounds: { x: number; y: number; width: number; height: number };
   confidence: number;

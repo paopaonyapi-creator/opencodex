@@ -86,6 +86,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleDesktopAgentRoutes(ctx);
   }
 
+  // Phase 20.3: Pao Desktop Vision Control MCP × Local Realtime Agent
+  if (url.pathname === "/api/agent-os/desktop" || url.pathname.startsWith("/api/agent-os/desktop/")) {
+    const { handleDesktopRoutes } = await import("./desktop-routes");
+    return handleDesktopRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

@@ -14,3 +14,27 @@
 - Related files: none
 - Owner: test-agent
 - Status: open
+
+## DEBT-20260908-002
+
+- Date: 2026-09-08
+- Area: testing
+- Shortcut: Temporary utility function
+- Reason: Rapid prototype shortcut
+- Risk: low
+- Trigger to revisit: Future review
+- Related files: none
+- Owner: test-agent
+- Status: open
+
+## DEBT-20260908-003
+
+- Date: 2026-09-08
+- Area: testing
+- Shortcut: Temporary utility function
+- Reason: Rapid prototype shortcut
+- Risk: low
+- Trigger to revisit: Future review
+- Related files: none
+- Owner: test-agent
+- Status: open

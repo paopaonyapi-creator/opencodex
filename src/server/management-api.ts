@@ -78,6 +78,7 @@ import { handleH3Routes } from "./management/h3-routes";
 import { handleVideoRoutes } from "./management/video-routes";
 import { handleAgencyRoutes } from "./management/agency-routes";
 import { handleDesktopAgentRoutes } from "./management/desktop-agent-routes";
+import { handleDesktopRoutes } from "./management/desktop-routes";
 import { handleGenerationRoutes } from "./management/generation-routes";
 import { handleCampaignRoutes } from "./management/campaign-routes";
 import { handleSdlcRoutes } from "./management/sdlc-routes";
@@ -262,6 +263,7 @@ export async function handleManagementAPI(
     ??     (await handleVideoRoutes(ctx))
     ??     (await handleAgencyRoutes(ctx))
     ??     (await handleDesktopAgentRoutes(ctx))
+    ??     (await handleDesktopRoutes(ctx))
     ??     (await handleAgentOsRoutes(ctx))
       ?? (await handleSidebarRoutes(ctx));
   } catch (error) {

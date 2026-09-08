@@ -86,8 +86,7 @@ export function updateSessionStatus(id: string, newStatus: SessionStatus): Deskt
 
   const validated = transitionSession(session.status, newStatus);
   const now = new Date().toISOString();
-
-  const updates: Record<string, unknown> = { status: validated, updated_at: now };
+  const updates: Record<string, unknown> = { status: validated };
   if (validated === "RUNNING" && !session.startedAt) updates.started_at = now;
   if (validated === "PAUSED") updates.paused_at = now;
   if (isSessionTerminal(validated)) updates.ended_at = now;
@@ -198,44 +197,14 @@ export function listDesktopEvents(sessionId: string, limit = 100): Array<{ id: s
   }));
 }
 
-// ─── Goal Management ────────────────────────────────────────────────
-
-export function createDesktopGoal(input: {
-  sessionId: string;
-  goalType: string;
-  title: string;
-  description?: string;
-  arguments?: Record<string, unknown>;
-  constraints?: Record<string, unknown>;
-  riskLevel?: string;
-  createdBy?: string;
-}): { id: string; status: string } {
-  const db = openAgentOsDb();
-  const id = `dgoal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  const now = new Date().toISOString();
-
-  db.query(`INSERT INTO desktop_goals
-    (id, session_id, goal_type, title, description, arguments_json, constraints_json, risk_level, status, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    id,
-    input.sessionId,
-    input.goalType,
-    input.title,
-    input.description ?? "",
-    JSON.stringify(input.arguments ?? {}),
-    JSON.stringify(input.constraints ?? {}),
-    input.riskLevel ?? "MEDIUM",
-    "PENDING",
-    input.createdBy ?? "operator",
-    now,
-  );
-
-  recordDesktopEvent(input.sessionId, "desktop.goal.created", { goalId: id, title: input.title });
-  return { id, status: "PENDING" };
-}
-
-export function getDesktopGoal(id: string): Record<string, unknown> | null {
-  return openAgentOsDb().query("SELECT * FROM desktop_goals WHERE id = ?").get(id) as Record<string, unknown> | null;
+export function triggerEmergencyStop(reason = "Emergency stop requested"): void {
+  emergencyStopAll();
+  try {
+    const { getEmergencyStop } = require("./safety");
+    getEmergencyStop().trigger(undefined, reason);
+  } catch {
+    // safe fallback
+  }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

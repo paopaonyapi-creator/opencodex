@@ -8,6 +8,7 @@ import { getBrowserKillSwitch } from "./security/kill-switch";
 import { getBrowserApprovalManager } from "./security/approval-manager";
 import { getPageSnapshotEngine } from "./extraction/snapshot";
 import { getWorkflowMcpTools } from "./workflow/mcp-tools";
+import { getMultiAgentMcpTools } from "./multi-agent/mcp-tools";
 
 export interface McpToolDefinition {
   name: string;
@@ -282,5 +283,6 @@ export function getBrowserMcpTools(): McpToolDefinition[] {
       }),
     },
     ...getWorkflowMcpTools(),
+    ...getMultiAgentMcpTools(),
   ];
 }

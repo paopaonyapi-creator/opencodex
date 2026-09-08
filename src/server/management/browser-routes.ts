@@ -47,6 +47,12 @@ export async function handleBrowserRoutes(ctx: ManagementContext): Promise<Respo
     return handleWorkflowRoutes(ctx);
   }
 
+  // Multi-Agent Web Operations routes
+  if (path === "missions" || path.startsWith("missions/")) {
+    const { handleMultiAgentRoutes } = await import("./multi-agent-routes");
+    return handleMultiAgentRoutes(ctx);
+  }
+
   // 1. GET /api/browser/status or /api/browser
   if (path === "" || path === "status") {
     if (req.method === "GET") {

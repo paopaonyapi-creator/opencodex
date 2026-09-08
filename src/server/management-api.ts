@@ -84,6 +84,7 @@ import { handleTrendRoutes } from "./management/trend-routes";
 import { handleKnowledgeRoutes } from "./management/knowledge-routes";
 import { handleBrowserRoutes } from "./management/browser-routes";
 import { handleWorkflowRoutes } from "./management/workflow-routes";
+import { handleMultiAgentRoutes } from "./management/multi-agent-routes";
 import { handleGenerationRoutes } from "./management/generation-routes";
 import { handleCampaignRoutes } from "./management/campaign-routes";
 import { handleSdlcRoutes } from "./management/sdlc-routes";
@@ -274,6 +275,7 @@ export async function handleManagementAPI(
     ??     (await handleKnowledgeRoutes(ctx))
     ??     (await handleBrowserRoutes(ctx))
     ??     (await handleWorkflowRoutes(ctx))
+    ??     (await handleMultiAgentRoutes(ctx))
     ??     (await handleAgentOsRoutes(ctx))
       ?? (await handleSidebarRoutes(ctx));
   } catch (error) {

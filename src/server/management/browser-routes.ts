@@ -41,6 +41,12 @@ export async function handleBrowserRoutes(ctx: ManagementContext): Promise<Respo
   const approvalManager = getBrowserApprovalManager();
   const auditLogger = getBrowserAuditLogger();
 
+  // Workflow Intelligence Subsystem routes
+  if (path === "workflows" || path.startsWith("workflows/")) {
+    const { handleWorkflowRoutes } = await import("./workflow-routes");
+    return handleWorkflowRoutes(ctx);
+  }
+
   // 1. GET /api/browser/status or /api/browser
   if (path === "" || path === "status") {
     if (req.method === "GET") {

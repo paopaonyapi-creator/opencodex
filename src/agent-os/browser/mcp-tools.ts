@@ -7,6 +7,7 @@ import { getBrowserBridge } from "./bridge/browser-bridge";
 import { getBrowserKillSwitch } from "./security/kill-switch";
 import { getBrowserApprovalManager } from "./security/approval-manager";
 import { getPageSnapshotEngine } from "./extraction/snapshot";
+import { getWorkflowMcpTools } from "./workflow/mcp-tools";
 
 export interface McpToolDefinition {
   name: string;
@@ -280,5 +281,6 @@ export function getBrowserMcpTools(): McpToolDefinition[] {
         success: approvalManager.reject(args.approvalId),
       }),
     },
+    ...getWorkflowMcpTools(),
   ];
 }

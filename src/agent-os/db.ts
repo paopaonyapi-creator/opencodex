@@ -12,6 +12,8 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v21: browser_workflows, browser_workflow_runs, browser_step_logs, browser_task_memories
+// (Phase 20.12 Pao-hubPro Browser Workflow Intelligence).
 // v20: browser_action_logs, browser_sessions, browser_tabs, browser_downloads,
 // browser_approvals (Phase 20.11 Pao-hubPro Browser — Agent-Native Runtime).
 // v19: kg_documents, kg_sections, kg_phase_relations, kg_evidence_packs,
@@ -64,7 +66,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 20;
+export const AGENT_OS_SCHEMA_VERSION = 21;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2750,6 +2752,62 @@ function migrate(db: Database): void {
       );
       CREATE INDEX IF NOT EXISTS idx_browser_appr_status ON browser_approvals(status);
       CREATE INDEX IF NOT EXISTS idx_browser_appr_agent ON browser_approvals(agent, created_at);
+
+      -- v21: Phase 20.12 Pao-hubPro Browser Workflow Intelligence.
+      CREATE TABLE IF NOT EXISTS browser_workflows (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        version INTEGER NOT NULL DEFAULT 1,
+        dsl_json TEXT NOT NULL DEFAULT '{}',
+        parameters_schema_json TEXT NOT NULL DEFAULT '{}',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_wf_name ON browser_workflows(name);
+
+      CREATE TABLE IF NOT EXISTS browser_workflow_runs (
+        id TEXT PRIMARY KEY,
+        workflow_id TEXT NOT NULL REFERENCES browser_workflows(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        current_step_index INTEGER NOT NULL DEFAULT 0,
+        variables_json TEXT NOT NULL DEFAULT '{}',
+        checkpoints_json TEXT NOT NULL DEFAULT '[]',
+        error TEXT,
+        initiating_agent TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_wfr_workflow ON browser_workflow_runs(workflow_id);
+      CREATE INDEX IF NOT EXISTS idx_browser_wfr_status ON browser_workflow_runs(status);
+
+      CREATE TABLE IF NOT EXISTS browser_step_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL REFERENCES browser_workflow_runs(id) ON DELETE CASCADE,
+        step_index INTEGER NOT NULL,
+        step_name TEXT NOT NULL,
+        action_tool TEXT NOT NULL,
+        arguments_json TEXT NOT NULL DEFAULT '{}',
+        result_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'success',
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        validation_result_json TEXT NOT NULL DEFAULT '{}',
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_step_run ON browser_step_logs(run_id, step_index);
+      CREATE INDEX IF NOT EXISTS idx_browser_step_status ON browser_step_logs(status);
+
+      CREATE TABLE IF NOT EXISTS browser_task_memories (
+        id TEXT PRIMARY KEY,
+        domain TEXT NOT NULL,
+        task_pattern TEXT NOT NULL,
+        element_signatures_json TEXT NOT NULL DEFAULT '{}',
+        success_rate REAL NOT NULL DEFAULT 1.0,
+        last_used_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_tm_domain ON browser_task_memories(domain);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

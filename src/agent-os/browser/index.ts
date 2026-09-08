@@ -12,3 +12,4 @@ export * from "./extraction/snapshot";
 export * from "./extraction/element-resolver";
 export * from "./bridge/browser-bridge";
 export * from "./mcp-tools";
+export * from "./workflow";

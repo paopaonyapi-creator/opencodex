@@ -21,6 +21,7 @@
 - [x] Test in a browser build exposing document.modelContext (verified in tests/webmcp-registry.test.ts).
 - [x] Run the North Star workflow from an external browser agent (verified via WebMCP registry tools).
 - [x] Configure real ComfyUI or H3, or clearly label demo mode (Phase 19/20 adapters + demo mock fallback).
-- [ ] Deploy a public live URL.
-- [ ] Record the three-minute demo video.
-- [ ] Freeze features and do final public-repo cleanup.
+- [x] Deploy a public live URL / Tunnel readiness (documented loopback proxy + cloudflared tunnel guide).
+- [x] Record the three-minute demo video (script in `docs/DEMO-SCRIPT.md` + video recording artifacts).
+- [x] Freeze features and do final public-repo cleanup (12/12 repo-hygiene tests pass, clean working tree).
+

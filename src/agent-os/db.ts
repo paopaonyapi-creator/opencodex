@@ -12,6 +12,12 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v17: council_runs, council_parallelization_plans, council_agent_profiles,
+// council_agent_runs, council_worktrees, council_task_leases, council_changesets,
+// council_review_assignments, council_review_results, council_verification_bundles,
+// council_conflict_cases, council_merge_candidates, council_integration_runs,
+// council_decisions, council_resource_usage (Phase 20.4 Pao Autonomous Engineering Council).
+// v16: stock_campaigns, stock_campaign_items, stock_qc_records, stock_portfolio_performance (Phase 21 Pao Stock Campaign Planner).
 // v15: desktop_agent_runs, desktop_agent_events, desktop_agent_tool_calls,
 // desktop_agent_approvals, desktop_agent_mcp_servers, desktop_agent_skills,
 // desktop_agent_provider_configs, desktop_agent_policies (Phase 20.9 Pao-hubPro × Chatbox Agent Desktop Runtime).
@@ -52,7 +58,7 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 16;
+export const AGENT_OS_SCHEMA_VERSION = 17;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -2204,6 +2210,266 @@ function migrate(db: Database): void {
         last_synced_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_stock_portfolio_camp ON stock_portfolio_performance(campaign_id);
+
+      -- v17: Phase 20.4 Pao Autonomous Engineering Council.
+      -- Additive only. Phase 20.2 owns cycles/tasks/gates/approvals; these
+      -- tables only add parallel execution, worktree lifecycle and merge state.
+      CREATE TABLE IF NOT EXISTS council_runs (
+        id TEXT PRIMARY KEY,
+        cycle_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'CREATED',
+        current_stage TEXT NOT NULL DEFAULT 'created',
+        base_branch TEXT NOT NULL,
+        base_commit_sha TEXT NOT NULL,
+        parallelism_limit INTEGER NOT NULL DEFAULT 4,
+        max_parallel_high_risk INTEGER NOT NULL DEFAULT 1,
+        policy_profile TEXT NOT NULL DEFAULT 'default',
+        budget_profile TEXT NOT NULL DEFAULT 'BALANCED',
+        execution_mode TEXT NOT NULL DEFAULT 'PLAN_ONLY',
+        integration_mode TEXT NOT NULL DEFAULT 'SEQUENTIAL_APPLY',
+        failure_reason TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        ended_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_runs_cycle ON council_runs(cycle_id, status);
+
+      CREATE TABLE IF NOT EXISTS council_parallelization_plans (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        cycle_id TEXT NOT NULL,
+        task_keys_json TEXT NOT NULL DEFAULT '[]',
+        parallel_groups_json TEXT NOT NULL DEFAULT '[]',
+        serialized_groups_json TEXT NOT NULL DEFAULT '[]',
+        conflict_risks_json TEXT NOT NULL DEFAULT '[]',
+        resource_estimate_json TEXT NOT NULL DEFAULT '{}',
+        generator TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        plan_hash TEXT NOT NULL,
+        generated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_plans_run ON council_parallelization_plans(council_run_id);
+
+      CREATE TABLE IF NOT EXISTS council_agent_profiles (
+        profile_id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model TEXT,
+        roles_json TEXT NOT NULL DEFAULT '[]',
+        handles_json TEXT NOT NULL DEFAULT '[]',
+        languages_json TEXT NOT NULL DEFAULT '[]',
+        max_context INTEGER NOT NULL DEFAULT 128000,
+        supports_tools INTEGER NOT NULL DEFAULT 1,
+        supports_patch INTEGER NOT NULL DEFAULT 1,
+        supports_shell INTEGER NOT NULL DEFAULT 0,
+        supports_tests INTEGER NOT NULL DEFAULT 0,
+        cost_class TEXT NOT NULL DEFAULT 'medium',
+        speed_class TEXT NOT NULL DEFAULT 'medium',
+        is_reviewer INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS council_agent_runs (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        task_key TEXT NOT NULL,
+        profile_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'implementer',
+        worktree_id TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        attempt INTEGER NOT NULL DEFAULT 1,
+        current_stage TEXT,
+        heartbeat_ms INTEGER,
+        tokens_used INTEGER,
+        estimated_cost_usd REAL,
+        failure_reason TEXT,
+        report_json TEXT,
+        started_at TEXT,
+        ended_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_agent_runs_run ON council_agent_runs(council_run_id, status);
+      CREATE INDEX IF NOT EXISTS idx_council_agent_runs_task ON council_agent_runs(council_run_id, task_key, attempt);
+
+      CREATE TABLE IF NOT EXISTS council_worktrees (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        cycle_id TEXT NOT NULL,
+        task_key TEXT,
+        path TEXT NOT NULL,
+        branch TEXT NOT NULL,
+        base_sha TEXT NOT NULL,
+        head_sha TEXT,
+        status TEXT NOT NULL DEFAULT 'CREATING',
+        is_integration INTEGER NOT NULL DEFAULT 0,
+        cleanup_status TEXT,
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_worktrees_run ON council_worktrees(council_run_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_council_worktrees_branch ON council_worktrees(branch);
+
+      CREATE TABLE IF NOT EXISTS council_task_leases (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        task_key TEXT NOT NULL,
+        agent_run_id TEXT,
+        worktree_id TEXT,
+        owner TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        acquired_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        heartbeat_at INTEGER NOT NULL
+      );
+      -- One active lease per (run, task): enforced in SQL, not just in code.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_council_leases_active
+        ON council_task_leases(council_run_id, task_key)
+        WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS idx_council_leases_expiry ON council_task_leases(status, expires_at);
+
+      CREATE TABLE IF NOT EXISTS council_changesets (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        task_key TEXT NOT NULL,
+        worktree_id TEXT NOT NULL,
+        agent_run_id TEXT,
+        base_sha TEXT NOT NULL,
+        head_sha TEXT NOT NULL,
+        diff_hash TEXT NOT NULL,
+        files_changed_json TEXT NOT NULL DEFAULT '[]',
+        insertions INTEGER NOT NULL DEFAULT 0,
+        deletions INTEGER NOT NULL DEFAULT 0,
+        generated_files_json TEXT NOT NULL DEFAULT '[]',
+        migration_files_json TEXT NOT NULL DEFAULT '[]',
+        risk TEXT NOT NULL DEFAULT 'MEDIUM',
+        scope_drift INTEGER NOT NULL DEFAULT 0,
+        scope_drift_paths_json TEXT NOT NULL DEFAULT '[]',
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_changesets_run ON council_changesets(council_run_id, task_key, revision);
+
+      CREATE TABLE IF NOT EXISTS council_review_assignments (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        changeset_id TEXT NOT NULL,
+        reviewer_profile TEXT NOT NULL,
+        reviewer_agent_run_id TEXT,
+        required INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'pending',
+        round INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_reviewasg_cs ON council_review_assignments(changeset_id, status);
+
+      CREATE TABLE IF NOT EXISTS council_review_results (
+        id TEXT PRIMARY KEY,
+        assignment_id TEXT NOT NULL,
+        changeset_id TEXT NOT NULL,
+        reviewer_profile TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        severity_counts_json TEXT NOT NULL DEFAULT '{}',
+        findings_json TEXT NOT NULL DEFAULT '[]',
+        required_fixes_json TEXT NOT NULL DEFAULT '[]',
+        suggestions_json TEXT NOT NULL DEFAULT '[]',
+        evidence TEXT,
+        reviewed_diff_hash TEXT NOT NULL,
+        reviewed_head_sha TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_reviewres_cs ON council_review_results(changeset_id, decision);
+
+      CREATE TABLE IF NOT EXISTS council_verification_bundles (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        changeset_id TEXT,
+        integration_run_id TEXT,
+        commit_sha TEXT NOT NULL,
+        checks_json TEXT NOT NULL DEFAULT '[]',
+        passed INTEGER NOT NULL DEFAULT 0,
+        bundle_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_verif_run ON council_verification_bundles(council_run_id, scope);
+
+      CREATE TABLE IF NOT EXISTS council_conflict_cases (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        candidate_ids_json TEXT NOT NULL DEFAULT '[]',
+        changeset_ids_json TEXT NOT NULL DEFAULT '[]',
+        files_json TEXT NOT NULL DEFAULT '[]',
+        base_sha TEXT NOT NULL,
+        conflict_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        resolver TEXT,
+        resolution_changeset_id TEXT,
+        detail TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_conflicts_run ON council_conflict_cases(council_run_id, status);
+
+      CREATE TABLE IF NOT EXISTS council_merge_candidates (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        changeset_ids_json TEXT NOT NULL DEFAULT '[]',
+        target_base_sha TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        conflict_status TEXT NOT NULL DEFAULT 'NONE',
+        verification_status TEXT NOT NULL DEFAULT 'NOT_RUN',
+        review_status TEXT NOT NULL DEFAULT 'PENDING',
+        approval_status TEXT NOT NULL DEFAULT 'not_required',
+        score INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_mergecand_run ON council_merge_candidates(council_run_id, status, position);
+
+      CREATE TABLE IF NOT EXISTS council_integration_runs (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        worktree_id TEXT,
+        strategy TEXT NOT NULL DEFAULT 'SEQUENTIAL_APPLY',
+        base_sha TEXT NOT NULL,
+        head_sha TEXT,
+        candidate_ids_json TEXT NOT NULL DEFAULT '[]',
+        applied_changeset_ids_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        verification_bundle_id TEXT,
+        failure_reason TEXT,
+        created_at TEXT NOT NULL,
+        ended_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_integ_run ON council_integration_runs(council_run_id, status);
+
+      CREATE TABLE IF NOT EXISTS council_decisions (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+        options_json TEXT NOT NULL DEFAULT '[]',
+        dissent_json TEXT NOT NULL DEFAULT '[]',
+        decided_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_decisions_run ON council_decisions(council_run_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS council_resource_usage (
+        id TEXT PRIMARY KEY,
+        council_run_id TEXT NOT NULL,
+        agent_run_id TEXT,
+        provider_id TEXT,
+        model TEXT,
+        task_key TEXT,
+        role TEXT,
+        tokens_input INTEGER,
+        tokens_output INTEGER,
+        estimated_cost_usd REAL,
+        duration_ms INTEGER,
+        recorded_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_council_usage_run ON council_resource_usage(council_run_id, recorded_at);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

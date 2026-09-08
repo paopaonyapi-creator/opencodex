@@ -92,6 +92,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleDesktopRoutes(ctx);
   }
 
+  // Phase 20.4: Pao Autonomous Engineering Council × Multi-Agent Parallel Worktree Execution
+  if (url.pathname === "/api/agent-os/council" || url.pathname.startsWith("/api/agent-os/council/")) {
+    const { handleCouncilRoutes } = await import("./council-routes");
+    return handleCouncilRoutes(ctx);
+  }
+
   const path = url.pathname.slice("/api/agent-os/".length);
 
   // --- Phase 16 gateway surface (the ONLY write paths, and they never mutate

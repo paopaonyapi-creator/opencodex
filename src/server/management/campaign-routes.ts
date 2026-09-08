@@ -20,6 +20,15 @@ import {
   listTrendSignals,
   scanMarketTrends,
 } from "../../agent-os/campaign/trends/signal-collector";
+import {
+  dispatchCampaign,
+  syncCampaignExecution,
+} from "../../agent-os/campaign/execution/campaign-dispatcher";
+import {
+  evaluateCampaignItem,
+  getQcRecordsForItem,
+} from "../../agent-os/campaign/qc/council-evaluator";
+import { generateCampaignCsvManifest } from "../../agent-os/campaign/metadata/csv-packager";
 import type {
   PlanCampaignRequest,
   TrendScanRequest,
@@ -136,7 +145,82 @@ export async function handleCampaignRoutes(
     );
   }
 
-  // 5. GET /api/campaign/:id — get campaign detail and items
+  // 5. POST /api/campaign/:id/dispatch — dispatch pending items to generation queue
+  if (req.method === "POST" && subPath.endsWith("/dispatch")) {
+    const campaignId = subPath.replace(/\/dispatch$/, "");
+    try {
+      const result = dispatchCampaign(campaignId);
+      return jsonResponse(result, 200, req, {});
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("not found")) return notFound(req, msg);
+      return badRequest(req, msg);
+    }
+  }
+
+  // 6. POST /api/campaign/:id/sync — sync execution status from generation queue
+  if (req.method === "POST" && subPath.endsWith("/sync")) {
+    const campaignId = subPath.replace(/\/sync$/, "");
+    try {
+      const result = syncCampaignExecution(campaignId);
+      return jsonResponse(result, 200, req, {});
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return badRequest(req, msg);
+    }
+  }
+
+  // 7. POST /api/campaign/items/:id/qc — run technical QC and Reviewer Council evaluation
+  if (req.method === "POST" && subPath.startsWith("items/") && subPath.endsWith("/qc")) {
+    const itemId = subPath.slice("items/".length, subPath.length - "/qc".length);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    try {
+      const result = evaluateCampaignItem({
+        campaignItemId: itemId,
+        width: typeof body.width === "number" ? body.width : undefined,
+        height: typeof body.height === "number" ? body.height : undefined,
+        blurEstimate: typeof body.blurEstimate === "number" ? body.blurEstimate : undefined,
+        compressionArtifacts: typeof body.compressionArtifacts === "number" ? body.compressionArtifacts : undefined,
+        colorBanding: typeof body.colorBanding === "number" ? body.colorBanding : undefined,
+      });
+      return jsonResponse(result, 200, req, {});
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("not found")) return notFound(req, msg);
+      return badRequest(req, msg);
+    }
+  }
+
+  // 8. GET /api/campaign/items/:id/qc — list QC records for item
+  if (req.method === "GET" && subPath.startsWith("items/") && subPath.endsWith("/qc")) {
+    const itemId = subPath.slice("items/".length, subPath.length - "/qc".length);
+    const records = getQcRecordsForItem(itemId);
+    return jsonResponse({ ok: true, count: records.length, records }, 200, req, {});
+  }
+
+  // 9. GET /api/campaign/:id/export — export Adobe Stock CSV manifest
+  if (req.method === "GET" && subPath.endsWith("/export")) {
+    const campaignId = subPath.replace(/\/export$/, "");
+    try {
+      const manifest = generateCampaignCsvManifest(campaignId);
+      if (url.searchParams.get("format") === "csv") {
+        return new Response(manifest.csv, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="${campaignId}-manifest.csv"`,
+          },
+        });
+      }
+      return jsonResponse({ ok: true, manifest }, 200, req, {});
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("not found")) return notFound(req, msg);
+      return badRequest(req, msg);
+    }
+  }
+
+  // 10. GET /api/campaign/:id — get campaign detail and items
   if (req.method === "GET" && subPath && !subPath.includes("/")) {
     const campaignId = subPath;
     const campaign = getCampaign(campaignId);
@@ -164,3 +248,4 @@ export async function handleCampaignRoutes(
 
   return null;
 }
+

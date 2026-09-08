@@ -32,6 +32,30 @@ import {
   updateCampaignItemStatus,
   updateCampaignStatus,
 } from "../src/agent-os/campaign/planner/campaign-planner";
+import {
+  normalizeKeyword,
+  classifyCommercialCategory,
+  extractCommercialIntent,
+  analyzeTrendKeyword,
+} from "../src/agent-os/campaign/trends/keyword-normalizer";
+import { allocatePortfolioRatios } from "../src/agent-os/campaign/planner/portfolio-allocator";
+import {
+  dispatchCampaign,
+  syncCampaignExecution,
+  resolveDimensions,
+} from "../src/agent-os/campaign/execution/campaign-dispatcher";
+import { evaluateVisualQc } from "../src/agent-os/campaign/qc/visual-qc-gate";
+import { scanIpClearance } from "../src/agent-os/campaign/qc/ip-sanitizer";
+import {
+  evaluateCampaignItem,
+  getQcRecordsForItem,
+} from "../src/agent-os/campaign/qc/council-evaluator";
+import {
+  buildStockTitle,
+  generateStockKeywords,
+  generateMetadataForItem,
+} from "../src/agent-os/campaign/metadata/stock-metadata-engine";
+import { generateCampaignCsvManifest } from "../src/agent-os/campaign/metadata/csv-packager";
 import { handleCampaignRoutes } from "../src/server/management/campaign-routes";
 import type { ManagementContext } from "../src/server/management/context";
 import type { TrendSignal } from "../src/agent-os/campaign/types";
@@ -503,4 +527,432 @@ describe("Phase 21: Pao Stock Autonomous Campaign Planner", () => {
       expect(res?.status).toBe(200);
     });
   });
+
+  describe("7. Commercial Keyword Normalizer & Intent Classifier", () => {
+    test("normalizes raw search terms and removes noise", () => {
+      const normalized = normalizeKeyword("  Electric !! Vehicle @@ CHARGING #Stations   ");
+      expect(normalized).toBe("electric vehicle charging stations");
+    });
+
+    test("accurately classifies commercial categories", () => {
+      expect(classifyCommercialCategory("solar cell array farm").category).toBe("clean_tech");
+      expect(classifyCommercialCategory("autonomous ev fleet logistics").category).toBe("sustainable_mobility");
+      expect(classifyCommercialCategory("collaborative industrial robot arm").category).toBe("robotics");
+      expect(classifyCommercialCategory("ai server rack datacenter").category).toBe("ai_infrastructure");
+      expect(classifyCommercialCategory("hydroponic indoor vertical farm").category).toBe("agritech");
+      expect(classifyCommercialCategory("dna sequencing laboratory crispr").category).toBe("biotech");
+      expect(classifyCommercialCategory("mobile payment contactless terminal").category).toBe("fintech");
+      expect(classifyCommercialCategory("unknown generic subject").category).toBe("commercial_editorial");
+    });
+
+    test("extracts commercial intent from modifiers", () => {
+      expect(extractCommercialIntent("enterprise cloud computing platform").intentScore).toBeGreaterThanOrEqual(0.70);
+      expect(extractCommercialIntent("industrial manufacturing robotic arm").modifiers).toContain("industrial");
+      expect(extractCommercialIntent("consumer portable espresso maker").modifiers).toContain("consumer");
+      expect(extractCommercialIntent("innovative green energy concept").modifiers).toContain("concept");
+    });
+
+    test("generates complete trend keyword analysis", () => {
+      const analysis = analyzeTrendKeyword("Industrial Automation Sensors Factory");
+      expect(analysis.normalized).toBe("industrial automation sensors factory");
+      expect(analysis.category).toBe("robotics");
+      expect(analysis.commercialIntent).toBeGreaterThanOrEqual(0.70);
+      expect(analysis.detectedModifiers.length).toBeGreaterThan(0);
+      expect(analysis.isHighValueNiche).toBe(true);
+    });
+  });
+
+  describe("8. Dynamic Portfolio Allocator", () => {
+    test("allocates asset mix summing precisely to target count", () => {
+      const plan = allocatePortfolioRatios({
+        category: "clean_tech",
+        targetAssetCount: 10,
+      });
+
+      expect(plan.targetAssetCount).toBe(10);
+      expect(plan.videoCount + plan.photoCount + plan.isolatedCount).toBe(10);
+      expect(plan.ratios.video + plan.ratios.photo + plan.ratios.isolated).toBeCloseTo(1.0);
+    });
+
+    test("adapts portfolio ratio distribution based on category preferences", () => {
+      const mobilityPlan = allocatePortfolioRatios({
+        category: "sustainable_mobility",
+        targetAssetCount: 10,
+      });
+      // Mobility prefers motion / video
+      expect(mobilityPlan.videoCount).toBeGreaterThanOrEqual(4);
+
+      const fintechPlan = allocatePortfolioRatios({
+        category: "fintech",
+        targetAssetCount: 10,
+      });
+      // Fintech prefers editorial / photos and isolated cards
+      expect(fintechPlan.photoCount).toBeGreaterThanOrEqual(5);
+    });
+  });
+
+  describe("9. Campaign Batch Dispatcher to Generation Queue", () => {
+    test("dispatches campaign items into gen_jobs table", () => {
+      const { campaign, items } = planCampaign({
+        keyword: "dispatch test",
+        targetAssetCount: 3,
+      });
+
+      const dispatchResult = dispatchCampaign(campaign.id);
+      expect(dispatchResult.ok).toBe(true);
+      expect(dispatchResult.dispatchedCount).toBe(3);
+      expect(dispatchResult.jobIds.length).toBe(3);
+
+      const refreshed = getCampaign(campaign.id);
+      expect(refreshed?.status).toBe("active");
+
+      const refreshedItems = getCampaignItems(campaign.id);
+      for (const it of refreshedItems) {
+        expect(it.renderStatus).toBe("rendering");
+        expect(it.gpuJobId).toBeDefined();
+        expect(it.gpuJobId?.startsWith("job_")).toBe(true);
+      }
+    });
+
+    test("dispatch is idempotent and skips already rendering items", () => {
+      const { campaign } = planCampaign({
+        keyword: "idempotent dispatch test",
+        targetAssetCount: 2,
+      });
+
+      const firstDispatch = dispatchCampaign(campaign.id);
+      expect(firstDispatch.dispatchedCount).toBe(2);
+
+      const secondDispatch = dispatchCampaign(campaign.id);
+      expect(secondDispatch.dispatchedCount).toBe(0);
+      expect(secondDispatch.skippedCount).toBe(2);
+    });
+
+    test("resolves correct dimensions for stock aspect ratios", () => {
+      const videoDim = resolveDimensions("16:9", "video_4k");
+      expect(videoDim.width).toBe(1920);
+      expect(videoDim.height).toBe(1080);
+
+      const photoDim169 = resolveDimensions("16:9", "photo_raw");
+      expect(photoDim169.width).toBe(1824);
+      expect(photoDim169.height).toBe(1024);
+
+      const photoDim11 = resolveDimensions("1:1", "photo_raw");
+      expect(photoDim11.width).toBe(1024);
+      expect(photoDim11.height).toBe(1024);
+    });
+  });
+
+  describe("10. Campaign Execution Status Synchronization", () => {
+    test("syncCampaignExecution reflects job completion and campaign progress", () => {
+      const { campaign } = planCampaign({
+        keyword: "sync test",
+        targetAssetCount: 2,
+      });
+      dispatchCampaign(campaign.id);
+
+      const db = openAgentOsDb();
+      const items = getCampaignItems(campaign.id);
+      expect(items[0].gpuJobId).toBeDefined();
+
+      // Simulate first job completed in gen_jobs
+      db.query("UPDATE gen_jobs SET status = 'completed' WHERE id = ?").run(items[0].gpuJobId!);
+
+      const syncResult = syncCampaignExecution(campaign.id);
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.completedCount).toBe(1);
+      expect(syncResult.remainingCount).toBe(1);
+
+      const updatedItems = getCampaignItems(campaign.id);
+      expect(updatedItems[0].renderStatus).toBe("passed_qc");
+    });
+  });
+
+  describe("11. Visual QC Gate", () => {
+    test("approves high-resolution, sharp stock images", () => {
+      const result = evaluateVisualQc({
+        assetType: "photo_raw",
+        width: 3840,
+        height: 2160,
+        aspectRatio: "16:9",
+        rawMetrics: {
+          blurEstimate: 0.05,
+          compressionArtifacts: 0.02,
+          colorBanding: 0.01,
+        },
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.megapixels).toBeGreaterThanOrEqual(8.0);
+      expect(result.sharpnessScore).toBeGreaterThanOrEqual(90);
+      expect(result.artifactPenalty).toBeLessThanOrEqual(10);
+      expect(result.errors.length).toBe(0);
+    });
+
+    test("fails images below Adobe Stock 4.0 MP minimum", () => {
+      const result = evaluateVisualQc({
+        assetType: "photo_raw",
+        width: 1200,
+        height: 800, // 0.96 MP
+        aspectRatio: "3:2",
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes("below Adobe Stock minimum of 4.0 MP"))).toBe(true);
+    });
+
+    test("applies artifact penalties for compression artifacts", () => {
+      const result = evaluateVisualQc({
+        assetType: "photo_raw",
+        width: 3840,
+        height: 2160,
+        rawMetrics: {
+          compressionArtifacts: 0.8,
+          colorBanding: 0.5,
+        },
+      });
+
+      expect(result.artifactPenalty).toBeGreaterThan(25);
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("12. IP & Trademark Sanitizer", () => {
+    test("flags prohibited trademark brands", () => {
+      const resApple = scanIpClearance("Person holding an Apple iPhone 15 Pro Max");
+      expect(resApple.cleared).toBe(false);
+      expect(resApple.status).toBe("flagged_trademark");
+      expect(resApple.flaggedTerms).toContain("apple");
+      expect(resApple.flaggedTerms).toContain("iphone");
+
+      const resTesla = scanIpClearance("Sleek Tesla Cybertruck driving on highway");
+      expect(resTesla.cleared).toBe(false);
+      expect(resTesla.flaggedTerms).toContain("tesla");
+    });
+
+    test("flags celebrity likeness without release", () => {
+      const res = scanIpClearance("Photorealistic portrait of Elon Musk in laboratory");
+      expect(res.cleared).toBe(false);
+      expect(res.status).toBe("flagged_likeness");
+      expect(res.flaggedTerms).toContain("portrait of elon musk");
+    });
+
+    test("clears generic commercial concept prompts", () => {
+      const res = scanIpClearance(
+        "Commercial stock photo of modern autonomous electric vehicle charging at solar station with green trees"
+      );
+      expect(res.cleared).toBe(true);
+      expect(res.status).toBe("cleared");
+      expect(res.riskScore).toBe(0);
+    });
+  });
+
+  describe("13. Reviewer Council Evaluator & stock_qc_records", () => {
+    test("approves compliant item and persists record to stock_qc_records", () => {
+      const { campaign, items } = planCampaign({
+        keyword: "council approval test",
+        targetAssetCount: 1,
+      });
+      const item = items[0];
+
+      const evaluation = evaluateCampaignItem({
+        campaignItemId: item.id,
+        width: 3840,
+        height: 2160,
+        blurEstimate: 0.05,
+        compressionArtifacts: 0.05,
+      });
+
+      expect(evaluation.ok).toBe(true);
+      expect(evaluation.record.councilVerdict).toBe("approve");
+      expect(evaluation.record.ipClearanceStatus).toBe("cleared");
+
+      const records = getQcRecordsForItem(item.id);
+      expect(records.length).toBe(1);
+      expect(records[0].id).toBe(evaluation.record.id);
+      expect(records[0].sharpnessScore).toBeGreaterThanOrEqual(80);
+
+      const refreshed = getCampaignItems(campaign.id);
+      expect(refreshed[0].renderStatus).toBe("passed_qc");
+    });
+
+    test("rejects item containing trademark violation", () => {
+      const db = openAgentOsDb();
+      const { campaign, items } = planCampaign({
+        keyword: "council reject test",
+        targetAssetCount: 1,
+      });
+      const item = items[0];
+
+      // Inject trademark into prompt
+      db.query("UPDATE stock_campaign_items SET prompt = ? WHERE id = ?").run(
+        "Close up shot of Nike sneakers on running track",
+        item.id
+      );
+
+      const evaluation = evaluateCampaignItem({
+        campaignItemId: item.id,
+      });
+
+      expect(evaluation.record.councilVerdict).toBe("reject");
+      expect(evaluation.record.ipClearanceStatus).toBe("flagged_trademark");
+      expect(evaluation.reasons.some((r) => r.includes("Trademark violation"))).toBe(true);
+
+      const refreshed = getCampaignItems(campaign.id);
+      expect(refreshed[0].renderStatus).toBe("failed_qc");
+    });
+  });
+
+  describe("14. Adobe Stock Metadata Engine & CSV Packager", () => {
+    test("builds concise, professional stock titles under 70 chars", () => {
+      const title = buildStockTitle(
+        "Photorealistic cinematic ultra hd 8k modern solar panel farm in desert with mountains, bright sunlight"
+      );
+      expect(title.length).toBeLessThanOrEqual(70);
+      expect(title.toLowerCase()).not.toContain("photorealistic");
+      expect(title.toLowerCase()).not.toContain("8k");
+    });
+
+    test("generates 25-45 hierarchical tags", () => {
+      const keywords = generateStockKeywords({
+        prompt: "Autonomous electric delivery drone flying over warehouse logistics center",
+        keyword: "delivery drone",
+        category: "robotics",
+        assetType: "video_4k",
+      });
+
+      expect(keywords.length).toBeGreaterThanOrEqual(25);
+      expect(keywords.length).toBeLessThanOrEqual(45);
+      expect(keywords).toContain("drone");
+      expect(keywords).toContain("video");
+      expect(keywords).toContain("commercial");
+    });
+
+    test("assembles full item metadata with category mapping", () => {
+      const meta = generateMetadataForItem({
+        prompt: "Solar panels on sustainable green roof in modern smart city",
+        keyword: "solar panels",
+        category: "clean_tech",
+      });
+
+      expect(meta.categoryNumber).toBe(17); // Environment
+      expect(meta.categoryName).toBe("Environment");
+      expect(meta.title.length).toBeGreaterThan(5);
+      expect(meta.keywords.length).toBeGreaterThanOrEqual(25);
+    });
+
+    test("generates complete Adobe Stock CSV manifest", () => {
+      const { campaign } = planCampaign({
+        keyword: "csv export test",
+        targetAssetCount: 3,
+      });
+
+      const manifest = generateCampaignCsvManifest(campaign.id);
+      expect(manifest.rowCount).toBe(3);
+      expect(manifest.campaignId).toBe(campaign.id);
+
+      const lines = manifest.csv.split("\r\n");
+      expect(lines[0]).toBe("Filename,Title,Keywords,Category,Releases");
+      expect(lines.length).toBe(4); // 1 header + 3 rows
+    });
+  });
+
+  describe("15. Extended Management API Endpoints", () => {
+    test("POST /api/campaign/:id/dispatch executes batch dispatch via API", async () => {
+      const { campaign } = planCampaign({
+        keyword: "api dispatch test",
+        targetAssetCount: 2,
+      });
+
+      const res = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/${campaign.id}/dispatch`, "POST")
+      );
+      expect(res).not.toBeNull();
+      expect(res?.status).toBe(200);
+
+      const body = (await res?.json()) as { ok: boolean; dispatchedCount: number };
+      expect(body.ok).toBe(true);
+      expect(body.dispatchedCount).toBe(2);
+    });
+
+    test("POST /api/campaign/:id/sync synchronizes execution status via API", async () => {
+      const { campaign } = planCampaign({
+        keyword: "api sync test",
+        targetAssetCount: 2,
+      });
+      dispatchCampaign(campaign.id);
+
+      const res = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/${campaign.id}/sync`, "POST")
+      );
+      expect(res).not.toBeNull();
+      expect(res?.status).toBe(200);
+
+      const body = (await res?.json()) as { ok: boolean; remainingCount: number };
+      expect(body.ok).toBe(true);
+      expect(body.remainingCount).toBe(2);
+    });
+
+    test("POST & GET /api/campaign/items/:id/qc runs and retrieves QC via API", async () => {
+      const { items } = planCampaign({
+        keyword: "api qc test",
+        targetAssetCount: 1,
+      });
+      const item = items[0];
+
+      // POST item QC
+      const postRes = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/items/${item.id}/qc`, "POST", {
+          width: 3840,
+          height: 2160,
+          blurEstimate: 0.05,
+        })
+      );
+      expect(postRes).not.toBeNull();
+      expect(postRes?.status).toBe(200);
+
+      const postBody = (await postRes?.json()) as { ok: boolean; record: { councilVerdict: string } };
+      expect(postBody.ok).toBe(true);
+      expect(postBody.record.councilVerdict).toBe("approve");
+
+      // GET item QC
+      const getRes = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/items/${item.id}/qc`, "GET")
+      );
+      expect(getRes).not.toBeNull();
+      expect(getRes?.status).toBe(200);
+
+      const getBody = (await getRes?.json()) as { ok: boolean; count: number };
+      expect(getBody.ok).toBe(true);
+      expect(getBody.count).toBe(1);
+    });
+
+    test("GET /api/campaign/:id/export returns manifest in JSON and CSV format", async () => {
+      const { campaign } = planCampaign({
+        keyword: "api export test",
+        targetAssetCount: 2,
+      });
+
+      // JSON export
+      const jsonRes = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/${campaign.id}/export`)
+      );
+      expect(jsonRes).not.toBeNull();
+      expect(jsonRes?.status).toBe(200);
+      const jsonBody = (await jsonRes?.json()) as { ok: boolean; manifest: { rowCount: number } };
+      expect(jsonBody.ok).toBe(true);
+      expect(jsonBody.manifest.rowCount).toBe(2);
+
+      // Raw CSV export
+      const csvRes = await handleCampaignRoutes(
+        mockCtx(`/api/campaign/${campaign.id}/export?format=csv`)
+      );
+      expect(csvRes).not.toBeNull();
+      expect(csvRes?.status).toBe(200);
+      expect(csvRes?.headers.get("Content-Type")).toContain("text/csv");
+      const csvText = await csvRes?.text();
+      expect(csvText).toContain("Filename,Title,Keywords,Category,Releases");
+    });
+  });
 });
+

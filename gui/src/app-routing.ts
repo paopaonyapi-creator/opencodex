@@ -21,6 +21,7 @@ export type Page =
   | "browser"
   | "mobile"
   | "ai-gateway"
+  | "change-control"
   | "sdlc"
   | "demo";
 
@@ -43,6 +44,7 @@ export const VALID_PAGES = new Set<Page>([
   "browser",
   "mobile",
   "ai-gateway",
+  "change-control",
   "sdlc",
   "demo",
 ]);

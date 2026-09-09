@@ -167,7 +167,8 @@
         "src/pages/AgentControlCenter.tsx",
         "src/pages/BrowserStudio.tsx",
         "src/pages/MobileGateway.tsx",
-        "src/pages/AiGateway.tsx"
+        "src/pages/AiGateway.tsx",
+        "src/pages/ChangeControl.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

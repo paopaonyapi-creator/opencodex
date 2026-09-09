@@ -78,6 +78,14 @@ describe("ai-gateway route", () => {
   });
 });
 
+describe("change-control route", () => {
+  test("the change-control page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("change-control")).toBe(true);
+    expect(readPageFromHash("change-control")).toBe("change-control");
+    expect(resolveAppHashChange("change-control").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

@@ -1509,6 +1509,7 @@ export const en = {
   "nav.browser": "Browser Studio",
    "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI Gateway",
+  "nav.changeControl": "Change Control",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "enabled",
  "aiStudio.disabled": "disabled",

@@ -47,6 +47,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/")) return null;
 
+  // Phase 22: Pao Autonomous Change Control (ACC)
+  if (url.pathname.startsWith("/api/agent-os/change-control") || url.pathname === "/api/agent-os/change-control") {
+    const { handleChangeControlRoutes } = await import("./change-control-routes");
+    return handleChangeControlRoutes(ctx);
+  }
+
   // Phase 20.12: Pao-hubPro × Google ARTEMIS Mobile Agent Gateway
   if (url.pathname.startsWith("/api/agent-os/mobile") || url.pathname === "/api/agent-os/mobile") {
     const { handleMobileRoutes } = await import("./mobile-routes");

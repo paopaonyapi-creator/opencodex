@@ -2729,4 +2729,5 @@ export const ja: Record<TKey, string> = {
   "nav.browser": "Browser Studio",
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI ゲートウェイ",
+  "nav.changeControl": "変更管理",
 };

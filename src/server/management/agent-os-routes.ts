@@ -45,7 +45,15 @@ function notFound(req: Request, message: string): Response {
 
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
-  if (!url.pathname.startsWith("/api/agent-os/")) return null;
+  // Phase 20.13: Pao-hubPro Video Intelligence × Claude Watch
+  if (
+    url.pathname.startsWith("/api/agent-os/video-intelligence") ||
+    url.pathname === "/api/agent-os/video-intelligence" ||
+    url.pathname.startsWith("/api/video")
+  ) {
+    const { handleVideoIntelligenceRoutes } = await import("./video-intelligence-routes");
+    return handleVideoIntelligenceRoutes(ctx);
+  }
 
   // Phase 25: Pao Autonomous Security & Zero-Trust Threat Immunity Shield (ASTIS)
   if (url.pathname.startsWith("/api/agent-os/security") || url.pathname === "/api/agent-os/security") {

@@ -110,6 +110,14 @@ describe("security route", () => {
   });
 });
 
+describe("video-intelligence route", () => {
+  test("the video-intelligence page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("video-intelligence")).toBe(true);
+    expect(readPageFromHash("video-intelligence")).toBe("video-intelligence");
+    expect(resolveAppHashChange("video-intelligence").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

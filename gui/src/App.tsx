@@ -21,6 +21,7 @@ import ChangeControl from "./pages/ChangeControl";
 import OperationsConsole from "./pages/OperationsConsole";
 import EconomyConsole from "./pages/EconomyConsole";
 import SecurityConsole from "./pages/SecurityConsole";
+import VideoIntelligence from "./pages/VideoIntelligence";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
@@ -63,6 +64,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   operations: "nav.operations",
   economy: "nav.economy",
   security: "nav.security",
+  "video-intelligence": "nav.videoIntelligence",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
@@ -106,6 +108,7 @@ const NAV: NavEntry[] = [
   { id: "operations", tkey: "nav.operations", Icon: IconRefresh },
   { id: "economy", tkey: "nav.economy", Icon: IconLock },
   { id: "security", tkey: "nav.security", Icon: IconShield },
+  { id: "video-intelligence", tkey: "nav.videoIntelligence", Icon: IconMonitor },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
@@ -398,6 +401,7 @@ export default function App() {
             {page === "operations" && <OperationsConsole apiBase={API_BASE} />}
             {page === "economy" && <EconomyConsole apiBase={API_BASE} />}
             {page === "security" && <SecurityConsole apiBase={API_BASE} />}
+            {page === "video-intelligence" && <VideoIntelligence apiBase={API_BASE} />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>

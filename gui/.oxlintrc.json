@@ -171,7 +171,8 @@
         "src/pages/ChangeControl.tsx",
         "src/pages/OperationsConsole.tsx",
         "src/pages/EconomyConsole.tsx",
-        "src/pages/SecurityConsole.tsx"
+        "src/pages/SecurityConsole.tsx",
+        "src/pages/VideoIntelligence.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

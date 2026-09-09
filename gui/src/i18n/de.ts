@@ -2446,6 +2446,7 @@ export const de: Record<TKey, string> = {
   "nav.operations": "Flottenbetrieb",
   "nav.economy": "Kosten & Wirtschaft",
   "nav.security": "Sicherheitsschild",
+  "nav.videoIntelligence": "Video-Intelligenz",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

@@ -2651,6 +2651,7 @@ export const zh: Record<TKey, string> = {
   "nav.operations": "机队运维",
   "nav.economy": "成本与经济",
   "nav.security": "安全防御盾",
+  "nav.videoIntelligence": "视频智能分析",
   "sdlc.title": "Pao Spec-Driven AI SDLC",
   "sdlc.subtitle": "Autonomous Software Engineering Operating Layer with Quality Gates & Council",
   "sdlc.cycles": "Cycles",

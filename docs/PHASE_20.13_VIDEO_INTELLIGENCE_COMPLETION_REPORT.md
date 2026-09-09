@@ -26,7 +26,8 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
 - `stock-qc.ts`: `StockQcEngine` — technical resolution, clip length, non-standard aspect ratios, and commercial brand risk detection.
 - `report-builder.ts`: `ReportBuilder` — markdown generation with technical specification tables, timeline breakdown, and actionable suggestions.
 - `job-manager.ts`: `VideoJobManager` — state machine lifecycle (`queued` -> `probing` -> `extracting_frames` -> `transcribing` -> `analyzing` -> `reviewing` -> `reporting` -> `completed`), cancellation, filtering.
-- `index.ts`: Public API and singletons (`getVideoJobManager()`, `resetVideoJobManager()`).
+- `mcp-tools.ts`: `VIDEO_INTELLIGENCE_MCP_TOOLS` — 11 WebMCP tools (`video_analyze`, `video_inspect`, `video_transcribe`, `video_extract_frames`, `video_analyze_hook`, `video_analyze_pacing`, `video_stock_qc`, `video_debug_screen`, `video_get_report`, `video_list_jobs`, `video_cancel_job`).
+- `index.ts`: Public API and singletons (`getVideoJobManager()`, `resetVideoJobManager()`, and WebMCP tool exports).
 
 ### Management REST API
 - `src/server/management/video-intelligence-routes.ts`:
@@ -49,6 +50,12 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
   - **Full Markdown Report Inspector**: Formatted preview of the generated technical report.
 - Registered `#video-intelligence` in `gui/src/app-routing.ts`, `gui/src/App.tsx`, and all 10 i18n locales (`en`, `th`, `de`, `fr`, `ja`, `ko`, `ru`, `tr`, `zh`, `zh-TW`).
 
+### Documentation Suite
+- `docs/video-intelligence.md`: Subsystem architecture, pipeline stages, and security guardrails.
+- `docs/video-stock-qc.md`: Commercial Adobe Stock QC guidelines and automated rules.
+- `docs/video-local-only.md`: Offline privacy mode and whisper/ffprobe airgap guarantees.
+- `docs/video-mcp-tools.md`: WebMCP tool reference and example invocations.
+
 ---
 
 ## 3. Verification & Quality Gates
@@ -61,10 +68,13 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
 | `tests/video-intelligence-stock-qc.test.ts` | **PASS (6/6)** | 720p/1080p standards, duration limits, watermark detection, verdicts verified |
 | `tests/video-intelligence-job-manager.test.ts` | **PASS (4/4)** | Lifecycle state machine, report generation, filtering, cancellation verified |
 | `tests/video-intelligence-routes.test.ts` | **PASS (6/6)** | REST endpoints, job creation, reports, cancel, alias `/api/video/jobs` verified |
-| **Total Phase 20.13 Unit Tests** | **PASS (26/26)** | 0 failures, 89 expect assertions green |
-| `gui/tests/integrations-routing.test.ts` | **PASS (18/18)** | `#video-intelligence` registered and settles cleanly |
+| `tests/video-intelligence-mcp-tools.test.ts` | **PASS (21/21)** | All 11 WebMCP tool definitions, argument validation, and executions verified |
+| **Total Phase 20.13 Unit Tests** | **PASS (47/47)** | 0 failures, 192 expect assertions green |
 | `tests/core-lab-boundary.test.ts` | **PASS (17/17)** | Zero core-to-lab imports or leakage |
+| `tests/repo-hygiene.test.ts` | **PASS (12/12)** | Clean repository state, no untracked local state |
 | `bun run typecheck` | **PASS** | 0 TypeScript errors |
 | `bun run lint:gui` | **PASS** | 0 warnings, 0 errors across 245 files |
-| `bun run build:gui` | **PASS** | Production Vite bundle built cleanly in 2.62s |
+| `bun run build:gui` | **PASS** | Production Vite bundle built cleanly in 1.46s |
 | `bun run privacy:scan` | **PASS** | 0 credential or secret leaks |
+| `bun run skill:surface:check` | **PASS** | Management surface map current |
+

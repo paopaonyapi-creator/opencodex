@@ -22,6 +22,7 @@ import OperationsConsole from "./pages/OperationsConsole";
 import EconomyConsole from "./pages/EconomyConsole";
 import SecurityConsole from "./pages/SecurityConsole";
 import VideoIntelligence from "./pages/VideoIntelligence";
+import MediaMemory from "./pages/MediaMemory";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
@@ -65,6 +66,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   economy: "nav.economy",
   security: "nav.security",
   "video-intelligence": "nav.videoIntelligence",
+  "media-memory": "nav.mediaMemory",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
@@ -109,6 +111,7 @@ const NAV: NavEntry[] = [
   { id: "economy", tkey: "nav.economy", Icon: IconLock },
   { id: "security", tkey: "nav.security", Icon: IconShield },
   { id: "video-intelligence", tkey: "nav.videoIntelligence", Icon: IconMonitor },
+  { id: "media-memory", tkey: "nav.mediaMemory", Icon: IconHardDrive },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
@@ -402,6 +405,7 @@ export default function App() {
             {page === "economy" && <EconomyConsole apiBase={API_BASE} />}
             {page === "security" && <SecurityConsole apiBase={API_BASE} />}
             {page === "video-intelligence" && <VideoIntelligence apiBase={API_BASE} />}
+            {page === "media-memory" && <MediaMemory apiBase={API_BASE} />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>

@@ -2736,4 +2736,5 @@ export const tr: Record<TKey, string> = {
   "nav.economy": "Maliyet ve Ekonomi",
   "nav.security": "Güvenlik Kalkanı",
   "nav.videoIntelligence": "Video Zekası",
+  "nav.mediaMemory": "Medya Belleği",
 };

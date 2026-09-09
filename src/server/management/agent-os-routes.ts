@@ -45,6 +45,16 @@ function notFound(req: Request, message: string): Response {
 
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
+  // Phase 20.14: Pao-hubPro Visual Knowledge & Media Memory
+  if (
+    url.pathname.startsWith("/api/agent-os/media-memory") ||
+    url.pathname === "/api/agent-os/media-memory" ||
+    url.pathname.startsWith("/api/media-memory")
+  ) {
+    const { handleMediaMemoryRoutes } = await import("./media-memory-routes");
+    return handleMediaMemoryRoutes(ctx);
+  }
+
   // Phase 20.13: Pao-hubPro Video Intelligence × Claude Watch
   if (
     url.pathname.startsWith("/api/agent-os/video-intelligence") ||

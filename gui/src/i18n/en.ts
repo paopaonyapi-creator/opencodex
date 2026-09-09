@@ -1514,6 +1514,7 @@ export const en = {
    "nav.economy": "Cost & Economy",
    "nav.security": "Security Shield",
    "nav.videoIntelligence": "Video Intelligence",
+   "nav.mediaMemory": "Media Memory",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "enabled",
  "aiStudio.disabled": "disabled",

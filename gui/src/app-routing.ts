@@ -26,6 +26,7 @@ export type Page =
   | "economy"
   | "security"
   | "video-intelligence"
+  | "media-memory"
   | "sdlc"
   | "demo";
 
@@ -53,6 +54,7 @@ export const VALID_PAGES = new Set<Page>([
   "economy",
   "security",
   "video-intelligence",
+  "media-memory",
   "sdlc",
   "demo",
 ]);

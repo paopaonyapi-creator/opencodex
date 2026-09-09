@@ -2735,4 +2735,5 @@ export const ko: Record<TKey, string> = {
   "nav.economy": "비용 및 경제",
   "nav.security": "보안 쉴드",
   "nav.videoIntelligence": "비디오 인텔리전스",
+  "nav.mediaMemory": "미디어 메모리",
 };

@@ -2736,4 +2736,5 @@ export const ru: Record<TKey, string> = {
   "nav.economy": "Затраты и экономика",
   "nav.security": "Щит безопасности",
   "nav.videoIntelligence": "Видеоаналитика",
+  "nav.mediaMemory": "Медиа-память",
 };

@@ -2734,4 +2734,5 @@ export const ja: Record<TKey, string> = {
   "nav.economy": "コスト・経済管理",
   "nav.security": "セキュリティシールド",
   "nav.videoIntelligence": "ビデオインテリジェンス",
+  "nav.mediaMemory": "メディアメモリ",
 };

@@ -1,0 +1,31 @@
+# Pao AI Gateway — Provider Configuration
+# API keys are resolved from environment variables only.
+# Never store raw API keys in this file.
+
+providers:
+  openai-main:
+    type: openai
+    api_key_env: OPENAI_API_KEY
+
+  anthropic-main:
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+
+  gemini-main:
+    type: gemini
+    api_key_env: GEMINI_API_KEY
+
+  openrouter-main:
+    type: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+
+  local-vllm:
+    type: openai-compatible
+    base_url: http://127.0.0.1:8001/v1
+    api_key_env: LOCAL_VLLM_API_KEY
+
+  runpod-h3:
+    type: openai-compatible
+    base_url: ${RUNPOD_H3_BASE_URL}
+    api_key_env: RUNPOD_API_KEY

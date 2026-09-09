@@ -2729,4 +2729,5 @@ export const ru: Record<TKey, string> = {
   "sdlc.tasksCoverage": "Прослеживаемость задач",
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
+  "nav.mobile": "Mobile Gateway",
 };

@@ -19,6 +19,7 @@ export type Page =
   | "agency"
   | "desktop-agent"
   | "browser"
+  | "mobile"
   | "sdlc"
   | "demo";
 
@@ -39,6 +40,7 @@ export const VALID_PAGES = new Set<Page>([
   "agency",
   "desktop-agent",
   "browser",
+  "mobile",
   "sdlc",
   "demo",
 ]);

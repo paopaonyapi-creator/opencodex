@@ -1,0 +1,33 @@
+# Pao AI Gateway — Budget Configuration
+# Hard ceilings: no automation, retry, fallback, or admin convenience
+# may silently bypass these limits.
+
+budgets:
+  global:
+    daily_usd: 15
+    monthly_usd: 250
+
+  identities:
+    codex:
+      daily_usd: 8
+      per_request_usd: 1.50
+
+    claude-code:
+      daily_usd: 8
+      per_request_usd: 1.50
+
+    hermes:
+      daily_usd: 5
+      per_request_usd: 1.00
+
+    reviewer-security:
+      daily_usd: 3
+      per_request_usd: 0.75
+
+    stock-agent:
+      daily_usd: 5
+      per_request_usd: 0.75
+
+    browser-agent:
+      daily_usd: 5
+      per_request_usd: 0.75

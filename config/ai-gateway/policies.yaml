@@ -1,0 +1,119 @@
+# Pao AI Gateway — Identity Guardrail Policies
+
+identities:
+  admin-pao:
+    name: Admin
+    aliases:
+      allow:
+        - pao-fast
+        - pao-code
+        - pao-reasoning
+        - pao-review
+        - pao-vision
+        - pao-stock
+        - pao-browser
+        - pao-local
+        - pao-critical
+    max_request_usd: 5.00
+    max_daily_usd: 50.00
+    max_monthly_usd: 500.00
+
+  codex:
+    name: Codex
+    aliases:
+      allow:
+        - pao-code
+        - pao-reasoning
+        - pao-review
+    max_request_usd: 1.50
+    max_daily_usd: 8.00
+
+  claude-code:
+    name: Claude Code
+    aliases:
+      allow:
+        - pao-code
+        - pao-reasoning
+        - pao-review
+    max_request_usd: 1.50
+    max_daily_usd: 8.00
+
+  hermes:
+    name: Hermes
+    aliases:
+      allow:
+        - pao-fast
+        - pao-code
+        - pao-local
+    max_request_usd: 1.00
+    max_daily_usd: 5.00
+
+  browser-agent:
+    name: Browser Agent
+    aliases:
+      allow:
+        - pao-fast
+        - pao-browser
+    max_request_usd: 0.75
+    max_daily_usd: 5.00
+
+  stock-agent:
+    name: Adobe Stock Agent
+    aliases:
+      allow:
+        - pao-fast
+        - pao-vision
+        - pao-stock
+    max_request_usd: 0.75
+    max_daily_usd: 5.00
+
+  reviewer-security:
+    name: Security Reviewer
+    aliases:
+      allow:
+        - pao-review
+        - pao-reasoning
+    max_request_usd: 2.00
+    max_daily_usd: 5.00
+
+  local-worker:
+    name: Local Worker
+    aliases:
+      allow:
+        - pao-local
+    max_request_usd: 0
+    max_daily_usd: 0
+    external_provider_access: false
+    local_only: true
+
+policies:
+  codex:
+    fail_closed: true
+    input:
+      secret_leakage: block
+      prompt_injection: block
+    output:
+      secret_leakage: block
+      unsafe_tool_arguments: block
+
+  stock-agent:
+    fail_closed: false
+    input:
+      secret_leakage: block
+    output:
+      secret_leakage: block
+
+  reviewer-security:
+    fail_closed: true
+    input:
+      secret_leakage: block
+      prompt_injection: block
+    output:
+      secret_leakage: block
+
+  local-worker:
+    fail_closed: false
+    input:
+      secret_leakage: block
+    output:
+      secret_leakage: block

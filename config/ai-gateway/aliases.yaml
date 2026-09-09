@@ -1,0 +1,75 @@
+# Pao AI Gateway — Alias Definitions
+# Agents request aliases, not vendor model IDs.
+# Routes are sorted by priority (highest = preferred).
+
+aliases:
+  pao-fast:
+    routes:
+      - model: openai-fast
+        priority: 100
+      - model: gemini-vision
+        priority: 90
+      - model: local-fast
+        priority: 40
+
+  pao-code:
+    routes:
+      - model: openai-code-primary
+        priority: 100
+      - model: anthropic-code-secondary
+        priority: 90
+      - model: local-fast
+        priority: 30
+
+  pao-reasoning:
+    routes:
+      - model: anthropic-review
+        priority: 100
+      - model: openai-code-primary
+        priority: 90
+      - model: anthropic-code-secondary
+        priority: 80
+
+  pao-review:
+    routes:
+      - model: anthropic-review
+        priority: 100
+      - model: anthropic-code-secondary
+        priority: 80
+
+  pao-vision:
+    routes:
+      - model: gemini-vision
+        priority: 100
+      - model: openai-code-primary
+        priority: 90
+
+  pao-stock:
+    routes:
+      - model: openai-code-primary
+        priority: 100
+      - model: gemini-vision
+        priority: 80
+
+  pao-browser:
+    routes:
+      - model: openai-code-primary
+        priority: 100
+      - model: anthropic-code-secondary
+        priority: 80
+
+  pao-local:
+    routes:
+      - model: local-fast
+        priority: 100
+    constraints:
+      local_only: true
+
+  pao-critical:
+    routes:
+      - model: anthropic-review
+        priority: 100
+      - model: openai-code-primary
+        priority: 90
+    constraints:
+      review_required: true

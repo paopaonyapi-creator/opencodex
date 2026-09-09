@@ -62,6 +62,14 @@ describe("legacy integration hashes", () => {
   });
 });
 
+describe("mobile gateway route", () => {
+  test("the mobile page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("mobile")).toBe(true);
+    expect(readPageFromHash("mobile")).toBe("mobile");
+    expect(resolveAppHashChange("mobile").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

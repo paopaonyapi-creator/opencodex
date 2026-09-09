@@ -2729,4 +2729,5 @@ export const tr: Record<TKey, string> = {
   "sdlc.tasksCoverage": "Görev İzlenebilirliği",
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
+  "nav.mobile": "Mobile Gateway",
 };

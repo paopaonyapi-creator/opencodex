@@ -2728,4 +2728,5 @@ export const ko: Record<TKey, string> = {
   "sdlc.tasksCoverage": "태스크 추적성",
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
+  "nav.mobile": "Mobile Gateway",
 };

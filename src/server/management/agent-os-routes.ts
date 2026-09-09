@@ -47,6 +47,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/")) return null;
 
+  // Phase 25: Pao Autonomous Security & Zero-Trust Threat Immunity Shield (ASTIS)
+  if (url.pathname.startsWith("/api/agent-os/security") || url.pathname === "/api/agent-os/security") {
+    const { handleSecurityRoutes } = await import("./security-routes");
+    return handleSecurityRoutes(ctx);
+  }
+
   // Phase 24: Pao Autonomous Cost & Token Economy Governor (ACEG)
   if (url.pathname.startsWith("/api/agent-os/economy") || url.pathname === "/api/agent-os/economy") {
     const { handleEconomyRoutes } = await import("./economy-routes");

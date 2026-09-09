@@ -102,6 +102,14 @@ describe("economy route", () => {
   });
 });
 
+describe("security route", () => {
+  test("the security page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("security")).toBe(true);
+    expect(readPageFromHash("security")).toBe("security");
+    expect(resolveAppHashChange("security").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

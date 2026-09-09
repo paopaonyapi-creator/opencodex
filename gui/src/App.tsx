@@ -20,12 +20,13 @@ import AiGateway from "./pages/AiGateway";
 import ChangeControl from "./pages/ChangeControl";
 import OperationsConsole from "./pages/OperationsConsole";
 import EconomyConsole from "./pages/EconomyConsole";
+import SecurityConsole from "./pages/SecurityConsole";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
-import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield } from "./icons";
+import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconLock, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield } from "./icons";
 import { useI18n, useT, LOCALES, localeDisplayName, type Locale, type TKey } from "./i18n/shared";
 import { Select } from "./ui";
 import { installApiAuthFetch } from "./api";
@@ -61,6 +62,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "change-control": "nav.changeControl",
   operations: "nav.operations",
   economy: "nav.economy",
+  security: "nav.security",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
@@ -102,7 +104,8 @@ const NAV: NavEntry[] = [
   { id: "ai-gateway", tkey: "nav.aiGateway", Icon: IconServer },
   { id: "change-control", tkey: "nav.changeControl", Icon: IconActivity },
   { id: "operations", tkey: "nav.operations", Icon: IconRefresh },
-  { id: "economy", tkey: "nav.economy", Icon: IconShield },
+  { id: "economy", tkey: "nav.economy", Icon: IconLock },
+  { id: "security", tkey: "nav.security", Icon: IconShield },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
@@ -394,6 +397,7 @@ export default function App() {
             {page === "change-control" && <ChangeControl apiBase={API_BASE} />}
             {page === "operations" && <OperationsConsole apiBase={API_BASE} />}
             {page === "economy" && <EconomyConsole apiBase={API_BASE} />}
+            {page === "security" && <SecurityConsole apiBase={API_BASE} />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>

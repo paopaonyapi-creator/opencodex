@@ -1512,6 +1512,7 @@ export const en = {
    "nav.changeControl": "Change Control",
    "nav.operations": "Fleet Operations",
    "nav.economy": "Cost & Economy",
+   "nav.security": "Security Shield",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "enabled",
  "aiStudio.disabled": "disabled",

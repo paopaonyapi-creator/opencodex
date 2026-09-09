@@ -2734,4 +2734,5 @@ export const ru: Record<TKey, string> = {
   "nav.changeControl": "Управление изменениями",
   "nav.operations": "Операции флота",
   "nav.economy": "Затраты и экономика",
+  "nav.security": "Щит безопасности",
 };

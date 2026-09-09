@@ -2733,4 +2733,5 @@ export const ko: Record<TKey, string> = {
   "nav.changeControl": "변경 제어",
   "nav.operations": "플릿 운영",
   "nav.economy": "비용 및 경제",
+  "nav.security": "보안 쉴드",
 };

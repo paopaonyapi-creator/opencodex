@@ -2433,6 +2433,7 @@ export const fr: Record<TKey, string> = {
   "nav.changeControl": "Contrôle des modifications",
   "nav.operations": "Opérations de flotte",
   "nav.economy": "Coûts et économie",
+  "nav.security": "Bouclier de sécurité",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

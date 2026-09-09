@@ -24,6 +24,7 @@ export type Page =
   | "change-control"
   | "operations"
   | "economy"
+  | "security"
   | "sdlc"
   | "demo";
 
@@ -49,6 +50,7 @@ export const VALID_PAGES = new Set<Page>([
   "change-control",
   "operations",
   "economy",
+  "security",
   "sdlc",
   "demo",
 ]);

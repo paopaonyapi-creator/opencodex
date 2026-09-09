@@ -2732,4 +2732,5 @@ export const ru: Record<TKey, string> = {
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI-шлюз",
   "nav.changeControl": "Управление изменениями",
+  "nav.operations": "Операции флота",
 };

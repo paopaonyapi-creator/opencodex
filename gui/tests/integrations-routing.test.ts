@@ -86,6 +86,14 @@ describe("change-control route", () => {
   });
 });
 
+describe("operations route", () => {
+  test("the operations page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("operations")).toBe(true);
+    expect(readPageFromHash("operations")).toBe("operations");
+    expect(resolveAppHashChange("operations").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

@@ -2732,4 +2732,5 @@ export const tr: Record<TKey, string> = {
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI Ağ Geçidi",
   "nav.changeControl": "Değişiklik Kontrolü",
+  "nav.operations": "Filo Operasyonları",
 };

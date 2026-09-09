@@ -2648,6 +2648,7 @@ export const zh: Record<TKey, string> = {
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI 网关",
   "nav.changeControl": "变更控制",
+  "nav.operations": "机队运维",
   "sdlc.title": "Pao Spec-Driven AI SDLC",
   "sdlc.subtitle": "Autonomous Software Engineering Operating Layer with Quality Gates & Council",
   "sdlc.cycles": "Cycles",

@@ -2443,6 +2443,7 @@ export const de: Record<TKey, string> = {
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI-Gateway",
   "nav.changeControl": "Änderungssteuerung",
+  "nav.operations": "Flottenbetrieb",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

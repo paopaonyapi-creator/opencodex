@@ -169,7 +169,8 @@
         "src/pages/MobileGateway.tsx",
         "src/pages/AiGateway.tsx",
         "src/pages/ChangeControl.tsx",
-        "src/pages/OperationsConsole.tsx"
+        "src/pages/OperationsConsole.tsx",
+        "src/pages/EconomyConsole.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

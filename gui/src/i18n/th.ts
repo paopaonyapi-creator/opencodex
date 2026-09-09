@@ -1343,6 +1343,7 @@ export const th: Record<TKey, string> = {
  "nav.aiGateway": "เกตเวย์ AI",
  "nav.changeControl": "ควบคุมการเปลี่ยนแปลง",
   "nav.operations": "การปฏิบัติการฟลีต",
+  "nav.economy": "เศรษฐกิจและต้นทุน",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "เปิดใช้งาน",
  "aiStudio.disabled": "ปิดใช้งาน",

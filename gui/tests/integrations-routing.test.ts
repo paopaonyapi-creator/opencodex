@@ -94,6 +94,14 @@ describe("operations route", () => {
   });
 });
 
+describe("economy route", () => {
+  test("the economy page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("economy")).toBe(true);
+    expect(readPageFromHash("economy")).toBe("economy");
+    expect(resolveAppHashChange("economy").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

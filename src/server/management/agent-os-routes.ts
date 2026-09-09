@@ -47,6 +47,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   const { url, req } = ctx;
   if (!url.pathname.startsWith("/api/agent-os/")) return null;
 
+  // Phase 24: Pao Autonomous Cost & Token Economy Governor (ACEG)
+  if (url.pathname.startsWith("/api/agent-os/economy") || url.pathname === "/api/agent-os/economy") {
+    const { handleEconomyRoutes } = await import("./economy-routes");
+    return handleEconomyRoutes(ctx);
+  }
+
   // Phase 23: Pao Autonomous Operations & Self-Healing Fleet (AOF)
   if (url.pathname.startsWith("/api/agent-os/operations") || url.pathname === "/api/agent-os/operations") {
     const { handleOperationsRoutes } = await import("./operations-routes");

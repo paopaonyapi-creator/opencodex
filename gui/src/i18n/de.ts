@@ -2444,6 +2444,7 @@ export const de: Record<TKey, string> = {
   "nav.aiGateway": "AI-Gateway",
   "nav.changeControl": "Änderungssteuerung",
   "nav.operations": "Flottenbetrieb",
+  "nav.economy": "Kosten & Wirtschaft",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

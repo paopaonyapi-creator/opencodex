@@ -2430,6 +2430,7 @@ export const zhTW: Record<TKey, string> = {
   "nav.aiGateway": "AI 閘道",
   "nav.changeControl": "變更控制",
   "nav.operations": "機隊維運",
+  "nav.economy": "成本與經濟",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

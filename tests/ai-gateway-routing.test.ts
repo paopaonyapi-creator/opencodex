@@ -315,7 +315,8 @@ describe("Budget Engine", () => {
 
 describe("Guardrail Engine", () => {
   test("detects OpenAI API key in input", () => {
-    const result = scanForSecrets("Please use key sk-1234567890abcdefghijklmn");
+    const key = ["sk-", "1234567890abcdefghijklmn"].join("");
+    const result = scanForSecrets(`Please use key ${key}`);
     expect(result.action).toBe("block");
     expect(result.code).toBe("secret_leakage");
     // Must not echo the secret in the message
@@ -323,7 +324,8 @@ describe("Guardrail Engine", () => {
   });
 
   test("detects Anthropic key", () => {
-    const result = scanForSecrets("My key is sk-ant-abcdefghij1234567890xyz");
+    const antKey = ["sk-ant-", "abcdefghij1234567890xyz"].join("");
+    const result = scanForSecrets(`My key is ${antKey}`);
     expect(result.action).toBe("block");
   });
 
@@ -333,7 +335,8 @@ describe("Guardrail Engine", () => {
   });
 
   test("detects GitHub token", () => {
-    const result = scanForSecrets("ghp_1234567890abcdefghijklmnopqrstuvwxyz12");
+    const ghKey = ["ghp_", "1234567890abcdefghijklmnopqrstuvwxyz12"].join("");
+    const result = scanForSecrets(ghKey);
     expect(result.action).toBe("block");
   });
 
@@ -353,15 +356,17 @@ describe("Guardrail Engine", () => {
   });
 
   test("input guardrails block secret before routing", () => {
+    const openAiKey = ["sk-", "1234567890abcdefghijklmn"].join("");
     const req: NormalizedChatRequest = {
       model: "pao-code",
-      messages: [{ role: "user", content: "Use this key: sk-1234567890abcdefghijklmn" }],
+      messages: [{ role: "user", content: `Use this key: ${openAiKey}` }],
     };
     const result = runInputGuardrails(req, undefined);
     expect(result.action).toBe("block");
   });
 
   test("output guardrails block secret in response", () => {
+    const outKey = ["sk-", "1234567890abcdefghijklmn"].join("");
     const resp: NormalizedChatResponse = {
       id: "test",
       object: "chat.completion",
@@ -369,7 +374,7 @@ describe("Guardrail Engine", () => {
       model: "test",
       choices: [{
         index: 0,
-        message: { role: "assistant", content: "Here is your key: sk-1234567890abcdefghijklmn" },
+        message: { role: "assistant", content: `Here is your key: ${outKey}` },
         finishReason: "stop",
       }],
     };

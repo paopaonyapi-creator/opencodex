@@ -2729,4 +2729,5 @@ export const ko: Record<TKey, string> = {
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
   "nav.mobile": "Mobile Gateway",
+  "nav.aiGateway": "AI 게이트웨이",
 };

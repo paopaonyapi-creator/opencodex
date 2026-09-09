@@ -16,6 +16,7 @@ import AgencyCenter from "./pages/AgencyCenter";
 import AgentControlCenter from "./pages/AgentControlCenter";
 import BrowserStudio from "./pages/BrowserStudio";
 import MobileGateway from "./pages/MobileGateway";
+import AiGateway from "./pages/AiGateway";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
 import Startup from "./pages/Startup";
@@ -53,6 +54,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "desktop-agent": "nav.desktopAgent",
   browser: "nav.browser",
   mobile: "nav.mobile",
+  "ai-gateway": "nav.aiGateway",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
 };
@@ -91,6 +93,7 @@ const NAV: NavEntry[] = [
   { id: "desktop-agent", tkey: "nav.desktopAgent", Icon: IconTerminal },
   { id: "browser", tkey: "nav.browser", Icon: IconBrowser },
   { id: "mobile", tkey: "nav.mobile", Icon: IconTerminal },
+  { id: "ai-gateway", tkey: "nav.aiGateway", Icon: IconServer },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
 ];
@@ -378,6 +381,7 @@ export default function App() {
             {page === "desktop-agent" && <AgentControlCenter apiBase={API_BASE} />}
             {page === "browser" && <BrowserStudio apiBase={API_BASE} />}
             {page === "mobile" && <MobileGateway apiBase={API_BASE} />}
+            {page === "ai-gateway" && <AiGateway apiBase={API_BASE} />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
           </ErrorBoundary>

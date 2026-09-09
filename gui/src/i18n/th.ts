@@ -1340,6 +1340,7 @@ export const th: Record<TKey, string> = {
  "nav.desktopAgent": "Desktop Agent",
  "nav.browser": "Browser Studio",
  "nav.mobile": "Mobile Gateway",
+ "nav.aiGateway": "เกตเวย์ AI",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "เปิดใช้งาน",
  "aiStudio.disabled": "ปิดใช้งาน",

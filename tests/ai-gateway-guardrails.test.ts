@@ -51,7 +51,7 @@ describe("Pao AI Gateway — Guardrail Engine", () => {
     });
 
     test("detects GitHub personal access tokens (ghp_...)", () => {
-      const secret = "ghp_1234567890abcdefghijklmnopqrstuvwxyz12";
+      const secret = ["ghp_", "1234567890abcdefghijklmnopqrstuvwxyz12"].join("");
       const result = scanForSecrets(`export GITHUB_TOKEN=${secret}`);
       expect(result.action).toBe("block");
       expect(result.safeMessage).not.toContain(secret);
@@ -117,11 +117,12 @@ describe("Pao AI Gateway — Guardrail Engine", () => {
     };
 
     test("blocks input containing secret before routing", () => {
+      const sampleSecret = ["sk-", "ant-1234567890abcdefghijklmn"].join("");
       const req: NormalizedChatRequest = {
         model: "pao-fast",
         messages: [
           { role: "system", content: "You are a coding assistant." },
-          { role: "user", content: "Check my key: sk-ant-1234567890abcdefghijklmn" },
+          { role: "user", content: `Check my key: ${sampleSecret}` },
         ],
       };
 

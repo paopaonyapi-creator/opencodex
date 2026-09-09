@@ -2730,4 +2730,5 @@ export const tr: Record<TKey, string> = {
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
   "nav.mobile": "Mobile Gateway",
+  "nav.aiGateway": "AI Ağ Geçidi",
 };

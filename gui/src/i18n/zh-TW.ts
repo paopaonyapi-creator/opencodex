@@ -2427,6 +2427,7 @@ export const zhTW: Record<TKey, string> = {
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
   "nav.mobile": "Mobile Gateway",
+  "nav.aiGateway": "AI 閘道",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

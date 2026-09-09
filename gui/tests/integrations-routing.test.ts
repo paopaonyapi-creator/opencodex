@@ -70,6 +70,14 @@ describe("mobile gateway route", () => {
   });
 });
 
+describe("ai-gateway route", () => {
+  test("the ai-gateway page is a registered route that settles", () => {
+    expect(VALID_PAGES.has("ai-gateway")).toBe(true);
+    expect(readPageFromHash("ai-gateway")).toBe("ai-gateway");
+    expect(resolveAppHashChange("ai-gateway").replaceTo).toBeNull();
+  });
+});
+
 describe("registered nested hashes", () => {
   test("every registered tab hash survives untouched", () => {
     for (const raw of INTEGRATION_TAB_HASHES) {

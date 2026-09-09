@@ -2441,6 +2441,7 @@ export const de: Record<TKey, string> = {
   "nav.desktopAgent": "Desktop Agent",
   "nav.browser": "Browser Studio",
   "nav.mobile": "Mobile Gateway",
+  "nav.aiGateway": "AI-Gateway",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

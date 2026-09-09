@@ -142,6 +142,23 @@ export interface KnowledgeIngestRecord {
   createdAt: string;
 }
 
+export interface RegenerationFeedback {
+  action: "pass_to_export" | "regenerate" | "manual_review";
+  reason?: string;
+  timestamp?: number;
+  suggestion?: string;
+}
+
+export interface ProvenanceRecord {
+  sourceHash: string;
+  analysisIntent: VideoJobIntent;
+  privacyMode: "local-only" | "cloud-allowed";
+  transcriptProvider: string;
+  reviewerCouncil: boolean;
+  schemaVersion: string;
+  generatedAt: string;
+}
+
 export interface VideoAnalysisReport {
   jobId: string;
   source: string;
@@ -156,6 +173,8 @@ export interface VideoAnalysisReport {
   stockQc?: StockQcResult;
   councilReview?: VideoCouncilReview;
   knowledgeRecord?: KnowledgeIngestRecord;
+  feedback?: RegenerationFeedback;
+  provenance?: ProvenanceRecord;
   markdownReport: string;
   createdAt: string;
   completedAt: string;
@@ -173,6 +192,7 @@ export interface VideoJobConfig {
   reviewerCouncil?: boolean;
   deepAnalysis?: boolean;
   ingestKnowledge?: boolean;
+  useCache?: boolean;
 }
 
 export interface VideoJob {

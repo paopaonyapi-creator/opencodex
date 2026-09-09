@@ -16,7 +16,8 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
 ## 2. Key Deliverables & Architecture
 
 ### Core Domain Subsystem (`src/agent-os/video-intelligence/`)
-- `types.ts`: Domain models (`VideoJobIntent`, `VideoJobStatus`, `VideoMetadata`, `SceneCut`, `HeroFrame`, `HookAnalysis`, `VideoTranscript`, `PacingMetrics`, `StockQcResult`, `VideoAnalysisReport`, `VideoJob`).
+- `cache.ts`: `VideoAnalysisCache` — deterministic SHA-256 media cache layer with mtime/size invalidation.
+- `types.ts`: Domain models (`VideoJobIntent`, `VideoJobStatus`, `VideoMetadata`, `SceneCut`, `HeroFrame`, `HookAnalysis`, `VideoTranscript`, `PacingMetrics`, `StockQcResult`, `VideoAnalysisReport`, `VideoJob`, `RegenerationFeedback`, `ProvenanceRecord`).
 - `security.ts`: `VideoSecurityValidator` — SSRF protection against private/loopback IP addressing, command injection prevention, path traversal defense, and safe `yt-dlp` argument generation with argument boundaries (`--`).
 - `media-probe.ts`: `MediaProbe` — probes media metadata, codecs, bitrate, dimensions, and calculates aspect ratios with offline simulation fallback.
 - `frame-extractor.ts`: `FrameExtractor` — scene change detection, fallback uniform sampling, and hero frame selection based on brightness/contrast scoring.
@@ -24,13 +25,13 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
 - `transcript-engine.ts`: `TranscriptEngine` — 3-tier cascade respecting `localOnly` mode and masking private transcript text.
 - `pacing-analyzer.ts`: `PacingAnalyzer` — cuts-per-minute, mean shot lengths, pace classification.
 - `stock-qc.ts`: `StockQcEngine` — technical resolution, clip length, non-standard aspect ratios, and commercial brand risk detection.
-- `report-builder.ts`: `ReportBuilder` — markdown generation with technical specification tables, timeline breakdown, and actionable suggestions.
-- `job-manager.ts`: `VideoJobManager` — state machine lifecycle (`queued` -> `probing` -> `extracting_frames` -> `transcribing` -> `analyzing` -> `reviewing` -> `reporting` -> `completed`), cancellation, filtering.
+- `report-builder.ts`: `ReportBuilder` — markdown generation with technical specification tables, timeline breakdown, AI Video Factory feedback, provenance block, and actionable suggestions.
+- `job-manager.ts`: `VideoJobManager` — state machine lifecycle (`queued` -> `probing` -> `extracting_frames` -> `transcribing` -> `analyzing` -> `reviewing` -> `reporting` -> `completed`), auto-intent inference, factory feedback generation, deterministic cache integration, cancellation, and filtering.
 - `council-adapter.ts`: `VideoReviewerCouncil` — multi-agent consensus review (`local`, `openai`, `claude`) for deep, stock QC, and high-risk evaluation.
 - `knowledge-adapter.ts`: `KnowledgeAdapter` — structured knowledge ingestion (`type: video_analysis`), concept & entity extraction.
 - `db-store.ts`: `VideoDbStore` — persistent SQLite ledger storage (`video_intelligence_jobs`, `video_intelligence_findings`).
 - `mcp-tools.ts`: `VIDEO_INTELLIGENCE_MCP_TOOLS` — 11 WebMCP tools (`video_analyze`, `video_inspect`, `video_transcribe`, `video_extract_frames`, `video_analyze_hook`, `video_analyze_pacing`, `video_stock_qc`, `video_debug_screen`, `video_get_report`, `video_list_jobs`, `video_cancel_job`).
-- `index.ts`: Public API and singletons (`getVideoJobManager()`, `resetVideoJobManager()`, and WebMCP tool exports).
+- `index.ts`: Public API and singletons (`getVideoJobManager()`, `resetVideoJobManager()`, `VideoAnalysisCache`, and WebMCP tool exports).
 
 ### CLI Command Runner
 - `scripts/pao-video.ts`: `pao video analyze <source>` CLI supporting all command flags (`--intent`, `--start`, `--end`, `--sampling`, `--hook`, `--local-only`, `--reviewer-council`, `--json`, `--output`).
@@ -44,6 +45,7 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
   - `GET /api/agent-os/video-intelligence/jobs/:id/report`: Retrieve full report artifact (Markdown & JSON).
   - `GET /api/agent-os/video-intelligence/jobs/:id/frames`: Extract detected scene cuts and hero keyframes.
   - `GET /api/agent-os/video-intelligence/jobs/:id/transcript`: Retrieve transcript segments and dialogue timestamps.
+  - `GET /api/agent-os/video-intelligence/jobs/:id/events`: Real-time SSE (`text/event-stream`) streaming progress and status events.
   - Route alias `/api/video/*` mapped for convenience.
 - Mounted via lazy dynamic import in `src/server/management/agent-os-routes.ts`.
 
@@ -68,22 +70,24 @@ Phase 20.13 introduces the **Provider-Neutral, Local-First Video Intelligence La
 
 | Gate / Test Suite | Result | Details |
 | :--- | :--- | :--- |
+| `tests/video-intelligence-types.test.ts` | **PASS (1/1)** | Type invariants and default configuration validation verified |
 | `tests/video-intelligence-security.test.ts` | **PASS (6/6)** | SSRF, loopback blocking, path traversal, safe argv escaping verified |
-| `tests/video-intelligence-probe.test.ts` | **PASS (2/2)** | Geometry calculation, resolution, orientation, codec probing verified |
-| `tests/video-intelligence-pacing.test.ts` | **PASS (2/2)** | Fast-cut high energy vs contemplative rhythm metrics verified |
-| `tests/video-intelligence-stock-qc.test.ts` | **PASS (6/6)** | 720p/1080p standards, duration limits, watermark detection, verdicts verified |
-| `tests/video-intelligence-job-manager.test.ts` | **PASS (4/4)** | Lifecycle state machine, report generation, filtering, cancellation verified |
-| `tests/video-intelligence-routes.test.ts` | **PASS (6/6)** | REST endpoints, job creation, reports, cancel, alias `/api/video/jobs` verified |
+| `tests/video-intelligence-media-probe.test.ts` | **PASS (2/2)** | Geometry calculation, resolution, orientation, codec probing verified |
+| `tests/video-intelligence-frame-extractor.test.ts` | **PASS (2/2)** | Scene change thresholding, hero frame selection verified |
+| `tests/video-intelligence-engines.test.ts` | **PASS (8/8)** | PacingAnalyzer, HookAnalyzer, TranscriptEngine, StockQcEngine verified |
+| `tests/video-intelligence-job-manager.test.ts` | **PASS (7/7)** | State machine, report, auto-intent, factory feedback, caching verified |
+| `tests/video-intelligence-routes.test.ts` | **PASS (8/8)** | REST endpoints, reports, cancel, alias `/api/video/jobs`, SSE events verified |
 | `tests/video-intelligence-mcp-tools.test.ts` | **PASS (21/21)** | All 11 WebMCP tool definitions, argument validation, and executions verified |
 | `tests/video-intelligence-council.test.ts` | **PASS (3/3)** | Multi-agent consensus, knowledge extraction, and SQLite persistence verified |
 | `tests/video-intelligence-cli.test.ts` | **PASS (5/5)** | CLI command dispatch, option parsing, JSON output, and execution flow verified |
-| **Total Phase 20.13 Unit Tests** | **PASS (55/55)** | 0 failures, 217 expect assertions green across 9 test files |
+| **Total Phase 20.13 Unit Tests** | **PASS (59/59)** | 0 failures, 237 expect assertions green across 10 test files |
 | `tests/core-lab-boundary.test.ts` | **PASS (17/17)** | Zero core-to-lab imports or leakage |
 | `tests/repo-hygiene.test.ts` | **PASS (12/12)** | Clean repository state, no untracked local state |
 | `bun run typecheck` | **PASS** | 0 TypeScript errors |
 | `bun run lint:gui` | **PASS** | 0 warnings, 0 errors across 245 files |
-| `bun run build:gui` | **PASS** | Production Vite bundle built cleanly in 1.46s |
+| `bun run build:gui` | **PASS** | Production Vite bundle built cleanly in 1.57s |
 | `bun run privacy:scan` | **PASS** | 0 credential or secret leaks |
 | `bun run skill:surface:check` | **PASS** | Management surface map current |
+
 
 

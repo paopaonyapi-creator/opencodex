@@ -6,6 +6,8 @@
 import type {
   HookAnalysis,
   PacingMetrics,
+  ProvenanceRecord,
+  RegenerationFeedback,
   StockQcResult,
   VideoCouncilReview,
   VideoMetadata,
@@ -22,6 +24,8 @@ export interface BuildReportParams {
   transcript?: VideoTranscript;
   stockQc?: StockQcResult;
   councilReview?: VideoCouncilReview;
+  feedback?: RegenerationFeedback;
+  provenance?: ProvenanceRecord;
   createdAt: string;
 }
 
@@ -30,7 +34,7 @@ export class ReportBuilder {
    * Assembles a structured Markdown analysis report.
    */
   public buildMarkdown(params: BuildReportParams): string {
-    const { jobId, source, intent, metadata, pacing, hook, transcript, stockQc, councilReview, createdAt } = params;
+    const { jobId, source, intent, metadata, pacing, hook, transcript, stockQc, councilReview, feedback, provenance, createdAt } = params;
 
     const sections: string[] = [];
 
@@ -120,6 +124,29 @@ export class ReportBuilder {
       for (const rev of councilReview.reviewers) {
         sections.push(`| \`${rev.name}\` | **${rev.verdict.toUpperCase()}** | ${rev.score}/100 | ${rev.reasoning || "Completed"} |`);
       }
+      sections.push(``);
+    }
+
+    // 7. Video Factory Regeneration Guidance
+    if (feedback) {
+      sections.push(`## 7. AI Video Factory Regeneration Guidance`);
+      sections.push(`- **Action:** **\`${feedback.action.toUpperCase()}\`**`);
+      if (feedback.reason) sections.push(`- **Reason:** ${feedback.reason}`);
+      if (feedback.timestamp !== undefined) sections.push(`- **Time Offset:** ${feedback.timestamp.toFixed(1)}s`);
+      if (feedback.suggestion) sections.push(`- **Prompt/Parameter Suggestion:** ${feedback.suggestion}`);
+      sections.push(``);
+    }
+
+    // Provenance
+    if (provenance) {
+      sections.push(`## Provenance`);
+      sections.push(`- **Source Hash:** \`${provenance.sourceHash}\``);
+      sections.push(`- **Analysis Intent:** \`${provenance.analysisIntent}\``);
+      sections.push(`- **Privacy Mode:** \`${provenance.privacyMode}\``);
+      sections.push(`- **Transcript Engine:** \`${provenance.transcriptProvider}\``);
+      sections.push(`- **Reviewer Council:** ${provenance.reviewerCouncil ? "Enabled" : "Skipped"}`);
+      sections.push(`- **Schema Version:** \`${provenance.schemaVersion}\``);
+      sections.push(`- **Generated At:** ${provenance.generatedAt}`);
       sections.push(``);
     }
 

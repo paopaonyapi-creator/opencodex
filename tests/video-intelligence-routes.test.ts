@@ -84,10 +84,43 @@ describe("Phase 20.13 — Video Intelligence Management Routes", () => {
     const repRes = await handleVideoIntelligenceRoutes(repCtx);
     expect([200, 202]).toContain(repRes!.status);
 
+    // GET /jobs/:id/events
+    const eventsCtx = makeContext(`/api/agent-os/video-intelligence/jobs/${jobId}/events`, "GET");
+    const eventsRes = await handleVideoIntelligenceRoutes(eventsCtx);
+    expect(eventsRes!.status).toBe(200);
+    const eventsData = await eventsRes!.json() as { events: any[] };
+    expect(Array.isArray(eventsData.events)).toBe(true);
+
     // POST /jobs/:id/cancel
     const cancelCtx = makeContext(`/api/agent-os/video-intelligence/jobs/${jobId}/cancel`, "POST");
     const cancelRes = await handleVideoIntelligenceRoutes(cancelCtx);
     expect(cancelRes!.status).toBe(200);
+  });
+
+  it("supports SSE stream on /jobs/:id/events with text/event-stream header", async () => {
+    const postCtx = makeContext("/api/agent-os/video-intelligence/jobs", "POST", {
+      source: "https://example.com/stream_demo.mp4",
+    });
+    const postRes = await handleVideoIntelligenceRoutes(postCtx);
+    const postData = await postRes!.json() as { job: { id: string } };
+
+    const sseReq = new Request(`http://127.0.0.1:10100/api/agent-os/video-intelligence/jobs/${postData.job.id}/events`, {
+      headers: { Accept: "text/event-stream" },
+    });
+    const sseCtx: ManagementContext = {
+      req: sseReq,
+      url: new URL(sseReq.url),
+      config: {} as any,
+      configActions: {} as any,
+    };
+
+    const sseRes = await handleVideoIntelligenceRoutes(sseCtx);
+    expect(sseRes).not.toBeNull();
+    expect(sseRes!.status).toBe(200);
+    expect(sseRes!.headers.get("Content-Type")).toContain("text/event-stream");
+    const text = await sseRes!.text();
+    expect(text).toContain("event: progress");
+    expect(text).toContain("data:");
   });
 
   it("supports alias /api/video/jobs", async () => {

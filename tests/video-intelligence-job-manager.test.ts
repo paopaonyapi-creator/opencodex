@@ -69,4 +69,64 @@ describe("Phase 20.13 — VideoJobManager", () => {
       expect(["completed", "failed"]).toContain(fetched!.status);
     }
   });
+
+  it("infers smart auto-intent from source string and orientation", () => {
+    const manager = new VideoJobManager();
+    expect(manager.inferAutoIntent("https://example.com/adobe_stock_clip.mp4")).toBe("adobe_stock_qc");
+    expect(manager.inferAutoIntent("https://example.com/screen_recording_bug.mp4")).toBe("screen_debug");
+    expect(manager.inferAutoIntent("https://example.com/tiktok_shorts_reel.mp4")).toBe("hook_analysis");
+    expect(manager.inferAutoIntent("https://example.com/guide_tutorial.mp4")).toBe("tutorial_extract");
+    expect(manager.inferAutoIntent("https://example.com/unknown.mp4")).toBe("general");
+  });
+
+  it("generates automated regeneration feedback for AI Video Factory", () => {
+    const manager = new VideoJobManager();
+    const passFeedback = manager.generateFactoryFeedback({
+      verdict: "PASS",
+      score: 95,
+      confidence: 0.9,
+      issues: [],
+      recommendations: [],
+    });
+    expect(passFeedback.action).toBe("pass_to_export");
+
+    const failFeedback = manager.generateFactoryFeedback({
+      verdict: "FAIL",
+      score: 30,
+      confidence: 0.9,
+      issues: [{ severity: "high", timestamp: 5.2, type: "temporal_hand_defect", message: "Hand deformation" }],
+      recommendations: [],
+    });
+    expect(failFeedback.action).toBe("regenerate");
+    expect(failFeedback.reason).toBe("temporal_hand_defect");
+    expect(failFeedback.timestamp).toBe(5.2);
+  });
+
+  it("utilizes deterministic cache on repeat job submission", async () => {
+    const manager = new VideoJobManager();
+    const source = "https://example.com/cached_video.mp4";
+
+    const job1 = await manager.submitJob(source, { intent: "summary", useCache: true });
+    let final1 = manager.getJob(job1.id);
+    const start = Date.now();
+    while (final1 && final1.status !== "completed" && Date.now() - start < 3000) {
+      await new Promise((r) => setTimeout(r, 40));
+      final1 = manager.getJob(job1.id);
+    }
+
+    expect(final1?.status).toBe("completed");
+    expect(final1?.report?.provenance).toBeDefined();
+
+    // Second submission with exact same source and config should hit cache
+    const job2 = await manager.submitJob(source, { intent: "summary", useCache: true });
+    let final2 = manager.getJob(job2.id);
+    const start2 = Date.now();
+    while (final2 && final2.status !== "completed" && Date.now() - start2 < 1000) {
+      await new Promise((r) => setTimeout(r, 20));
+      final2 = manager.getJob(job2.id);
+    }
+
+    expect(final2?.status).toBe("completed");
+    expect(final2?.currentStage).toContain("cache");
+  });
 });

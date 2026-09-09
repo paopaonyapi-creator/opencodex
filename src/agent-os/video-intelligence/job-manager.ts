@@ -15,10 +15,17 @@ import { TranscriptEngine } from "./transcript-engine";
 import { VideoReviewerCouncil } from "./council-adapter";
 import { KnowledgeAdapter } from "./knowledge-adapter";
 import { VideoDbStore } from "./db-store";
+import { VideoAnalysisCache } from "./cache";
 import type {
+  PacingMetrics,
+  ProvenanceRecord,
+  RegenerationFeedback,
+  StockQcResult,
   VideoAnalysisReport,
   VideoJob,
   VideoJobConfig,
+  VideoJobIntent,
+  VideoMetadata,
 } from "./types";
 
 export class VideoJobManager {
@@ -34,6 +41,7 @@ export class VideoJobManager {
   private council: VideoReviewerCouncil;
   private knowledgeAdapter: KnowledgeAdapter;
   private dbStore: VideoDbStore;
+  private cache: VideoAnalysisCache;
 
   constructor() {
     this.security = new VideoSecurityValidator();
@@ -47,6 +55,7 @@ export class VideoJobManager {
     this.council = new VideoReviewerCouncil();
     this.knowledgeAdapter = new KnowledgeAdapter();
     this.dbStore = new VideoDbStore();
+    this.cache = new VideoAnalysisCache();
   }
 
   /**
@@ -72,15 +81,20 @@ export class VideoJobManager {
     const now = new Date().toISOString();
     const id = `vjob_${randomUUID().slice(0, 10)}`;
 
+    const effectiveIntent = config.intent && config.intent !== ("auto" as any)
+      ? config.intent
+      : this.inferAutoIntent(source);
+
     const job: VideoJob = {
       id,
       source,
       sourceType,
       config: {
-        intent: config.intent ?? "general",
+        intent: effectiveIntent,
         sampling: config.sampling ?? "auto",
         enableHookMicroscope: config.enableHookMicroscope ?? true,
         localOnly: config.localOnly ?? false,
+        useCache: config.useCache ?? true,
         ...config,
       },
       status: "queued",
@@ -99,10 +113,77 @@ export class VideoJobManager {
   }
 
   /**
+   * Automatically infers analysis intent from filename, URL path, or video orientation
+   */
+  public inferAutoIntent(source: string, metadata?: VideoMetadata): VideoJobIntent {
+    const lower = source.toLowerCase();
+    if (lower.includes("stock") || lower.includes("adobe")) return "adobe_stock_qc";
+    if (lower.includes("bug") || lower.includes("screen") || lower.includes("record")) return "screen_debug";
+    if (lower.includes("tutorial") || lower.includes("guide") || lower.includes("howto")) return "tutorial_extract";
+    if (lower.includes("shorts") || lower.includes("tiktok") || lower.includes("reel")) return "hook_analysis";
+    if (metadata && metadata.orientation === "portrait" && metadata.durationSec <= 60) return "hook_analysis";
+    return "general";
+  }
+
+  /**
+   * Synthesizes automated regeneration feedback for AI Video Factory
+   */
+  public generateFactoryFeedback(
+    stockQc?: StockQcResult,
+    metadata?: VideoMetadata,
+    pacing?: PacingMetrics,
+  ): RegenerationFeedback {
+    if (stockQc && stockQc.verdict === "FAIL") {
+      const highIssue = stockQc.issues.find((i) => i.severity === "high") || stockQc.issues[0];
+      return {
+        action: "regenerate",
+        reason: highIssue ? highIssue.type : "quality_baseline_failure",
+        timestamp: highIssue ? highIssue.timestamp : 0,
+        suggestion: highIssue ? highIssue.message : "Regenerate with higher prompt clarity and stable seed",
+      };
+    }
+    if (stockQc && stockQc.verdict === "REVIEW") {
+      return {
+        action: "manual_review",
+        reason: "moderate_quality_warning",
+        suggestion: "Review suggested tags and verify visual stability before upload",
+      };
+    }
+    if (metadata && metadata.durationSec < 4) {
+      return {
+        action: "regenerate",
+        reason: "duration_too_short",
+        timestamp: 0,
+        suggestion: "Extend minimum clip duration to at least 4 seconds",
+      };
+    }
+    return {
+      action: "pass_to_export",
+      reason: "all_standards_passed",
+      suggestion: "Asset certified for export and commercial distribution",
+    };
+  }
+
+  /**
    * Executes the multi-stage video intelligence pipeline.
    */
   private async executeJob(job: VideoJob): Promise<void> {
     try {
+      // 0. Deterministic Cache Pre-flight
+      const cacheKey = this.cache.computeHash(job.source, job.config.intent, JSON.stringify(job.config));
+      if (job.config.useCache ?? true) {
+        const cached = this.cache.get(cacheKey);
+        if (cached) {
+          job.report = { ...cached, jobId: job.id };
+          job.status = "completed";
+          job.progressPercent = 100;
+          job.currentStage = "Restored from media cache";
+          job.updatedAt = new Date().toISOString();
+          this.dbStore.saveJob(job);
+          return;
+        }
+      }
+
       // Stage 1: Probing
       job.status = "probing";
       job.progressPercent = 15;
@@ -110,6 +191,11 @@ export class VideoJobManager {
       job.updatedAt = new Date().toISOString();
 
       const metadata = await this.probe.probe(job.source);
+
+      // Auto-intent fine tuning if initial intent was generic
+      if ((!job.config.intent || job.config.intent === "general") && metadata.orientation === "portrait" && metadata.durationSec <= 60) {
+        job.config.intent = "hook_analysis";
+      }
 
       // Stage 2: Extracting Frames & Scenes
       job.status = "extracting_frames";
@@ -165,6 +251,8 @@ export class VideoJobManager {
         councilReview = await this.council.evaluate(job, { metadata, pacing, hook, transcript, stockQc });
       }
 
+      const feedback = this.generateFactoryFeedback(stockQc, metadata, pacing);
+
       // Stage 6: Reporting
       job.status = "reporting";
       job.progressPercent = 95;
@@ -172,6 +260,16 @@ export class VideoJobManager {
       job.updatedAt = new Date().toISOString();
 
       const completedAt = new Date().toISOString();
+      const provenance: ProvenanceRecord = {
+        sourceHash: cacheKey.slice(0, 16),
+        analysisIntent: job.config.intent ?? "general",
+        privacyMode: job.config.localOnly ? "local-only" : "cloud-allowed",
+        transcriptProvider: transcript.provider,
+        reviewerCouncil: Boolean(councilReview),
+        schemaVersion: "20.13.0",
+        generatedAt: completedAt,
+      };
+
       const markdownReport = this.reportBuilder.buildMarkdown({
         jobId: job.id,
         source: job.source,
@@ -182,6 +280,8 @@ export class VideoJobManager {
         transcript,
         stockQc,
         councilReview,
+        feedback,
+        provenance,
         createdAt: completedAt,
       });
 
@@ -198,6 +298,8 @@ export class VideoJobManager {
         heroFrames,
         stockQc,
         councilReview,
+        feedback,
+        provenance,
         markdownReport,
         createdAt: job.createdAt,
         completedAt,
@@ -205,6 +307,11 @@ export class VideoJobManager {
 
       if (job.config.ingestKnowledge ?? true) {
         report.knowledgeRecord = this.knowledgeAdapter.ingest(report);
+      }
+
+      // Store in memory cache
+      if (job.config.useCache ?? true) {
+        this.cache.set(cacheKey, report);
       }
 
       job.report = report;

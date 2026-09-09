@@ -142,6 +142,33 @@ export async function handleVideoIntelligenceRoutes(ctx: ManagementContext): Pro
       }
       return badRequest(req, `Method ${req.method} not allowed for transcript.`);
     }
+
+    // GET /jobs/:id/events (SSE & Progress Events)
+    if (sub === "events") {
+      if (req.method === "GET") {
+        const eventData = {
+          type: `job.${job.status}`,
+          status: job.status,
+          progress: job.progressPercent,
+          stage: job.currentStage,
+          updatedAt: job.updatedAt,
+        };
+
+        if (req.headers.get("accept")?.includes("text/event-stream")) {
+          const streamPayload = `event: progress\ndata: ${JSON.stringify(eventData)}\n\n`;
+          return new Response(streamPayload, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+            },
+          });
+        }
+        return jsonResponse({ events: [eventData], job }, 200, req, {});
+      }
+      return badRequest(req, `Method ${req.method} not allowed for events.`);
+    }
   }
 
   return notFound(req, `Video Intelligence endpoint '/${path}' not found.`);

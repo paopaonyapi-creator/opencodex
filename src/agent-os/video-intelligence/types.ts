@@ -117,6 +117,31 @@ export interface StockQcResult {
   recommendations: string[];
 }
 
+export interface ReviewerEvaluation {
+  name: "openai" | "claude" | "local" | string;
+  verdict: "pass" | "review" | "fail";
+  score: number; // 0-100
+  reasoning?: string;
+}
+
+export interface VideoCouncilReview {
+  reviewers: ReviewerEvaluation[];
+  consensus: "pass" | "review" | "fail";
+  confidence: number; // 0.0 - 1.0
+  evaluatedAt: string;
+}
+
+export interface KnowledgeIngestRecord {
+  type: "video_analysis";
+  source: string;
+  title: string;
+  summary: string;
+  concepts: string[];
+  entities: string[];
+  reportPath?: string;
+  createdAt: string;
+}
+
 export interface VideoAnalysisReport {
   jobId: string;
   source: string;
@@ -129,6 +154,8 @@ export interface VideoAnalysisReport {
   scenes: SceneCut[];
   heroFrames: HeroFrame[];
   stockQc?: StockQcResult;
+  councilReview?: VideoCouncilReview;
+  knowledgeRecord?: KnowledgeIngestRecord;
   markdownReport: string;
   createdAt: string;
   completedAt: string;
@@ -143,6 +170,9 @@ export interface VideoJobConfig {
   startSec?: number;
   endSec?: number;
   enableHookMicroscope?: boolean;
+  reviewerCouncil?: boolean;
+  deepAnalysis?: boolean;
+  ingestKnowledge?: boolean;
 }
 
 export interface VideoJob {
@@ -158,3 +188,4 @@ export interface VideoJob {
   createdAt: string;
   updatedAt: string;
 }
+

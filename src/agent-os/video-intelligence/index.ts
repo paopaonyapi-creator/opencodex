@@ -15,6 +15,9 @@ export { PacingAnalyzer } from "./pacing-analyzer";
 export { StockQcEngine } from "./stock-qc";
 export { ReportBuilder } from "./report-builder";
 export { VideoJobManager } from "./job-manager";
+export { VideoReviewerCouncil } from "./council-adapter";
+export { KnowledgeAdapter } from "./knowledge-adapter";
+export { VideoDbStore } from "./db-store";
 export * from "./mcp-tools";
 
 let defaultJobManager: VideoJobManager | null = null;

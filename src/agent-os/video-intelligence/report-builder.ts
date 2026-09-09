@@ -7,6 +7,7 @@ import type {
   HookAnalysis,
   PacingMetrics,
   StockQcResult,
+  VideoCouncilReview,
   VideoMetadata,
   VideoTranscript,
 } from "./types";
@@ -20,6 +21,7 @@ export interface BuildReportParams {
   hook?: HookAnalysis;
   transcript?: VideoTranscript;
   stockQc?: StockQcResult;
+  councilReview?: VideoCouncilReview;
   createdAt: string;
 }
 
@@ -28,7 +30,7 @@ export class ReportBuilder {
    * Assembles a structured Markdown analysis report.
    */
   public buildMarkdown(params: BuildReportParams): string {
-    const { jobId, source, intent, metadata, pacing, hook, transcript, stockQc, createdAt } = params;
+    const { jobId, source, intent, metadata, pacing, hook, transcript, stockQc, councilReview, createdAt } = params;
 
     const sections: string[] = [];
 
@@ -97,7 +99,7 @@ export class ReportBuilder {
       sections.push(``);
     }
 
-    // 5. Transcript Summary
+    // 5. Spoken Dialogue Transcript
     if (transcript && transcript.segments.length > 0) {
       sections.push(`## 5. Spoken Dialogue Transcript`);
       sections.push(`**Provider:** \`${transcript.provider}\` | **Language:** \`${transcript.language.toUpperCase()}\`\n`);
@@ -109,6 +111,19 @@ export class ReportBuilder {
       sections.push(``);
     }
 
+    // 6. Reviewer Council Multi-Agent Consensus
+    if (councilReview) {
+      sections.push(`## 6. Reviewer Council Consensus`);
+      sections.push(`**Consensus:** **\`${councilReview.consensus.toUpperCase()}\`** | **Confidence:** ${(councilReview.confidence * 100).toFixed(0)}%\n`);
+      sections.push(`| Reviewer | Verdict | Score | Assessment |`);
+      sections.push(`|---|---|---|---|`);
+      for (const rev of councilReview.reviewers) {
+        sections.push(`| \`${rev.name}\` | **${rev.verdict.toUpperCase()}** | ${rev.score}/100 | ${rev.reasoning || "Completed"} |`);
+      }
+      sections.push(``);
+    }
+
     return sections.join("\n");
   }
 }
+

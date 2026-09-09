@@ -12,6 +12,9 @@ import { ReportBuilder } from "./report-builder";
 import { VideoSecurityValidator } from "./security";
 import { StockQcEngine } from "./stock-qc";
 import { TranscriptEngine } from "./transcript-engine";
+import { VideoReviewerCouncil } from "./council-adapter";
+import { KnowledgeAdapter } from "./knowledge-adapter";
+import { VideoDbStore } from "./db-store";
 import type {
   VideoAnalysisReport,
   VideoJob,
@@ -28,6 +31,9 @@ export class VideoJobManager {
   private pacingAnalyzer: PacingAnalyzer;
   private stockQc: StockQcEngine;
   private reportBuilder: ReportBuilder;
+  private council: VideoReviewerCouncil;
+  private knowledgeAdapter: KnowledgeAdapter;
+  private dbStore: VideoDbStore;
 
   constructor() {
     this.security = new VideoSecurityValidator();
@@ -38,6 +44,9 @@ export class VideoJobManager {
     this.pacingAnalyzer = new PacingAnalyzer();
     this.stockQc = new StockQcEngine();
     this.reportBuilder = new ReportBuilder();
+    this.council = new VideoReviewerCouncil();
+    this.knowledgeAdapter = new KnowledgeAdapter();
+    this.dbStore = new VideoDbStore();
   }
 
   /**
@@ -151,6 +160,11 @@ export class VideoJobManager {
           ? this.stockQc.evaluate(metadata, transcript.fullText)
           : undefined;
 
+      let councilReview = undefined;
+      if (this.council.shouldReview(job, { metadata, pacing, hook, transcript, stockQc })) {
+        councilReview = await this.council.evaluate(job, { metadata, pacing, hook, transcript, stockQc });
+      }
+
       // Stage 6: Reporting
       job.status = "reporting";
       job.progressPercent = 95;
@@ -167,6 +181,7 @@ export class VideoJobManager {
         hook,
         transcript,
         stockQc,
+        councilReview,
         createdAt: completedAt,
       });
 
@@ -182,26 +197,35 @@ export class VideoJobManager {
         scenes,
         heroFrames,
         stockQc,
+        councilReview,
         markdownReport,
         createdAt: job.createdAt,
         completedAt,
       };
+
+      if (job.config.ingestKnowledge ?? true) {
+        report.knowledgeRecord = this.knowledgeAdapter.ingest(report);
+      }
 
       job.report = report;
       job.status = "completed";
       job.progressPercent = 100;
       job.currentStage = "Analysis complete";
       job.updatedAt = completedAt;
+      this.dbStore.saveJob(job);
     } catch (err) {
       job.status = "failed";
       job.error = (err as Error).message;
       job.updatedAt = new Date().toISOString();
+      this.dbStore.saveJob(job);
     }
   }
 
   public getJob(id: string): VideoJob | undefined {
     const job = this.jobs.get(id);
-    return job ? { ...job } : undefined;
+    if (job) return { ...job };
+    const persisted = this.dbStore.getJob(id);
+    return persisted ? { ...persisted } : undefined;
   }
 
   public listJobs(filter: { intent?: string; status?: string; limit?: number } = {}): VideoJob[] {

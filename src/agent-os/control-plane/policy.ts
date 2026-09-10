@@ -21,6 +21,7 @@ import {
   commandProgram,
   parseShellCommand,
 } from "../desktop-runtime/security/shell-tokenizer";
+import { getPolicyEngine } from "../desktop-runtime/policy/policy-engine";
 
 export interface PolicyRequest {
   readonly task: Pick<TaskEnvelope, "task_id" | "workspace_root" | "allowed_tools" | "forbidden_tools" | "risk_level">;
@@ -119,11 +120,27 @@ const PROTECTED_PATH_TOKENS: readonly string[] = [
 ];
 
 export function isProtectedPath(targetPath: string): boolean {
+
   const lowered = String(targetPath ?? "").toLowerCase().replace(/\\\\/g, "/");
   return PROTECTED_PATH_TOKENS.some((token) => {
     const needle = token.replace(/\./g, "\\.");
     return new RegExp("(^|/)" + needle + "($|/|\\.)").test(lowered) || lowered.endsWith(token);
   });
+}
+
+/**
+ * Translate the desktop runtime's tool-risk vocabulary into control-plane levels.
+ *
+ * The two taxonomies exist for different audiences — one describes a tool, the
+ * other describes blast radius — so a mapping is unavoidable. It lives in one place
+ * rather than being spelled out inline at each call site, where the two spellings
+ * would inevitably diverge.
+ */
+function riskLevelFromToolRisk(risk: string): RiskLevel {
+  if (risk === "critical" || risk === "high") return "L3";
+  if (risk === "medium") return "L2";
+  if (risk === "low") return "L1";
+  return "L0";
 }
 
 /**
@@ -189,6 +206,16 @@ export function classifyRequestRisk(request: PolicyRequest): { level: RiskLevel;
   // passed as an argument; otherwise a command becomes a way around the path check.
   if (typeof args.command === "string") {
     const parsed = parseShellCommand(args.command);
+    // The hardened shell policy is consulted for its VERDICT rather than
+    // re-implemented. Without this, a destructive command would classify as L1 —
+    // the tool is sandbox-write and a single-segment parse looks clean — and would
+    // then be AUTO-APPROVED and executed by execFileSync, which needs no shell to
+    // do damage. Copying the denylist here would guarantee the two drift apart, so
+    // the policy engine stays the single owner of what a command means.
+    const shellDecision = getPolicyEngine().evaluateShellCommand(args.command);
+    if (!shellDecision.allowed) {
+      bump(riskLevelFromToolRisk(shellDecision.risk), "Refused by shell policy: " + (shellDecision.reason ?? "unspecified"));
+    }
     if (parsed.opaqueConstructs.length > 0) {
       bump("L3", "Command contains unverifiable constructs: " + parsed.opaqueConstructs.join(", ") + ".");
     }

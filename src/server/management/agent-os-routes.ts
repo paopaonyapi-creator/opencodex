@@ -45,6 +45,18 @@ function notFound(req: Request, message: string): Response {
 
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
+  // Phase 20.15: Pao-hubPro Domain Control Plane.
+  //
+  // Deliberately a bare prefix test with no equality branch: this dispatcher knows
+  // nothing about HTTP methods (the handler resolves them), and an equality guard
+  // here is a route guard the registry scanner cannot resolve a method for. The
+  // scanner fails loud on those by design, so a redundant literal would add an
+  // unresolved entry for no benefit. startsWith already covers the exact path.
+  if (url.pathname.startsWith("/api/agent-os/domains")) {
+    const { handleDomainControlRoutes } = await import("./domain-control-routes");
+    return handleDomainControlRoutes(ctx);
+  }
+
   // Phase 20.14: Pao-hubPro Visual Knowledge & Media Memory
   if (
     url.pathname.startsWith("/api/agent-os/media-memory") ||

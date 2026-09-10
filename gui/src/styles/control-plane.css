@@ -1,0 +1,252 @@
+/* Phase 20.16 — Multi-AI Control Plane: Command Center. */
+
+.cp-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+}
+
+.cp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cp-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.cp-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.cp-refresh {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cp-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+  padding-bottom: 8px;
+}
+
+.cp-tab {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cp-tab--active {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.14);
+  font-weight: 600;
+}
+
+.cp-error {
+  border: 1px solid rgba(220, 90, 90, 0.45);
+  background: rgba(220, 90, 90, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cp-error-hint {
+  margin-top: 6px;
+  opacity: 0.75;
+}
+
+.cp-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.cp-metric {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+/* Colour carries meaning here: a denial must not read as a neutral count. */
+.cp-metric--warn {
+  border-color: rgba(228, 168, 70, 0.5);
+}
+
+.cp-metric--bad {
+  border-color: rgba(220, 90, 90, 0.5);
+}
+
+.cp-metric-value {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.cp-metric-label {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.cp-panel {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.cp-panel-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+
+.cp-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.12));
+}
+
+.cp-row:last-child {
+  border-bottom: none;
+}
+
+.cp-row-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-row-meta {
+  font-size: 12px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.cp-chip {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cp-chip--low {
+  background: rgba(90, 180, 120, 0.16);
+}
+
+.cp-chip--medium {
+  background: rgba(228, 168, 70, 0.18);
+}
+
+.cp-chip--high {
+  background: rgba(228, 126, 70, 0.2);
+}
+
+.cp-chip--critical {
+  background: rgba(220, 90, 90, 0.22);
+}
+
+.cp-empty {
+  font-size: 13px;
+  opacity: 0.55;
+  padding: 6px 0;
+}
+
+.cp-note {
+  margin: 0 0 4px;
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.cp-approval {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+  border-radius: 9px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-approval-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.cp-approval-reason {
+  font-size: 12px;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+
+.cp-approval-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cp-approval-actions button {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  background: transparent;
+  color: inherit;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cp-approval-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cp-danger {
+  border-color: rgba(220, 90, 90, 0.5) !important;
+}
+

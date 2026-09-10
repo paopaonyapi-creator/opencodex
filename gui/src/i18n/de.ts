@@ -2448,6 +2448,7 @@ export const de: Record<TKey, string> = {
   "nav.security": "Sicherheitsschild",
   "nav.videoIntelligence": "Video-Intelligenz",
   "nav.mediaMemory": "Medien-Gedächtnis",
+  "nav.controlPlane": "KI-Kontrollzentrum",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

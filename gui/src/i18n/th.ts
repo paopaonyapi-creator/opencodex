@@ -1347,6 +1347,7 @@ export const th: Record<TKey, string> = {
   "nav.security": "ความปลอดภัยและชิลด์",
   "nav.videoIntelligence": "วิเคราะห์วิดีโออัจฉริยะ",
   "nav.mediaMemory": "คลังความจำสื่ออัจฉริยะ",
+  "nav.controlPlane": "ศูนย์ควบคุม AI",
  "aiStudio.title": "Pao AI Generation Studio",
  "aiStudio.enabled": "เปิดใช้งาน",
  "aiStudio.disabled": "ปิดใช้งาน",

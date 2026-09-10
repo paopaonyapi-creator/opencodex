@@ -45,6 +45,15 @@ function notFound(req: Request, message: string): Response {
 
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
+  // Phase 20.16: Pao-hubPro Multi-AI Control Plane.
+  // A bare prefix test with no equality branch, matching the domain-control
+  // dispatcher: this layer does not resolve HTTP methods, and an equality guard here
+  // would be an unresolvable route guard for the registry scanner.
+  if (url.pathname.startsWith("/api/agent-os/control-plane")) {
+    const { handleControlPlaneRoutes } = await import("./control-plane-routes");
+    return handleControlPlaneRoutes(ctx);
+  }
+
   // Phase 20.15: Pao-hubPro Domain Control Plane.
   //
   // Deliberately a bare prefix test with no equality branch: this dispatcher knows

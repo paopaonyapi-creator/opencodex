@@ -2434,6 +2434,7 @@ export const zhTW: Record<TKey, string> = {
   "nav.security": "安全防禦盾",
   "nav.videoIntelligence": "影片智慧分析",
   "nav.mediaMemory": "媒體記憶庫",
+  "nav.controlPlane": "AI 控制平面",
   "aiStudio.title": "Pao AI Generation Studio",
   "aiStudio.enabled": "enabled",
   "aiStudio.disabled": "disabled",

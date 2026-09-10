@@ -2735,4 +2735,5 @@ export const ja: Record<TKey, string> = {
   "nav.security": "セキュリティシールド",
   "nav.videoIntelligence": "ビデオインテリジェンス",
   "nav.mediaMemory": "メディアメモリ",
+  "nav.controlPlane": "AI コントロールプレーン",
 };

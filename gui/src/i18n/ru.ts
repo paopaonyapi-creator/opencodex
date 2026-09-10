@@ -2737,4 +2737,5 @@ export const ru: Record<TKey, string> = {
   "nav.security": "Щит безопасности",
   "nav.videoIntelligence": "Видеоаналитика",
   "nav.mediaMemory": "Медиа-память",
+  "nav.controlPlane": "Панель управления ИИ",
 };

@@ -93,3 +93,19 @@ pre {
 }
 .muted { color: var(--muted); }
 .warning { color: var(--warn); }
+
+/* Side panel additions. Narrow by nature: the panel is resized by the user. */
+body.sidepanel { padding: 14px; min-width: 260px; }
+.sp-section { margin-bottom: 18px; }
+.sp-section h2 {
+  font-size: 11px;
+  margin: 0 0 8px;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+@media (prefers-color-scheme: light) {
+  :root { --bg: #ffffff; --fg: #1f2126; --muted: #5f6368; --line: rgba(60, 64, 67, 0.2); }
+}

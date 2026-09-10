@@ -1,4 +1,4 @@
-// Pao Grok Bridge — options.
+// Pao Universal AI Bridge — options.
 
 const KEYS = [
   "bridgeUrl",

@@ -1,4 +1,4 @@
-// Pao Grok Bridge — selector resilience engine (content script).
+// Pao Universal AI Bridge — selector resilience engine (content script).
 //
 // This is the browser-side half of src/agent-os/browser-provider/selectors.ts and
 // it implements the same rule: an element is described by MANY weighted signals and

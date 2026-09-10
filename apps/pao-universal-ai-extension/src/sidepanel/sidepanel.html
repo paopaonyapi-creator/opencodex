@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pao Universal AI</title>
+  <link rel="stylesheet" href="../shared/style.css" />
+</head>
+<body class="sidepanel">
+  <header class="popup-header">
+    <h1>Pao Universal AI</h1>
+    <span id="connection" class="status status--unknown">Checking…</span>
+  </header>
+
+  <section class="sp-section">
+    <h2>Current site</h2>
+    <dl class="facts">
+      <dt>Host</dt><dd id="host">—</dd>
+      <dt>Adapter</dt><dd id="adapter">—</dd>
+      <dt>Page</dt><dd id="page-type">—</dd>
+      <dt>Confidence</dt><dd id="confidence">—</dd>
+    </dl>
+    <p id="detection-note" class="muted"></p>
+  </section>
+
+  <section class="sp-section">
+    <h2>Queue</h2>
+    <dl class="facts">
+      <dt>Running</dt><dd id="running">—</dd>
+      <dt>Waiting</dt><dd id="queued">—</dd>
+      <dt>Bound tabs</dt><dd id="bound">—</dd>
+    </dl>
+  </section>
+
+  <section class="sp-section">
+    <h2>Active job</h2>
+    <p id="job-id" class="mono">none</p>
+    <p id="job-prompt" class="muted"></p>
+    <div class="actions">
+      <button id="pause">Pause</button>
+      <button id="cancel">Cancel</button>
+    </div>
+  </section>
+
+  <section class="sp-section">
+    <h2>This page</h2>
+    <table>
+      <thead><tr><th>Target</th><th>Found</th><th>Conf.</th></tr></thead>
+      <tbody id="targets"><tr><td colspan="3" class="muted">Run diagnostics.</td></tr></tbody>
+    </table>
+    <div class="actions">
+      <button id="diagnose">Run diagnostics</button>
+      <button id="dry-run">Dry run</button>
+      <button id="dashboard">Open Dashboard</button>
+    </div>
+  </section>
+
+  <p id="notice" class="notice" hidden></p>
+
+  <footer class="popup-footer">
+    <a href="../options/options.html">Options</a>
+    <span aria-hidden="true">·</span>
+    <a href="../diagnostics/diagnostics.html">Diagnostics</a>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

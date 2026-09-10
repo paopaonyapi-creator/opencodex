@@ -1,4 +1,4 @@
-// Pao Grok Bridge — extension service worker (Manifest V3).
+// Pao Universal AI Bridge — extension service worker (Manifest V3).
 //
 // The worker is the only part of the extension that talks to the bridge, and it is
 // the only part that holds the bridge token. A content script runs in the PAGE's
@@ -8,7 +8,7 @@
 //
 // The worker never touches a Grok cookie and has no API that could read one.
 
-const PROTOCOL = "pao-grok-bridge/1";
+const PROTOCOL = "pao-browser-bridge/2";
 const HEARTBEAT_MS = 10000;
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;

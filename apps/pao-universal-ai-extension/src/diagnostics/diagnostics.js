@@ -1,10 +1,10 @@
-// Pao Grok Bridge — diagnostics page.
+// Pao Universal AI Bridge — diagnostics page.
 //
 // The report is built from a whitelist of fields rather than by serializing whatever
 // happens to be in scope. A report assembled by exclusion leaks the moment someone
 // adds a field; a report assembled by inclusion cannot.
 
-const PROTOCOL = "pao-grok-bridge/1";
+const PROTOCOL = "pao-browser-bridge/2";
 
 let lastReport = null;
 
@@ -36,7 +36,19 @@ async function runDiagnostics() {
     bridge.reachable = false;
   }
 
-  const tabs = await chrome.tabs.query({ url: ["https://grok.com/*", "https://*.grok.com/*"] });
+  const tabs = await chrome.tabs.query({
+    url: [
+      "https://grok.com/*",
+      "https://*.grok.com/*",
+      "https://chatgpt.com/*",
+      "https://*.chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://gemini.google.com/*",
+      "https://*.gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://*.claude.ai/*",
+    ],
+  });
   let pageProbe = null;
   if (tabs.length > 0 && tabs[0].id !== undefined) {
     try {

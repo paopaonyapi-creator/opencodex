@@ -1,10 +1,10 @@
-// Pao Grok Bridge — popup.
+// Pao Universal AI Bridge — popup.
 //
 // Reads state from the bridge and the worker. Deliberately read-mostly: the popup is
 // a status surface, and a status surface that can also change things is one people
 // are reluctant to open.
 
-const PROTOCOL = "pao-grok-bridge/1";
+const PROTOCOL = "pao-browser-bridge/2";
 
 async function settings() {
   const stored = await chrome.storage.local.get(["bridgeUrl", "bridgeToken", "safeMode"]);
@@ -48,7 +48,19 @@ async function refresh() {
     setText("running", "—");
   }
 
-  const tabs = await chrome.tabs.query({ url: ["https://grok.com/*", "https://*.grok.com/*"] });
+  const tabs = await chrome.tabs.query({
+    url: [
+      "https://grok.com/*",
+      "https://*.grok.com/*",
+      "https://chatgpt.com/*",
+      "https://*.chatgpt.com/*",
+      "https://chat.openai.com/*",
+      "https://gemini.google.com/*",
+      "https://*.gemini.google.com/*",
+      "https://claude.ai/*",
+      "https://*.claude.ai/*",
+    ],
+  });
   setText("grok-tab", tabs.length > 0 ? `${tabs.length} open` : "none");
 }
 

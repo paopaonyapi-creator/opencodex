@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "name": "Pao Universal AI Bridge",
+  "version": "0.2.0",
+  "description": "Bridges Grok, ChatGPT, Gemini, and Claude into the Pao-hubPro generation queue through one adapter runtime. Local-only, human-in-the-loop.",
+  "minimum_chrome_version": "116",
+
+  "permissions": [
+    "storage",
+    "tabs",
+    "downloads",
+    "scripting",
+    "sidePanel"
+  ],
+
+  "host_permissions": [
+    "https://grok.com/*",
+    "https://*.grok.com/*",
+    "https://chatgpt.com/*",
+    "https://*.chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://*.gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://grok.com/*",
+        "https://*.grok.com/*",
+        "https://chatgpt.com/*",
+        "https://*.chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*",
+        "https://*.gemini.google.com/*",
+        "https://claude.ai/*",
+        "https://*.claude.ai/*"
+      ],
+      "js": [
+        "src/content/selectors.js",
+        "src/content/selector-profiles.js",
+        "src/content/adapter-runtime.js",
+        "src/content/action-executor.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Pao Universal AI Bridge"
+  },
+
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+
+  "options_page": "src/options/options.html",
+
+  "web_accessible_resources": [],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

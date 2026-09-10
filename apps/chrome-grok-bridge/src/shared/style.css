@@ -1,0 +1,95 @@
+/* Pao Grok Bridge — shared extension styling. Minimal on purpose: this UI is read
+   at a glance while something else is being worked on. */
+:root {
+  --bg: #16181d;
+  --fg: #e8eaed;
+  --muted: #9aa0a6;
+  --line: rgba(154, 160, 166, 0.28);
+  --ok: #4caf50;
+  --warn: #ffa726;
+  --bad: #ef5350;
+  --unknown: #7f858c;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --fg: #1f2126;
+  --muted: #5f6368;
+  --line: rgba(60, 64, 67, 0.2);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+body.popup { width: 290px; padding: 14px; }
+body.page { padding: 22px; max-width: 780px; }
+
+.popup-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+h1 { font-size: 14px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 13px; margin: 22px 0 8px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.status { border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+.status--ok { background: rgba(76, 175, 80, 0.18); color: var(--ok); }
+.status--warn { background: rgba(255, 167, 38, 0.18); color: var(--warn); }
+.status--bad { background: rgba(239, 83, 80, 0.18); color: var(--bad); }
+.status--unknown { background: rgba(127, 133, 140, 0.18); color: var(--unknown); }
+
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 14px 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.notice {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+}
+
+.popup-footer { display: flex; gap: 8px; margin-top: 14px; color: var(--muted); }
+a { color: inherit; }
+
+.field { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.field label { color: var(--muted); }
+.field input[type="text"], .field input[type="number"], .field select {
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 10px;
+  font: inherit;
+}
+.row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.row label { color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+
+pre {
+  background: rgba(127, 133, 140, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 320px;
+  font-size: 12px;
+}
+.muted { color: var(--muted); }
+.warning { color: var(--warn); }

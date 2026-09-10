@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pao Grok Bridge — Options</title>
+  <link rel="stylesheet" href="../shared/style.css" />
+</head>
+<body class="page">
+  <h1>Pao Grok Bridge — Options</h1>
+
+  <h2>Bridge</h2>
+  <div class="field">
+    <label for="bridgeUrl">Bridge URL</label>
+    <input id="bridgeUrl" type="text" placeholder="http://127.0.0.1:43117" />
+  </div>
+  <div class="field">
+    <label for="bridgeToken">Bridge token (issued by pairing)</label>
+    <input id="bridgeToken" type="text" placeholder="Paired automatically" />
+  </div>
+  <div class="row">
+    <input id="autoReconnect" type="checkbox" />
+    <label for="autoReconnect">Auto reconnect</label>
+  </div>
+
+  <h2>Safety</h2>
+  <div class="row">
+    <input id="safeMode" type="checkbox" />
+    <label for="safeMode">Safe mode — never bypass CAPTCHA, login, or rate limits</label>
+  </div>
+  <p class="muted">
+    Safe mode is on by default and cannot be turned off in this build. The extension has
+    no code path that could clear a CAPTCHA, log in, or evade a rate limit, and a page
+    that presents one is reported as blocked for a person to resolve.
+  </p>
+  <div class="field">
+    <label for="maxConcurrentJobs">Max concurrent jobs</label>
+    <input id="maxConcurrentJobs" type="number" min="1" max="1" value="1" />
+  </div>
+  <p class="muted">
+    Grok concurrency is fixed at 1. Browser generation is a single interactive session,
+    so a second concurrent job would type into the same prompt field as the first.
+  </p>
+
+  <h2>Downloads</h2>
+  <div class="row">
+    <input id="autoDownload" type="checkbox" />
+    <label for="autoDownload">Auto download results</label>
+  </div>
+  <div class="field">
+    <label for="downloadPrefix">Download filename prefix</label>
+    <input id="downloadPrefix" type="text" placeholder="PAO-GROK" />
+  </div>
+
+  <h2>Reliability</h2>
+  <div class="field">
+    <label for="retryMaxAttempts">Retry attempts</label>
+    <input id="retryMaxAttempts" type="number" min="0" max="10" />
+  </div>
+  <div class="field">
+    <label for="retryBaseDelayMs">Retry base delay (ms)</label>
+    <input id="retryBaseDelayMs" type="number" min="1000" max="120000" />
+  </div>
+
+  <h2>Diagnostics</h2>
+  <div class="row">
+    <input id="debugLogging" type="checkbox" />
+    <label for="debugLogging">Debug logging</label>
+  </div>
+  <div class="row">
+    <input id="screenshotOnError" type="checkbox" />
+    <label for="screenshotOnError">Capture a screenshot when a selector fails</label>
+  </div>
+  <p class="muted">Only the Grok tab is captured, and never a credential.</p>
+
+  <div class="actions">
+    <button id="save">Save</button>
+    <button id="reset-selectors">Reset Selector Cache</button>
+  </div>
+  <p id="saved" class="muted" hidden>Saved.</p>
+
+  <script src="options.js"></script>
+</body>
+</html>

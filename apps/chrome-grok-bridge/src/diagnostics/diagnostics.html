@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pao Grok Bridge — Diagnostics</title>
+  <link rel="stylesheet" href="../shared/style.css" />
+</head>
+<body class="page">
+  <h1>Pao Grok Bridge — Diagnostics</h1>
+  <p class="muted">
+    The report never contains a token, a cookie, or an authorization header.
+    Selector confidence is the useful signal: a selector that resolves on a weak
+    signal means the page changed and the profile needs updating.
+  </p>
+
+  <div class="actions">
+    <button id="run">Run Full Diagnostics</button>
+    <button id="copy">Copy Diagnostic Report</button>
+    <button id="reset">Reset Selector Cache</button>
+  </div>
+
+  <h2>Environment</h2>
+  <table>
+    <tbody id="env-body"></tbody>
+  </table>
+
+  <h2>Selectors</h2>
+  <table>
+    <thead>
+      <tr><th>Selector</th><th>Found</th><th>Confidence</th><th>Strategy</th><th>Stale</th></tr>
+    </thead>
+    <tbody id="selector-body">
+      <tr><td colspan="5" class="muted">Run diagnostics to populate.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Last error</h2>
+  <pre id="last-error" class="muted">None recorded.</pre>
+
+  <script src="diagnostics.js"></script>
+</body>
+</html>

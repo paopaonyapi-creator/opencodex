@@ -3,6 +3,7 @@
 
 import type { WorkspacePolicy, PolicyEvaluationResult, ToolRisk } from "../types";
 import { normalize, resolve, relative, isAbsolute } from "node:path";
+import { CODE_EXECUTION_PROGRAMS, commandProgram, parseShellCommand } from "../security/shell-tokenizer";
 
 export const DEFAULT_WORKSPACE_POLICY: WorkspacePolicy = {
   defaultMode: "ask",
@@ -135,45 +136,102 @@ export class PolicyEngine {
   }
 
   /**
-   * Evaluates shell command execution against allowlist.
+   * Evaluates shell command execution against the allowlist.
+   *
+   * The allowlist is matched per SIMPLE COMMAND, never against the raw line.
+   * Matching the raw line with startsWith is what let "git status; cat ~/.ssh/id_rsa"
+   * through: it begins with an allowlisted prefix and the shell then ran the rest.
+   * Every segment must pass on its own, so a chained, piped, or redirected command
+   * has to justify each of its parts.
    */
   evaluateShellCommand(commandLine: string): PolicyEvaluationResult {
     const clean = commandLine.trim();
+    if (clean === "") {
+      return { allowed: false, requiresApproval: true, reason: "Empty command.", risk: "low" };
+    }
 
-    // 1. Invariant: Block destructive or elevated patterns immediately
-    if (
-      clean.includes("rm -rf /") ||
-      clean.includes("del /s c:") ||
-      clean.includes("format c:") ||
-      clean.includes("shutdown") ||
-      clean.includes("powershell -e") ||
-      clean.includes("curl") && clean.includes("|")
-    ) {
+    const parsed = parseShellCommand(clean);
+
+    // 0. Constructs the scanner could not read confidently are never auto-approved.
+    if (parsed.opaqueConstructs.length > 0) {
       return {
         allowed: false,
         requiresApproval: true,
-        reason: `Command '${commandLine}' matches hard security denylist`,
+        reason: `Command contains constructs that cannot be verified statically (${parsed.opaqueConstructs.join(", ")}); requires explicit approval.`,
+        risk: "high",
+      };
+    }
+
+    // 1. Invariant: destructive or elevated patterns are hard-denied, evaluated over
+    // the whole line. The previous form used an unparenthesised boolean expression,
+    // so `clean.includes("curl") && clean.includes("|")` bound more loosely than the
+    // surrounding || chain and the destructive branch never saw a chained payload in
+    // isolation.
+    const destructive = /(?:^|[\s;&|])(rm\s+-rf\s+[\/\\]|del\s+\/[sfa-z]*\s+[a-z]:|format\s+[a-z]:|mkfs|shutdown|reboot)/i;
+    const remoteExec = /\b(?:curl|wget|irm|iwr|invoke-webrequest)\b[^|;&]*\|\s*(?:sh|bash|zsh|powershell|pwsh|cmd|iex|invoke-expression)\b/i;
+    const encodedShell = /\b(?:powershell|pwsh|cmd)\b[^|;&]*\s-(?:e|enc|encodedcommand)\b/i;
+    if (destructive.test(clean) || remoteExec.test(clean) || encodedShell.test(clean)) {
+      return {
+        allowed: false,
+        requiresApproval: true,
+        reason: `Command '${commandLine}' matches the hard security denylist`,
         risk: "critical",
       };
     }
 
-    // 2. Check if in allowlist
-    const inAllowlist = this.policy.shellAllowlist.some((allowed) =>
-      clean.toLowerCase().startsWith(allowed.toLowerCase())
-    );
-
-    if (inAllowlist) {
+    // 2. Force push is never silently allowed.
+    if (/\bgit\s+push\b[^|;&]*(?:--force\b|-f\b|--force-with-lease)/i.test(clean)) {
       return {
-        allowed: true,
-        requiresApproval: false,
-        risk: "low",
+        allowed: false,
+        requiresApproval: true,
+        reason: "git push --force is denied by default policy and requires explicit approval",
+        risk: "critical",
+      };
+    }
+
+    // 3. Every simple command must be covered by the allowlist on its own.
+    const uncovered: string[] = [];
+    for (const segment of parsed.segments) {
+      const program = commandProgram(segment.text);
+      if (CODE_EXECUTION_PROGRAMS.has(program)) {
+        return {
+          allowed: false,
+          requiresApproval: true,
+          reason: `Command '${segment.text}' invokes '${program}', which executes arbitrary code; a shell or interpreter can never be auto-approved.`,
+          risk: "high",
+        };
+      }
+      const covered = this.policy.shellAllowlist.some((allowed) => {
+        const normalizedAllowed = allowed.trim().toLowerCase();
+        const normalizedSegment = segment.text.toLowerCase();
+        return (
+          normalizedSegment === normalizedAllowed ||
+          normalizedSegment.startsWith(`${normalizedAllowed} `)
+        );
+      });
+      if (!covered) uncovered.push(segment.text);
+    }
+
+    if (uncovered.length === 0) {
+      // A single allowlisted command needs no approval. Anything carrying an operator
+      // was inspected in full and is still surfaced to a human, because chaining is
+      // itself an escalation even when every part is familiar.
+      if (parsed.isSingleSimpleCommand) {
+        return { allowed: true, requiresApproval: false, risk: "low" };
+      }
+      const uniqueOperators = Array.from(new Set(parsed.operators));
+      return {
+        allowed: false,
+        requiresApproval: true,
+        reason: `Command chains ${parsed.operators.length} operator(s) (${uniqueOperators.join(", ")}); each part is allowlisted but the compound command requires approval.`,
+        risk: "medium",
       };
     }
 
     return {
       allowed: false,
       requiresApproval: true,
-      reason: `Command '${commandLine}' is not in the shell allowlist; requires user approval`,
+      reason: `Command component(s) not in the shell allowlist: ${uncovered.join(" | ")}; requires user approval`,
       risk: "high",
     };
   }

@@ -57,6 +57,14 @@ function mockCtx(urlPath: string, method = "GET", body?: unknown, headers?: Reco
 describe("Phase 20.9: Pao-hubPro x Chatbox Agent Desktop Runtime", () => {
   beforeEach(() => {
     cleanDb();
+    // The debt-ledger routes resolve their path from process.cwd(), which is this
+    // repository — so exercising /governance/debt appended a permanent DEBT-... row
+    // to the TRACKED docs/governance/technical-debt.md on every run. Redirect the
+    // ledger into a temp file so the suite cannot modify tracked files.
+    process.env.PAO_DEBT_LEDGER_PATH = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "pao-debt-")),
+      "technical-debt.md",
+    );
   });
 
   // --------------------------------------------------------------------------
@@ -656,4 +664,3 @@ describe("Phase 20.9: Pao-hubPro x Chatbox Agent Desktop Runtime", () => {
     });
   });
 });
-

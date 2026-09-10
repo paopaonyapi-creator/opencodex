@@ -127,8 +127,32 @@ export class DebtLedger {
 
 let defaultDebtLedger: DebtLedger | null = null;
 export function getDebtLedger(filePath?: string): DebtLedger {
-  if (!defaultDebtLedger || filePath) {
-    defaultDebtLedger = new DebtLedger(filePath);
+  const resolved = filePath ?? configuredLedgerPath();
+  if (!defaultDebtLedger || resolved) {
+    defaultDebtLedger = new DebtLedger(resolved);
   }
   return defaultDebtLedger;
+}
+
+/**
+ * Ledger path override.
+ *
+ * The default path is process.cwd()/docs/governance/technical-debt.md, which is a
+ * TRACKED file. Any test that exercises the debt route through the management API
+ * therefore appended a permanent entry to the repository — confirmed: the route's
+ * own test added a DEBT-... row to docs/governance/technical-debt.md on every run,
+ * with a UTC date that could make it look like a different day's edit.
+ *
+ * PAO_DEBT_LEDGER_PATH lets a test (or an operator) point the ledger at a temp file
+ * instead. An unset variable keeps the production behaviour unchanged.
+ */
+function configuredLedgerPath(): string | undefined {
+  const override = process.env.PAO_DEBT_LEDGER_PATH?.trim();
+  return override && override.length > 0 ? override : undefined;
+}
+
+/** Test seam: forget the cached ledger so a new path (or none) takes effect. */
+export function resetDebtLedger(filePath?: string): void {
+  defaultDebtLedger = null;
+  if (filePath !== undefined) defaultDebtLedger = new DebtLedger(filePath);
 }

@@ -5,6 +5,9 @@ export * from "./registry";
 export * from "./adapters";
 export * from "./file-grants";
 export * from "./state";
+export * from "./tab-router";
+export * from "./planner";
+export * from "./form-model";
 
 import { AdapterRegistry } from "./registry";
 import { BUILTIN_ADAPTERS } from "./adapters";

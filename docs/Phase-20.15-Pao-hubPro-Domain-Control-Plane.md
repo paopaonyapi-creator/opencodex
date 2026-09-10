@@ -262,6 +262,24 @@ by stashing this phase's changes and re-running at HEAD. It concerns route guard
 other subsystem modules and contains no domain-control entries. This phase did not add
 to it: the dispatcher uses a bare prefix test with no equality literal, precisely so it
 would not introduce an unresolvable route guard.
++### Unrelated defect found while validating (not fixed here)
+
+`tests/chatbox-agent-desktop-runtime.test.ts` writes into a **tracked repository file**
+when it runs. The test POSTs to `/api/desktop-agent/governance/debt`; the route resolves
+its ledger through `getDebtLedger()` with no path, which falls back to
+`process.cwd()/docs/governance/technical-debt.md`. Every run therefore appends a
+`DEBT-<date>-00N` entry owned by `test-agent` to `docs/governance/technical-debt.md`.
+
+Reproduced directly: `rg -c '^## DEBT-'` returned 3 before
+`bun test tests/chatbox-agent-desktop-runtime.test.ts` and 4 after, with `git status`
+showing the file modified. The emitted entry is dated in UTC, so it can carry
+yesterday's date and look like someone else's edit.
+
+It is left unfixed because it is outside this phase: the fix belongs in
+`src/agent-os/governance/debt-ledger.ts` or `desktop-agent-routes.ts` (accept an
+injected path, as `tests/ponytail-governance.test.ts` already does) or in the test
+itself. The pollution produced during this session was removed, and the working tree
+matches HEAD exactly.
 
 ## Enabling it for real
 

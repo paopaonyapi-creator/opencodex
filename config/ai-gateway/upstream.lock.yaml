@@ -1,0 +1,36 @@
+# Pao AI Gateway — pinned upstream boundary.
+#
+# Experiential ships frequently, and its release notes are the only reliable
+# description of what changed. A floating version would let a routing-behaviour
+# change arrive with an unrelated deploy, so the version is pinned and an upgrade
+# is a deliberate, tested act.
+#
+# Upgrade procedure: docs/runbooks/llm-router-upgrade.md
+# Rollback procedure: docs/runbooks/llm-router-rollback.md
+
+experiential:
+  # Exact version. Do not write ">=0.7", "latest", or "^0.7.63" here.
+  version: "0.7.63"
+  python: ">=3.12"
+  license: "Apache-2.0"
+  verified_date: "2026-09-11"
+  verified_release: "https://github.com/experientiallabs/experiential/releases/tag/v0.7.63"
+  upgrade_policy: "manual-after-contract-tests"
+
+  # The surface this adapter depends on. A breaking change to any of these is what
+  # the contract tests exist to catch; anything outside this list is not a
+  # dependency and may change freely without affecting Pao-hubPro.
+  contract:
+    routes:
+      - method: GET
+        path: /v1/models
+      - method: POST
+        path: /v1/chat/completions
+    auth: "Authorization: Bearer <gateway key>"
+    protocol: "OpenAI-compatible chat completions"
+
+  # Recorded so the dashboard can show what was actually verified, rather than
+  # implying the pin was checked more recently than it was.
+  known_limitations:
+    - "No streaming in this release: the adapter requests stream=false."
+    - "Anthropic Messages API support exists upstream but is not used here."

@@ -3,6 +3,14 @@
 # Never store raw API keys in this file.
 
 providers:
+  # Experiential gateway. Reachable at an OpenAI-compatible /v1 surface.
+  # The credential is a GATEWAY key, not a provider key: upstream holds the
+  # provider connections. Pinned version lives in upstream.lock.yaml.
+  experiential:
+    type: experiential
+    base_url: ${EXPERIENTIAL_BASE_URL}
+    api_key_env: EXPERIENTIAL_API_KEY
+
   openai-main:
     type: openai
     api_key_env: OPENAI_API_KEY

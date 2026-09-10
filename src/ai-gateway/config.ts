@@ -389,5 +389,32 @@ export function loadGatewayConfig(rootDir: string): GatewayConfig {
     policies: loadPolicies(rootDir),
     traceContentMode,
     routerVersion: "router-v1-rule-based",
+    freeFirst: envFlag("PAO_LLM_FREE_FIRST", true),
+    maxEscalations: envPositiveInt("PAO_LLM_MAX_ESCALATIONS", 2),
+    directBypass: envFlag("PAO_LLM_DIRECT_BYPASS", false),
+    privateTaskLocalOnly: envFlag("PAO_LLM_PRIVATE_TASK_LOCAL_ONLY", true),
   };
+}
+
+/**
+ * Boolean environment flag.
+ *
+ * Only the literal string "true" enables a flag. A missing variable, an empty
+ * string, "1", "yes", and "TRUE" are all treated as false. That is deliberately
+ * strict for a security-relevant switch such as PAO_LLM_DIRECT_BYPASS: a stray
+ * non-empty value must not be read as consent to open an emergency path.
+ */
+function envFlag(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  return raw === "true";
+}
+
+function envPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  // A zero is a legitimate ceiling ("never escalate"); a negative or garbage value
+  // is a misconfiguration and falls back rather than inverting the bound.
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }

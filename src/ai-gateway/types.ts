@@ -14,7 +14,9 @@ export type GatewayProviderType =
   | "anthropic"
   | "gemini"
   | "openrouter"
-  | "openai-compatible";
+  | "openai-compatible"
+  /** Experiential gateway, reached over its OpenAI-compatible HTTP API. */
+  | "experiential";
 
 export interface GatewayProviderConfig {
   readonly id: string;
@@ -339,4 +341,14 @@ export interface GatewayConfig {
   readonly policies: readonly IdentityGuardrailPolicy[];
   readonly traceContentMode: TraceContentMode;
   readonly routerVersion: string;
+  /** Prefer the cheapest eligible candidate. Never at the cost of capability. */
+  readonly freeFirst?: boolean;
+  /** Upper bound on ladder climbs per request, whatever an agent asks for. */
+  readonly maxEscalations?: number;
+  /** Emergency direct-provider path. Defaults to off and must be set deliberately. */
+  readonly directBypass?: boolean;
+  /** Pinned upstream version from the lock file, for the dashboard and boot check. */
+  readonly experientialVersion?: string;
+  /** Local-only enforcement for tasks classified private or restricted. */
+  readonly privateTaskLocalOnly?: boolean;
 }

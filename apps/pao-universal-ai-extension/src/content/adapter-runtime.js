@@ -55,8 +55,16 @@
       { gate: 'login_required', hits: ['sign in', 'log in'] },
     ];
     for (const check of checks) {
-      if (hasAny(all, check.hits[0])) {
-        return { gate: check.gate, evidence: [check.hits[0] + ' matched'] };
+      // EVERY keyword is checked, not just the first.
+      //
+      // Checking only hits[0] meant a page showing "Too many requests" was not detected as
+      // rate-limited, so the job would proceed and type into a rate-limited page — the exact
+      // failure this gate exists to prevent. Found by running the content script in a
+      // harness rather than by reading it.
+      for (const phrase of check.hits) {
+        if (hasAny(all, phrase)) {
+          return { gate: check.gate, evidence: [phrase + ' matched'] };
+        }
       }
     }
     if (String(context.url).toLowerCase().includes('/login')) {

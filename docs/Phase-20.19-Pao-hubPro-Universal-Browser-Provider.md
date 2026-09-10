@@ -104,6 +104,10 @@ src/agent-os/browser-provider/universal/
   adapters.ts     grok (migrated), chatgpt, gemini, claude
   file-grants.ts  one-time file grant broker
   state.ts        universal job state machine, correlation, guards
+  tab-router.ts   tab bindings, per-adapter concurrency, stale reaping
+  planner.ts      dry-run execution plan, mode degradation, output validation
+  form-model.ts   capability-driven form fields
+apps/pao-universal-ai-extension/   the migrated extension (13 scripts, 3 pages, side panel)
 ```
 
 ## What is NOT built
@@ -125,14 +129,24 @@ and the rest is not:
 | ChatGPT / Gemini / Claude adapters | **Declaration only** — manifest, detection scorer, gate detection, and selector targets. No prepare/execute/observe/collect implementation, because those require a live page to write against. |
 | Custom adapter template | Not built |
 | Adapter devkit and CLI | Not built |
-| Universal Chrome extension with adapter runtime | Not built — the Phase 20.18 Grok extension is unchanged |
-| Chrome Side Panel | Not built |
-| Tab router and multi-tab control | Not built |
+| Universal Chrome extension with adapter runtime | **Built** — migrated in place; the Grok extension became the universal one |
+| Chrome Side Panel | **Built** |
+| Tab router and multi-tab control | **Built** (per-adapter concurrency, ambiguity refusal, stale reaping) |
+| Typed action executor and dry run | **Built** |
+| Per-adapter selector profiles | **Built** (`src/content/selector-profiles.js`) |
 | Bridge V2 protocol | Not built — the Phase 20.18 bridge protocol is unchanged |
 | Adapter Lab | Not built |
 | Dashboard / capability-driven UI | Not built |
 | Live smoke tests | Not built |
-| Per-adapter selector profiles | Not built |
+
+Two rows deserve a note. The **ChatGPT, Gemini, and Claude adapters** are declaration plus
+detection plus gate detection plus a selector profile — everything that can be written
+without loading the page. What they lack is the prepare/execute/observe/collect body, and
+that is a property of the page rather than of the design.
+
+The **extension** is built, and it is the same extension as Phase 20.18: renamed, moved, and
+given an adapter runtime. Two extensions both injecting into the same hosts would both type
+into the same prompt field, so duplicating was never an option.
 
 ### Why the adapters stop at declaration
 

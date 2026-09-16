@@ -22,14 +22,42 @@ import OperationsConsole from "./pages/OperationsConsole";
 import EconomyConsole from "./pages/EconomyConsole";
 import SecurityConsole from "./pages/SecurityConsole";
 import VideoIntelligence from "./pages/VideoIntelligence";
+import SocialIntelligence from "./pages/SocialIntelligence";
 import MediaMemory from "./pages/MediaMemory";
 import ControlPlane from "./pages/ControlPlane";
+import { EccAgentHarness } from "./pages/EccAgentHarness";
+import { CodexNativeRuntime } from "./pages/CodexNativeRuntime";
+import { AgentOrchestrator } from "./pages/AgentOrchestrator";
 import SdlcCommandCenter from "./pages/SdlcCommandCenter";
 import DemoController from "./pages/DemoController";
+import { NotificationGateway } from "./pages/NotificationGateway";
+import { MediaAcquisition } from "./pages/MediaAcquisition";
+import { UniversalRegistry } from "./pages/UniversalRegistry";
+import { DouyinWorkspace } from "./pages/DouyinWorkspace";
+import { SpeechRuntime } from "./pages/SpeechRuntime";
+import { AiWorkspace } from "./pages/AiWorkspace";
+import { LeadIntelligence } from "./pages/LeadIntelligence";
+import { UnifiedRuntime } from "./pages/UnifiedRuntime";
+import { BusinessBuilder } from "./pages/BusinessBuilder";
+import { AgenticOs } from "./pages/AgenticOs";
+import { DependencyVault } from "./pages/DependencyVault";
+import { CodingWorkspace } from "./pages/CodingWorkspace";
+import { AgentFleet } from "./pages/AgentFleet";
+import { MemoryPlane } from "./pages/MemoryPlane";
+import { TeammateWorkspace } from "./pages/TeammateWorkspace";
+import { AgentMemory } from "./pages/AgentMemory";
+import { AgentCockpit } from "./pages/AgentCockpit";
+import { GovernanceDashboard } from "./pages/GovernanceDashboard";
+import AgentPlatformPage from "./pages/AgentPlatform";
 import Startup from "./pages/Startup";
+import CapabilityLabPage from "./pages/CapabilityLab";
+import SocialPublishingPage from "./pages/SocialPublishing";
+import AgentRuntimePage from "./pages/AgentRuntime";
+import CodeIntelligencePage from "./pages/CodeIntelligence";
+import ExternalApisPage from "./pages/ExternalApis";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
-import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconLock, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield } from "./icons";
+import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconLock, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield, IconBell, IconDownload } from "./icons";
 import { useI18n, useT, LOCALES, localeDisplayName, type Locale, type TKey } from "./i18n/shared";
 import { Select } from "./ui";
 import { installApiAuthFetch } from "./api";
@@ -67,10 +95,38 @@ const PAGE_TKEY: Record<Page, TKey> = {
   economy: "nav.economy",
   security: "nav.security",
   "video-intelligence": "nav.videoIntelligence",
+  social: "nav.social",
   "media-memory": "nav.mediaMemory",
   "control-plane": "nav.controlPlane",
+  "ecc-harness": "nav.eccHarness",
+  "codex-runtime": "nav.codexRuntime",
+  "agent-orchestrator": "nav.agentOrchestrator",
   sdlc: "nav.sdlc",
   demo: "nav.demo",
+  "notification-gateway": "nav.notificationGateway",
+  "media-acquisition": "nav.mediaAcquisition",
+  "universal-registry": "nav.universalRegistry",
+  "douyin-workspace": "nav.douyinWorkspace",
+  "speech-runtime": "nav.speechRuntime",
+  "ai-workspace": "nav.aiWorkspace",
+  "lead-intelligence": "nav.leadIntelligence",
+  "unified-runtime": "nav.unifiedRuntime",
+  "business-builder": "nav.businessBuilder",
+  "agentic-os": "nav.agenticOs",
+  "dependency-vault": "nav.dependencyVault",
+  "coding-workspace": "nav.codingWorkspace",
+  "agent-fleet": "nav.agentFleet",
+  "memory-plane": "nav.memoryPlane",
+  "teammate-workspace": "nav.teammateWorkspace",
+  "agent-memory": "nav.agentMemory",
+  "agent-cockpit": "nav.agentCockpit",
+  "governance": "nav.governance",
+  "agent-platform": "nav.agentPlatform",
+  "capability-lab": "nav.capabilityLab",
+  "social-publishing": "nav.socialPublishing",
+  "agent-runtime": "nav.agentRuntime",
+  "code-intelligence": "nav.codeIntelligence",
+  "external-apis": "nav.externalApis",
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -106,17 +162,45 @@ const NAV: NavEntry[] = [
   { id: "agency", tkey: "nav.agency", Icon: IconBot },
   { id: "desktop-agent", tkey: "nav.desktopAgent", Icon: IconTerminal },
   { id: "browser", tkey: "nav.browser", Icon: IconBrowser },
-  { id: "mobile", tkey: "nav.mobile", Icon: IconTerminal },
-  { id: "ai-gateway", tkey: "nav.aiGateway", Icon: IconServer },
+  { id: "mobile", tkey: "nav.mobile", Icon: IconMonitor },
+  { id: "ai-gateway", tkey: "nav.aiGateway", Icon: IconLock },
   { id: "change-control", tkey: "nav.changeControl", Icon: IconActivity },
   { id: "operations", tkey: "nav.operations", Icon: IconRefresh },
   { id: "economy", tkey: "nav.economy", Icon: IconLock },
   { id: "security", tkey: "nav.security", Icon: IconShield },
   { id: "video-intelligence", tkey: "nav.videoIntelligence", Icon: IconMonitor },
+  { id: "social", tkey: "nav.social", Icon: IconSearch },
   { id: "media-memory", tkey: "nav.mediaMemory", Icon: IconHardDrive },
   { id: "control-plane", tkey: "nav.controlPlane", Icon: IconShield },
+  { id: "ecc-harness", tkey: "nav.eccHarness", Icon: IconBot },
+  { id: "codex-runtime", tkey: "nav.codexRuntime", Icon: IconTerminal },
+  { id: "agent-orchestrator", tkey: "nav.agentOrchestrator", Icon: IconBot },
   { id: "sdlc", tkey: "nav.sdlc", Icon: IconCode },
   { id: "demo", tkey: "nav.demo", Icon: IconPlay },
+  { id: "notification-gateway", tkey: "nav.notificationGateway", Icon: IconBell },
+  { id: "media-acquisition", tkey: "nav.mediaAcquisition", Icon: IconDownload },
+  { id: "universal-registry", tkey: "nav.universalRegistry", Icon: IconBoxes },
+  { id: "douyin-workspace", tkey: "nav.douyinWorkspace", Icon: IconGlobe },
+  { id: "speech-runtime", tkey: "nav.speechRuntime", Icon: IconActivity },
+  { id: "ai-workspace", tkey: "nav.aiWorkspace", Icon: IconBoxes },
+  { id: "lead-intelligence", tkey: "nav.leadIntelligence", Icon: IconSearch },
+  { id: "unified-runtime", tkey: "nav.unifiedRuntime", Icon: IconServer },
+  { id: "business-builder", tkey: "nav.businessBuilder", Icon: IconBoxes },
+  { id: "agentic-os", tkey: "nav.agenticOs", Icon: IconBot },
+  { id: "dependency-vault", tkey: "nav.dependencyVault", Icon: IconHardDrive },
+  { id: "coding-workspace", tkey: "nav.codingWorkspace", Icon: IconTerminal },
+  { id: "agent-fleet", tkey: "nav.agentFleet", Icon: IconBoxes },
+  { id: "memory-plane", tkey: "nav.memoryPlane", Icon: IconHardDrive },
+  { id: "teammate-workspace", tkey: "nav.teammateWorkspace", Icon: IconBoxes },
+  { id: "agent-memory", tkey: "nav.agentMemory", Icon: IconHardDrive },
+  { id: "agent-cockpit", tkey: "nav.agentCockpit", Icon: IconTerminal },
+  { id: "governance", tkey: "nav.governance", Icon: IconShield },
+  { id: "agent-platform", tkey: "nav.agentPlatform", Icon: IconBot },
+  { id: "capability-lab", tkey: "nav.capabilityLab", Icon: IconBoxes },
+  { id: "social-publishing", tkey: "nav.socialPublishing", Icon: IconGlobe },
+  { id: "agent-runtime", tkey: "nav.agentRuntime", Icon: IconBot },
+  { id: "code-intelligence", tkey: "nav.codeIntelligence", Icon: IconSearch },
+  { id: "external-apis", tkey: "nav.externalApis", Icon: IconGlobe },
 ];
 
 const THEME_ICON = { light: IconSun, dark: IconMoon, system: IconMonitor } as const;
@@ -408,10 +492,38 @@ export default function App() {
             {page === "economy" && <EconomyConsole apiBase={API_BASE} />}
             {page === "security" && <SecurityConsole apiBase={API_BASE} />}
             {page === "video-intelligence" && <VideoIntelligence apiBase={API_BASE} />}
+            {page === "social" && <SocialIntelligence apiBase={API_BASE} />}
             {page === "media-memory" && <MediaMemory apiBase={API_BASE} />}
             {page === "control-plane" && <ControlPlane apiBase={API_BASE} />}
+            {page === "ecc-harness" && <EccAgentHarness apiBase={API_BASE} />}
+            {page === "codex-runtime" && <CodexNativeRuntime />}
+            {page === "agent-orchestrator" && <AgentOrchestrator />}
             {page === "sdlc" && <SdlcCommandCenter apiBase={API_BASE} />}
             {page === "demo" && <DemoController apiBase={API_BASE} />}
+            {page === "notification-gateway" && <NotificationGateway />}
+            {page === "media-acquisition" && <MediaAcquisition apiBase={API_BASE} />}
+            {page === "universal-registry" && <UniversalRegistry apiBase={API_BASE} />}
+            {page === "douyin-workspace" && <DouyinWorkspace apiBase={API_BASE} />}
+            {page === "speech-runtime" && <SpeechRuntime apiBase={API_BASE} />}
+            {page === "ai-workspace" && <AiWorkspace apiBase={API_BASE} />}
+            {page === "lead-intelligence" && <LeadIntelligence apiBase={API_BASE} />}
+            {page === "unified-runtime" && <UnifiedRuntime apiBase={API_BASE} />}
+            {page === "business-builder" && <BusinessBuilder apiBase={API_BASE} />}
+            {page === "agentic-os" && <AgenticOs apiBase={API_BASE} />}
+            {page === "dependency-vault" && <DependencyVault apiBase={API_BASE} />}
+            {page === "coding-workspace" && <CodingWorkspace apiBase={API_BASE} />}
+            {page === "agent-fleet" && <AgentFleet apiBase={API_BASE} />}
+            {page === "memory-plane" && <MemoryPlane apiBase={API_BASE} />}
+            {page === "teammate-workspace" && <TeammateWorkspace apiBase={API_BASE} />}
+            {page === "agent-memory" && <AgentMemory apiBase={API_BASE} />}
+            {page === "agent-cockpit" && <AgentCockpit apiBase={API_BASE} />}
+            {page === "agent-platform" && <AgentPlatformPage apiBase={API_BASE} />}
+            {page === "capability-lab" && <CapabilityLabPage apiBase={API_BASE} />}
+            {page === "social-publishing" && <SocialPublishingPage apiBase={API_BASE} />}
+            {page === "agent-runtime" && <AgentRuntimePage apiBase={API_BASE} />}
+            {page === "code-intelligence" && <CodeIntelligencePage apiBase={API_BASE} />}
+            {page === "external-apis" && <ExternalApisPage apiBase={API_BASE} />}
+            {page === "governance" && <GovernanceDashboard apiBase={API_BASE} />}
           </ErrorBoundary>
         </div>
       </main>

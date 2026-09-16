@@ -1,0 +1,27 @@
+# Phase 20.53 — OpenViking context-database sidecar (development baseline).
+#
+# LICENSE BOUNDARY: OpenViking's main project is AGPLv3. It runs here as a
+# clearly separated SERVICE; no AGPL source is vendored into this repository.
+# Preserve upstream license notices and record the pinned version.
+#
+# SECURITY DEFAULTS
+# - Loopback binding only. Never expose 1933 publicly; use a reverse proxy
+#   with TLS + auth for remote access (spec §90-91).
+# - Configure a strong root API key in the OpenViking configuration; Pao
+#   holds a USER-LEVEL key via PAO_OPENVIKING_API_KEY (env only).
+#
+# VERSION PINNING: `latest` is for first bring-up only. Pin a tested tag or
+# digest before production (see README.md).
+services:
+  openviking:
+    image: ghcr.io/volcengine/openviking:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1933:1933"
+    volumes:
+      - openviking_data:/app/.openviking
+    environment:
+      OPENVIKING_SERVER_HOST: "0.0.0.0"
+
+volumes:
+  openviking_data:

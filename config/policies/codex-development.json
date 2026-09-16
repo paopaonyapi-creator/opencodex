@@ -1,0 +1,32 @@
+{
+  "id": "policy_codex_dev",
+  "version": 1,
+  "name": "codex-development",
+  "enabled": true,
+  "deny": [
+    {
+      "id": "deny-secrets",
+      "when": { "field": "effect", "op": "in", "value": ["credential"] },
+      "reasonCode": "GOVERNANCE_CREDENTIAL_DENIED"
+    }
+  ],
+  "requireApproval": [
+    {
+      "id": "approve-git-remote",
+      "when": { "field": "effect", "op": "in", "value": ["external_write", "destructive", "admin"] },
+      "reasonCode": "GOVERNANCE_APPROVAL_REQUIRED"
+    }
+  ],
+  "allow": [
+    {
+      "id": "allow-project-read",
+      "when": { "field": "effect", "op": "eq", "value": "read" },
+      "reasonCode": "policy.allow.read"
+    },
+    {
+      "id": "allow-project-write",
+      "when": { "field": "effect", "op": "eq", "value": "write" },
+      "reasonCode": "policy.allow.write"
+    }
+  ]
+}

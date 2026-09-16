@@ -13,19 +13,50 @@ import type {
   NormalizedChatRequest,
   NormalizedChatResponse,
   RoutingRequest,
+  RouteDecision,
+  CandidateOutcome,
+  GatewayEventRecord,
+  GatewayFailureClass,
+  RouteAttemptRecord,
+  RouteDecisionRecord,
 } from "./types";
 import { loadGatewayConfig } from "./config";
 import { ProviderRegistry } from "./providers/registry";
 import { authenticateRequest, isAliasPermitted } from "./auth/identity";
-import { checkBudget, recordSpend, getGlobalSpendSummary } from "./auth/budget";
-import { routeRequest, type RouterContext } from "./routing/router";
+import { checkBudget, recordSpend, getGlobalSpendSummary, estimateTokens } from "./auth/budget";
+import { routeRequest, getFallbackCandidates, type RouterContext } from "./routing/router";
+import { resolveAlias } from "./aliases";
 import { runInputGuardrails, runOutputGuardrails } from "./guardrails/engine";
 import { isPaoAlias } from "./aliases";
 import { recordTrace, readTodayTraces, aggregateUsage } from "./traces/ledger";
-import { getFallbackCandidates } from "./routing/router";
 import { authenticateAdminRequest } from "./auth/identity";
 import { classifyRisk, evaluateWithCouncil, type CouncilReviewTarget } from "./council";
+import { CircuitBreaker } from "./routing/adaptive";
+import { QuotaStore } from "./quota/store";
+import { ConnectionStore } from "./resilience/connection-state";
+import { LeaseStore } from "./routing/leases";
+import {
+  planQuotaAwareRoute,
+  routeKeyOf,
+  type GovernanceCandidate,
+  type ScoredRouteCandidate,
+} from "./routing/quota-router";
+import { executeGoverned } from "./routing/fallback-controller";
+import { classifyGatewayFailure, type FailureBehavior } from "./resilience/classifier";
+import { startRecoveryWorker, type RecoveryWorkerHandle } from "./resilience/recovery";
+import { NineRouterProvider, type NineRouterTelemetry } from "./providers/nine-router";
+import { classifyFreshness } from "./quota/model";
+import {
+  recordDecision,
+  recordRouteAttempt,
+  recordGatewayEvent,
+  readDecisions,
+  readGatewayEvents,
+  readRouteAttempts,
+} from "./traces/decision-ledger";
 import type { Server } from "bun";
+
+const ROUTER_VERSION_V3 = "router-v3-quota-aware";
 
 // ---------------------------------------------------------------------------
 // Request ID generation
@@ -61,14 +92,162 @@ function errorResponse(message: string, status: number, code?: string): Response
 }
 
 // ---------------------------------------------------------------------------
-// Gateway state
+// Governance runtime (Phase 20.51)
 // ---------------------------------------------------------------------------
+
+interface NineRouterRuntime {
+  readonly providerId: string;
+  readonly adapter: NineRouterProvider;
+  telemetry: NineRouterTelemetry | null;
+}
+
+interface GovernanceRuntime {
+  readonly config: NonNullable<GatewayConfig["governance"]>;
+  readonly quotaStore: QuotaStore;
+  readonly connections: ConnectionStore;
+  readonly breaker: CircuitBreaker;
+  readonly leases: LeaseStore;
+  /** Set once a nine-router provider registers; mutated only during startup. */
+  nineRouter: NineRouterRuntime | null;
+  readonly timers: ReturnType<typeof setInterval>[];
+  recovery: RecoveryWorkerHandle | null;
+}
 
 interface GatewayState {
   config: GatewayConfig;
   providerRegistry: ProviderRegistry;
   rootDir: string;
   startedAt: string;
+  governance: GovernanceRuntime | null;
+}
+
+function governanceEventSink(rootDir: string): (event: GatewayEventRecord) => void {
+  return event => {
+    recordGatewayEvent(rootDir, event);
+  };
+}
+
+/**
+ * Map an upstream telemetry hint (e.g. "antigravity/gemini-2.5-pro") onto
+ * catalog route keys. Upstream identifiers and catalog ids do not have to
+ * agree, so matching runs on the last path segment of each. Hints that match
+ * nothing land on the gateway-level key instead of being dropped silently.
+ */
+function upsertTelemetryWindows(
+  state: GatewayState,
+  runtime: GovernanceRuntime,
+  telemetry: NineRouterTelemetry,
+): void {
+  if (!runtime.nineRouter) return;
+  const { providerId } = runtime.nineRouter;
+  const catalogModels = state.config.models.filter(m => m.providerId === providerId);
+
+  for (const { routeKeyHint, window } of telemetry.windows) {
+    const hintModel = routeKeyHint.split("/").pop()?.toLowerCase() ?? "";
+    const matches = catalogModels.filter(m => {
+      const catalogModel = m.model.split("/").pop()?.toLowerCase() ?? "";
+      return catalogModel !== "" && (catalogModel === hintModel || routeKeyHint.toLowerCase().includes(catalogModel));
+    });
+    if (matches.length > 0) {
+      for (const match of matches) {
+        runtime.quotaStore.upsert(routeKeyOf(providerId, match.id), [window]);
+      }
+    } else {
+      runtime.quotaStore.upsert(`${providerId}/_gateway`, [window]);
+    }
+  }
+}
+
+async function syncNineRouterTelemetry(state: GatewayState): Promise<void> {
+  const runtime = state.governance;
+  const nr = runtime?.nineRouter;
+  if (!runtime || !nr) return;
+  try {
+    const telemetry = await nr.adapter.getTelemetry();
+    nr.telemetry = telemetry;
+    upsertTelemetryWindows(state, runtime, telemetry);
+    const health = await nr.adapter.healthCheck();
+    state.providerRegistry.setCachedHealth(nr.providerId, health);
+  } catch (err) {
+    recordGatewayEvent(state.rootDir, {
+      timestamp: new Date().toISOString(),
+      severity: "warning",
+      eventType: "NINE_ROUTER_SYNC_FAILED",
+      providerId: nr.providerId,
+      reasonCode: "TELEMETRY_STALE",
+      details: { message: err instanceof Error ? err.message : "unknown error" },
+    });
+  }
+}
+
+function buildGovernanceRuntime(state: GatewayState): GovernanceRuntime | null {
+  const config = state.config.governance;
+  if (!config?.enabled) return null;
+
+  const timers: ReturnType<typeof setInterval>[] = [];
+
+  const connections = new ConnectionStore({
+    onEvent: governanceEventSink(state.rootDir),
+  });
+  const breaker = new CircuitBreaker({
+    failureThreshold: config.circuitBreaker.failureThreshold,
+    cooldownMs: config.circuitBreaker.cooldownMs,
+    rateLimitCooldownMs: config.circuitBreaker.rateLimitCooldownMs,
+  });
+  const leases = new LeaseStore({ ttlMs: config.sessionLeaseTtlMin * 60 * 1000 });
+  const quotaStore = new QuotaStore();
+
+  const runtime: GovernanceRuntime = {
+    config,
+    quotaStore,
+    connections,
+    breaker,
+    leases,
+    nineRouter: null,
+    timers,
+    recovery: null,
+  };
+
+  // Assign before starting timers/workers: the initial telemetry sync reads
+  // state.governance through the same state object.
+  state.governance = runtime;
+
+  // NineRouter telemetry sync — only when a nine-router provider registered.
+  const nrConfig = state.config.nineRouter;
+  const nrProviderConfig = state.config.providers.find(p => p.type === "nine-router");
+  if (nrConfig?.enabled && nrProviderConfig) {
+    const provider = state.providerRegistry.get(nrProviderConfig.id);
+    if (provider instanceof NineRouterProvider) {
+      runtime.nineRouter = { providerId: nrProviderConfig.id, adapter: provider, telemetry: null };
+      const intervalMs = Math.max(5, nrConfig.syncIntervalSec) * 1000;
+      const timer = setInterval(() => {
+        void syncNineRouterTelemetry(state);
+      }, intervalMs);
+      timer.unref?.();
+      timers.push(timer);
+      void syncNineRouterTelemetry(state);
+    }
+  }
+
+  // Recovery worker probes cooldown routes; quarantined routes stay untouched.
+  runtime.recovery = startRecoveryWorker(
+    {
+      connections,
+      probe: async routeKey => {
+        const providerId = routeKey.split("/")[0];
+        const provider = state.providerRegistry.get(providerId);
+        if (!provider) return false;
+        const health = await provider.healthCheck();
+        return health.healthy;
+      },
+    },
+    {
+      intervalMs: 60_000,
+      onEvent: governanceEventSink(state.rootDir),
+    },
+  );
+
+  return runtime;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +371,12 @@ async function handleChatCompletions(
       400,
       inputGuardrailResult.code ?? "guardrail_block",
     );
+  }
+
+  // Phase 20.51 — governed path: quota-aware routing, bounded fallback,
+  // circuit/connection tracking, decision ledger.
+  if (state.governance) {
+    return await handleChatCompletionsGoverned(state, req, requestId, start, identity, normalizedRequest, requestedModel, guardrailPolicy);
   }
 
   // Route
@@ -385,6 +570,478 @@ async function handleChatCompletions(
 }
 
 // ---------------------------------------------------------------------------
+// Governed execution path (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+function resolveGovernanceCandidates(state: GatewayState, alias: string): GovernanceCandidate[] {
+  if (isPaoAlias(alias)) {
+    const resolutions = resolveAlias(alias, state.config.aliases, state.config.models);
+    if (resolutions.length === 0) {
+      throw new Error(`No routes configured for alias: ${alias}`);
+    }
+    return resolutions.map(r => {
+      const model = state.config.models.find(m => m.id === r.modelId)!;
+      return { modelId: r.modelId, providerId: model.providerId, model, aliasPriority: r.priority };
+    });
+  }
+  const model = state.config.models.find(m => m.id === alias || m.model === alias);
+  if (!model) throw new Error(`Model not found: ${alias}`);
+  return [{ modelId: model.id, providerId: model.providerId, model, aliasPriority: 100 }];
+}
+
+function decisionFromCandidate(
+  alias: string,
+  candidate: ScoredRouteCandidate,
+  fallbackAttempt: number,
+): RouteDecision {
+  return {
+    alias,
+    selectedModelId: candidate.modelId,
+    selectedProviderId: candidate.providerId,
+    routerVersion: ROUTER_VERSION_V3,
+    reason: candidate.reasons,
+    fallbackAttempt,
+    riskLevel: "R0",
+  };
+}
+
+/** Map a classified failure onto the connection store's failure kinds. */
+function softFailureFor(
+  runtime: GovernanceRuntime,
+  routeKey: string,
+  failureClass: GatewayFailureClass,
+): { kind: "transient" | "rate_limit" | "quota_exhausted" | "permanent"; failureClass: string; resetAt?: string } {
+  switch (failureClass) {
+    case "auth_invalid":
+    case "permission_denied":
+      return { kind: "permanent", failureClass };
+    case "quota_exhausted":
+      return {
+        kind: "quota_exhausted",
+        failureClass,
+        resetAt: runtime.quotaStore.primary(routeKey)?.resetAt,
+      };
+    case "rate_limited":
+      return { kind: "rate_limit", failureClass };
+    default:
+      return { kind: "transient", failureClass };
+  }
+}
+
+function breakerLegacyCode(failureClass: string): string {
+  if (failureClass === "auth_invalid" || failureClass === "permission_denied") return "auth_failure";
+  if (failureClass === "rate_limited" || failureClass === "quota_exhausted") return "provider_429";
+  return "provider_5xx";
+}
+
+function failureStatusFor(behavior: FailureBehavior | undefined): number {
+  if (!behavior) return 502;
+  if (behavior.failureClass === "content_rejected") return 400;
+  if (behavior.failureClass === "budget_blocked") return 429;
+  if (behavior.failureClass === "policy_blocked") return 403;
+  return 502;
+}
+
+async function handleChatCompletionsGoverned(
+  state: GatewayState,
+  req: Request,
+  requestId: string,
+  start: number,
+  identity: NonNullable<ReturnType<typeof authenticateRequest>>,
+  normalizedRequest: NormalizedChatRequest,
+  requestedModel: string,
+  guardrailPolicy: Parameters<typeof runInputGuardrails>[1],
+): Promise<Response> {
+  const runtime = state.governance!;
+  const sessionId = req.headers.get("x-pao-session-id")?.trim().slice(0, 128) || undefined;
+
+  // 1. Resolve candidates and plan quota-aware.
+  let candidates: GovernanceCandidate[];
+  try {
+    candidates = resolveGovernanceCandidates(state, requestedModel);
+  } catch (err) {
+    return errorResponse(
+      err instanceof Error ? err.message : "Routing failed",
+      404,
+      "routing_error",
+    );
+  }
+
+  const { input: inputTokens } = estimateTokens(normalizedRequest);
+  const plan = planQuotaAwareRoute(
+    {
+      candidates,
+      requiredCapabilities: normalizedRequest.tools?.length ? { tools: true } : undefined,
+      contextTokens: inputTokens,
+      maxCostUsd: identity.maxRequestUsd > 0 ? identity.maxRequestUsd : undefined,
+      localOnly: identity.localOnly === true,
+      sessionId,
+    },
+    {
+      config: state.config,
+      governance: runtime.config,
+      providerRegistry: state.providerRegistry,
+      quotaStore: runtime.quotaStore,
+      connections: runtime.connections,
+      breaker: runtime.breaker,
+      leases: runtime.leases,
+    },
+  );
+
+  const rejections: CandidateOutcome[] = [...plan.rejections];
+
+  if (!plan.selected) {
+    const decision: RouteDecisionRecord = {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      weightProfile: plan.weightProfile,
+      sessionId,
+      candidates: rejections,
+      fallbackDepth: 0,
+      outcome: "no_eligible_route",
+      reasonCodes: [...new Set(rejections.flatMap(r => r.reasonCodes))],
+      latencyMs: Date.now() - start,
+    };
+    recordDecision(state.rootDir, decision);
+    return errorResponse("No eligible route after policy filters", 404, "no_eligible_route");
+  }
+
+  // 2. Budget admission for the planned route (mirrors the legacy trace).
+  const selectedModel = plan.selected.model;
+  const budgetResult = checkBudget(identity, selectedModel, normalizedRequest, state.config.budgets);
+  if (!budgetResult.allowed) {
+    recordTrace(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      selectedModelId: plan.selected.modelId,
+      selectedProviderId: plan.selected.providerId,
+      routerVersion: ROUTER_VERSION_V3,
+      riskLevel: "R0",
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: budgetResult.estimatedCostUsd ?? 0,
+      latencyMs: Date.now() - start,
+      status: "budget_denied",
+      fallbackCount: 0,
+      guardrailResult: "allow",
+      traceContentMode: state.config.traceContentMode,
+    });
+    recordDecision(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      weightProfile: plan.weightProfile,
+      sessionId,
+      selectedRouteKey: plan.selected.routeKey,
+      selectedModelId: plan.selected.modelId,
+      selectedProviderId: plan.selected.providerId,
+      candidates: [...rejections, {
+        routeKey: plan.selected.routeKey,
+        providerId: plan.selected.providerId,
+        modelId: plan.selected.modelId,
+        status: "selected",
+        score: plan.selected.score,
+        reasonCodes: [...plan.selected.reasons],
+      }],
+      fallbackDepth: 0,
+      outcome: "budget_denied",
+      reasonCodes: ["ROUTE_REJECTED_BUDGET", budgetResult.denialReason ?? "budget_denial"],
+      latencyMs: Date.now() - start,
+    });
+    return errorResponse(
+      `Budget limit exceeded: ${budgetResult.denialReason}`,
+      429,
+      "budget_denial",
+    );
+  }
+
+  // 3. Execute with bounded fallback; gate re-checks live state per attempt.
+  let lastErrorMessage = "";
+  const attempts: RouteAttemptRecord[] = [];
+  const execResult = await executeGoverned({
+    requestId,
+    candidates: plan.ordered,
+    policy: runtime.config.fallback,
+    callbacks: {
+      executor: async candidate => {
+        const provider = state.providerRegistry.get(candidate.providerId);
+        if (!provider) {
+          throw Object.assign(new Error(`Provider ${candidate.providerId} not available`), {
+            code: "provider_unavailable",
+          });
+        }
+        const upstreamRequest: NormalizedChatRequest = {
+          ...normalizedRequest,
+          model: candidate.model.model,
+          _gateway: {
+            requestId,
+            identity,
+            routeDecision: decisionFromCandidate(requestedModel, candidate, attempts.length),
+          },
+        };
+        try {
+          return await provider.chat(upstreamRequest);
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : "provider request failed";
+          throw err;
+        }
+      },
+      gate: candidate => {
+        if (!state.providerRegistry.get(candidate.providerId)) {
+          return { allowed: false, reasonCode: "ROUTE_REJECTED_DISABLED" };
+        }
+        const conn = runtime.connections.get(candidate.routeKey);
+        if (conn.state === "disabled") return { allowed: false, reasonCode: "ROUTE_REJECTED_DISABLED" };
+        if (conn.state === "quarantined") return { allowed: false, reasonCode: "ROUTE_REJECTED_QUARANTINED" };
+        if (conn.state === "cooldown") return { allowed: false, reasonCode: "ROUTE_REJECTED_COOLDOWN" };
+        if (!runtime.breaker.canAttempt(candidate.providerId)) {
+          return { allowed: false, reasonCode: "ROUTE_REJECTED_CIRCUIT_OPEN" };
+        }
+        const budget = checkBudget(identity, candidate.model, normalizedRequest, state.config.budgets);
+        if (!budget.allowed) return { allowed: false, reasonCode: "ROUTE_REJECTED_BUDGET" };
+        return { allowed: true };
+      },
+      onAttempt: record => {
+        attempts.push(record);
+        recordRouteAttempt(state.rootDir, record);
+        if (record.outcome === "failure" && record.failureClass) {
+          const routeKey = routeKeyOf(record.providerId, record.modelId);
+          runtime.connections.recordFailure(routeKey, softFailureFor(runtime, routeKey, record.failureClass));
+          runtime.breaker.recordFailure(record.providerId, breakerLegacyCode(record.failureClass));
+          // A failure on the leased route migrates the session off it.
+          if (sessionId) {
+            const lease = runtime.leases.get(sessionId);
+            if (lease && lease.routeKey === routeKey) {
+              runtime.leases.abandon(sessionId);
+              recordGatewayEvent(state.rootDir, {
+                timestamp: new Date().toISOString(),
+                severity: "info",
+                eventType: "ROUTE_LEASE_MIGRATED",
+                providerId: record.providerId,
+                modelId: record.modelId,
+                reasonCode: "ROUTE_LEASE_MIGRATED",
+                details: { from: routeKey, requestId },
+              });
+            }
+          }
+        }
+      },
+      onSkip: (candidate, reasonCode) => {
+        rejections.push({
+          routeKey: candidate.routeKey,
+          providerId: candidate.providerId,
+          modelId: candidate.modelId,
+          status: "rejected",
+          reasonCodes: [reasonCode],
+        });
+      },
+      onEvent: event => recordGatewayEvent(state.rootDir, event),
+    },
+  });
+
+  const selectedCandidate = execResult.selected ?? plan.selected;
+  const decisionReasonCodes = [
+    ...new Set([
+      ...(selectedCandidate?.reasons ?? []),
+      ...rejections.flatMap(r => r.reasonCodes),
+      ...execResult.failures.map(f => f.behavior.reasonCode),
+    ]),
+  ];
+
+  // 4. No attempt succeeded.
+  if (execResult.outcome !== "success" || !execResult.result) {
+    const lastFailure = execResult.failures[execResult.failures.length - 1];
+    const status = failureStatusFor(lastFailure?.behavior);
+    const latencyMs = Date.now() - start;
+    recordTrace(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      selectedModelId: selectedCandidate.modelId,
+      selectedProviderId: selectedCandidate.providerId,
+      routerVersion: ROUTER_VERSION_V3,
+      riskLevel: "R0",
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: budgetResult.estimatedCostUsd ?? 0,
+      latencyMs,
+      status: "error",
+      fallbackCount: execResult.fallbackDepth,
+      guardrailResult: "allow",
+      traceContentMode: state.config.traceContentMode,
+    });
+    recordDecision(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      weightProfile: plan.weightProfile,
+      sessionId,
+      selectedRouteKey: selectedCandidate.routeKey,
+      selectedModelId: selectedCandidate.modelId,
+      selectedProviderId: selectedCandidate.providerId,
+      candidates: [
+        ...rejections,
+        {
+          routeKey: selectedCandidate.routeKey,
+          providerId: selectedCandidate.providerId,
+          modelId: selectedCandidate.modelId,
+          status: "attempted",
+          score: selectedCandidate.score,
+          reasonCodes: [...selectedCandidate.reasons],
+        },
+      ],
+      fallbackDepth: execResult.fallbackDepth,
+      outcome: execResult.outcome,
+      reasonCodes: decisionReasonCodes,
+      latencyMs,
+    });
+    const message =
+      execResult.outcome === "no_eligible_route"
+        ? "All candidate routes were rejected before execution"
+        : execResult.outcome === "deadline_exceeded"
+          ? "Request deadline exceeded before a route succeeded"
+          : lastErrorMessage || "All eligible routes failed";
+    return errorResponse(message, status, lastFailure?.behavior.reasonCode ?? "provider_error");
+  }
+
+  // 5. Success: health, lease, guardrails, spend, ledgers, response.
+  const response = execResult.result;
+  runtime.connections.recordSuccess(selectedCandidate.routeKey);
+  runtime.breaker.recordSuccess(selectedCandidate.providerId);
+  if (sessionId) runtime.leases.bind(sessionId, selectedCandidate.routeKey);
+
+  const outputGuardrailResult = runOutputGuardrails(response, guardrailPolicy);
+  if (outputGuardrailResult.action === "block") {
+    const latencyMs = Date.now() - start;
+    recordTrace(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      selectedModelId: selectedCandidate.modelId,
+      selectedProviderId: selectedCandidate.providerId,
+      routerVersion: ROUTER_VERSION_V3,
+      riskLevel: "R0",
+      inputTokens: response.usage?.promptTokens ?? 0,
+      outputTokens: response.usage?.completionTokens ?? 0,
+      estimatedCostUsd: budgetResult.estimatedCostUsd ?? 0,
+      latencyMs,
+      status: "blocked",
+      fallbackCount: execResult.fallbackDepth,
+      guardrailResult: "block",
+      traceContentMode: state.config.traceContentMode,
+    });
+    recordDecision(state.rootDir, {
+      requestId,
+      timestamp: new Date().toISOString(),
+      identityId: identity.id,
+      alias: requestedModel,
+      weightProfile: plan.weightProfile,
+      sessionId,
+      selectedRouteKey: selectedCandidate.routeKey,
+      selectedModelId: selectedCandidate.modelId,
+      selectedProviderId: selectedCandidate.providerId,
+      candidates: rejections,
+      fallbackDepth: execResult.fallbackDepth,
+      outcome: "failed",
+      reasonCodes: [...decisionReasonCodes, outputGuardrailResult.code ?? "output_guardrail_block"],
+      latencyMs,
+    });
+    return errorResponse(
+      outputGuardrailResult.safeMessage ?? "Response blocked by output guardrails",
+      400,
+      outputGuardrailResult.code ?? "output_guardrail_block",
+    );
+  }
+
+  const latencyMs = Date.now() - start;
+  const actualInputTokens = response.usage?.promptTokens ?? 0;
+  const actualOutputTokens = response.usage?.completionTokens ?? 0;
+
+  let actualCost: number | undefined;
+  if (selectedModel.pricing.inputPerMillionUsd !== null && selectedModel.pricing.outputPerMillionUsd !== null) {
+    actualCost =
+      (actualInputTokens / 1_000_000) * selectedModel.pricing.inputPerMillionUsd +
+      (actualOutputTokens / 1_000_000) * selectedModel.pricing.outputPerMillionUsd;
+    recordSpend(identity.id, actualCost);
+  }
+
+  recordTrace(state.rootDir, {
+    requestId,
+    timestamp: new Date().toISOString(),
+    identityId: identity.id,
+    alias: requestedModel,
+    selectedModelId: selectedCandidate.modelId,
+    selectedProviderId: selectedCandidate.providerId,
+    routerVersion: ROUTER_VERSION_V3,
+    riskLevel: "R0",
+    inputTokens: actualInputTokens,
+    outputTokens: actualOutputTokens,
+    estimatedCostUsd: budgetResult.estimatedCostUsd ?? 0,
+    actualCostUsd: actualCost,
+    latencyMs,
+    status: "success",
+    fallbackCount: execResult.fallbackDepth,
+    guardrailResult: "allow",
+    traceContentMode: state.config.traceContentMode,
+  });
+
+  recordDecision(state.rootDir, {
+    requestId,
+    timestamp: new Date().toISOString(),
+    identityId: identity.id,
+    alias: requestedModel,
+    weightProfile: plan.weightProfile,
+    sessionId,
+    selectedRouteKey: selectedCandidate.routeKey,
+    selectedModelId: selectedCandidate.modelId,
+    selectedProviderId: selectedCandidate.providerId,
+    candidates: [
+      ...rejections,
+      {
+        routeKey: selectedCandidate.routeKey,
+        providerId: selectedCandidate.providerId,
+        modelId: selectedCandidate.modelId,
+        status: "selected",
+        score: selectedCandidate.score,
+        reasonCodes: [...selectedCandidate.reasons],
+      },
+    ],
+    fallbackDepth: execResult.fallbackDepth,
+    outcome: "success",
+    reasonCodes: decisionReasonCodes,
+    estimatedCostUsd: budgetResult.estimatedCostUsd ?? 0,
+    actualCostUsd: actualCost,
+    latencyMs,
+  });
+
+  const respBody = {
+    ...response,
+    model: requestedModel,
+  };
+
+  return new Response(JSON.stringify(respBody), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Pao-Gateway": "1",
+      "X-Pao-Request-Id": requestId,
+      "X-Pao-Router-Version": ROUTER_VERSION_V3,
+      "X-Pao-Selected-Model": selectedCandidate.modelId,
+      "X-Pao-Fallback-Depth": String(execResult.fallbackDepth),
+      "X-Pao-Weight-Profile": plan.weightProfile,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Admin API handlers
 // ---------------------------------------------------------------------------
 
@@ -564,6 +1221,166 @@ function handleCouncilPolicies(): Response {
 }
 
 // ---------------------------------------------------------------------------
+// Admin API handlers — governance (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+function handleAdminQuotas(state: GatewayState): Response {
+  const runtime = state.governance;
+  if (!runtime) return jsonResponse({ governance: false, routes: [], nineRouter: null });
+  const policy = runtime.config.quota;
+  const routes = runtime.quotaStore.keys().map(routeKey => {
+    const windows = runtime.quotaStore.get(routeKey);
+    const primary = runtime.quotaStore.primary(routeKey);
+    return {
+      routeKey,
+      primary,
+      freshness: classifyFreshness(primary?.observedAt, policy),
+      windows,
+    };
+  });
+  return jsonResponse({
+    governance: true,
+    nineRouter: runtime.nineRouter
+      ? {
+          providerId: runtime.nineRouter.providerId,
+          version: runtime.nineRouter.telemetry?.version ?? null,
+          observedAt: runtime.nineRouter.telemetry?.observedAt ?? null,
+        }
+      : null,
+    routes,
+  });
+}
+
+function handleAdminCircuits(state: GatewayState): Response {
+  const runtime = state.governance;
+  if (!runtime) return jsonResponse({ governance: false, connections: {}, circuits: {} });
+  return jsonResponse({
+    governance: true,
+    connections: runtime.connections.snapshot(),
+    circuits: runtime.breaker.snapshot(),
+    leases: {
+      active: runtime.leases.routeKeys().length,
+      leasedRoutes: runtime.leases.routeKeys(),
+    },
+  });
+}
+
+function handleAdminDecisions(state: GatewayState, url: URL): Response {
+  const date = url.searchParams.get("date") ?? undefined;
+  const limit = Math.min(Number(url.searchParams.get("limit")) || 100, 1000);
+  const decisions = readDecisions(state.rootDir, date).slice(-limit);
+  return jsonResponse({ decisions, count: decisions.length });
+}
+
+function handleAdminAttempts(state: GatewayState, url: URL): Response {
+  const date = url.searchParams.get("date") ?? undefined;
+  const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 2000);
+  const attempts = readRouteAttempts(state.rootDir, date).slice(-limit);
+  return jsonResponse({ attempts, count: attempts.length });
+}
+
+function handleAdminEvents(state: GatewayState, url: URL): Response {
+  const date = url.searchParams.get("date") ?? undefined;
+  const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 2000);
+  const events = readGatewayEvents(state.rootDir, date).slice(-limit);
+  return jsonResponse({ events, count: events.length });
+}
+
+async function handleSimulate(req: Request, state: GatewayState): Promise<Response> {
+  const runtime = state.governance;
+  if (!runtime) {
+    return errorResponse("Routing governance is not enabled", 409, "governance_disabled");
+  }
+  let body: {
+    alias?: string;
+    requiredCapabilities?: Record<string, boolean>;
+    contextTokens?: number;
+    sessionId?: string;
+  } = {};
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, "invalid_request");
+  }
+  const alias = body.alias ?? "";
+  if (!alias) return errorResponse("Missing 'alias'", 400, "invalid_request");
+
+  let candidates: GovernanceCandidate[];
+  try {
+    candidates = resolveGovernanceCandidates(state, alias);
+  } catch (err) {
+    return errorResponse(
+      err instanceof Error ? err.message : "Candidate resolution failed",
+      404,
+      "routing_error",
+    );
+  }
+
+  // Simulation never executes inference and never mutates state: it shares
+  // the plan path but reads (never writes) stores.
+  const plan = planQuotaAwareRoute(
+    {
+      candidates,
+      requiredCapabilities: body.requiredCapabilities,
+      contextTokens: body.contextTokens,
+      sessionId: body.sessionId,
+    },
+    {
+      config: state.config,
+      governance: runtime.config,
+      providerRegistry: state.providerRegistry,
+      quotaStore: runtime.quotaStore,
+      connections: runtime.connections,
+      breaker: runtime.breaker,
+      leases: runtime.leases,
+    },
+  );
+  return jsonResponse({
+    weightProfile: plan.weightProfile,
+    selected: plan.selected
+      ? { routeKey: plan.selected.routeKey, score: plan.selected.score, reasons: plan.selected.reasons }
+      : null,
+    ordered: plan.ordered.map(c => ({ routeKey: c.routeKey, score: c.score, reasons: c.reasons })),
+    rejected: plan.rejections,
+  });
+}
+
+async function handleConnectionAction(req: Request, state: GatewayState): Promise<Response> {
+  const runtime = state.governance;
+  if (!runtime) {
+    return errorResponse("Routing governance is not enabled", 409, "governance_disabled");
+  }
+  let body: { routeKey?: string; action?: string } = {};
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return errorResponse("Invalid JSON body", 400, "invalid_request");
+  }
+  const routeKey = body.routeKey ?? "";
+  const action = body.action ?? "";
+  if (!routeKey || routeKey.split("/").length !== 2) {
+    return errorResponse("Missing or malformed 'routeKey' (expected providerId/modelId)", 400, "invalid_request");
+  }
+
+  switch (action) {
+    case "disable":
+      runtime.connections.disable(routeKey);
+      break;
+    case "quarantine":
+      runtime.connections.quarantine(routeKey, "operator_action", "CB_OPERATOR_ACTION");
+      break;
+    case "recover":
+    case "enable":
+      runtime.connections.beginRecovery(routeKey);
+      break;
+    default:
+      return errorResponse("Unknown action; expected disable, quarantine, recover, or enable", 400, "invalid_request");
+  }
+
+  return jsonResponse({ routeKey, action, connection: runtime.connections.get(routeKey) });
+}
+
+// ---------------------------------------------------------------------------
 // Main server
 // ---------------------------------------------------------------------------
 
@@ -592,7 +1409,9 @@ export async function startGatewayServer(rootDir: string): Promise<GatewayServer
     providerRegistry,
     rootDir,
     startedAt,
+    governance: null,
   };
+  buildGovernanceRuntime(state);
 
   // Initial health check (non-blocking)
   providerRegistry.checkAllHealth().catch(() => {});
@@ -632,6 +1451,13 @@ export async function startGatewayServer(rootDir: string): Promise<GatewayServer
         if (path === "/api/gateway/council/classify" && method === "POST") return await handleCouncilClassify(req);
         if (path === "/api/gateway/council/evaluate" && method === "POST") return await handleCouncilEvaluate(req, state);
         if (path === "/api/gateway/council/policies" && method === "GET") return handleCouncilPolicies();
+        if (path === "/api/gateway/quotas" && method === "GET") return handleAdminQuotas(state);
+        if (path === "/api/gateway/circuits" && method === "GET") return handleAdminCircuits(state);
+        if (path === "/api/gateway/decisions" && method === "GET") return handleAdminDecisions(state, url);
+        if (path === "/api/gateway/attempts" && method === "GET") return handleAdminAttempts(state, url);
+        if (path === "/api/gateway/events" && method === "GET") return handleAdminEvents(state, url);
+        if (path === "/api/gateway/simulate" && method === "POST") return await handleSimulate(req, state);
+        if (path === "/api/gateway/connections" && method === "POST") return await handleConnectionAction(req, state);
         return errorResponse("Not found", 404);
       }
 
@@ -648,11 +1474,22 @@ export async function startGatewayServer(rootDir: string): Promise<GatewayServer
   console.log(`[ai-gateway] Router: ${config.routerVersion}`);
   console.log(`[ai-gateway] Providers: ${providerRegistry.listIds().join(", ") || "(none)"}`);
   console.log(`[ai-gateway] Aliases: ${config.aliases.map(a => a.id).join(", ") || "(none)"}`);
+  if (state.governance) {
+    console.log(
+      `[ai-gateway] Governance: enabled (profile=${state.governance.config.weightProfile}, ` +
+        `maxFallbackAttempts=${state.governance.config.fallback.maxRouteAttempts})`,
+    );
+  }
+  if (state.governance?.nineRouter) {
+    console.log(`[ai-gateway] 9Router telemetry: ${state.governance.nineRouter.providerId} @ ${state.config.nineRouter?.baseUrl}`);
+  }
 
   return {
     server,
     config,
     stop() {
+      for (const timer of state.governance?.timers ?? []) clearInterval(timer);
+      state.governance?.recovery?.stop();
       server.stop(true);
       console.log("[ai-gateway] Gateway stopped.");
     },

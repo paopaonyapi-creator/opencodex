@@ -1,0 +1,32 @@
+# Phase 20.33 — Open WebUI integration overlay (compose EXTENDS the host proxy, never replaces it).
+# Usage: docker compose -f docker-compose.open-webui.yml up -d
+# The image is PINNED (see VERSION); never use :main or :latest in production.
+
+services:
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:v0.11.3}
+    container_name: pao-open-webui
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Point Open WebUI at the Pao provider router (the existing opencodex
+      # proxy already serves GET /v1/models and POST /v1/chat/completions).
+      OPENAI_API_BASE_URL: ${PAO_LLM_BASE_URL:-http://host.docker.internal:PORT}
+      OPENAI_API_KEY: ${PAO_PROXY_TOKEN}
+      ENABLE_OPENAI_API: "true"
+      # Streamable HTTP MCP connector target (token-authenticated management API).
+      PAO_MCP_URL: ${PAO_MCP_URL:-http://host.docker.internal:PORT/api/agent-os/ai-workspace/mcp}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open_webui_data:/app/backend/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  open_webui_data:
+    external: false

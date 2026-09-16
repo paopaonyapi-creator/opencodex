@@ -617,6 +617,14 @@ const commandRunners: Record<string, CommandRunner> = {
     const { handleSeoCommand } = await import("./seo");
     return await handleSeoCommand(deps.args.slice(1));
   },
+  "agent-platform": async deps => {
+    const { handleAgentPlatformCommand } = await import("./agent-platform");
+    return await handleAgentPlatformCommand(deps.args.slice(1));
+  },
+  "capability-lab": async deps => {
+    const { handleCapabilityLabCommand } = await import("./capability-lab");
+    return await handleCapabilityLabCommand(deps.args.slice(1));
+  },
   inspect: async deps => {
     const { handleInspectCommand } = await import("./inspect");
     return await handleInspectCommand(deps.args.slice(1));

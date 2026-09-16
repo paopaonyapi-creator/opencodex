@@ -12,8 +12,8 @@ import type { ModelInfo, ModelProvider } from "./interface";
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly id: string;
   readonly type: GatewayProviderConfig["type"];
-  private readonly baseUrl: string;
-  private readonly apiKeyEnv: string;
+  protected readonly baseUrl: string;
+  protected readonly apiKeyEnv: string;
 
   constructor(config: GatewayProviderConfig) {
     this.id = config.id;

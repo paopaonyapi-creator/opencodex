@@ -30,8 +30,8 @@ describe("End-to-End Autonomous Stock Pipeline", () => {
   // =========================================================================
   // 1. Schema & Migration Tests
   // =========================================================================
-  test("schema version is 24 and stock_autonomous_pipeline_runs table exists", () => {
-    expect(AGENT_OS_SCHEMA_VERSION).toBe(24);
+  test("schema version is at least 24 and stock_autonomous_pipeline_runs table exists", () => {
+    expect(AGENT_OS_SCHEMA_VERSION).toBeGreaterThanOrEqual(24);
 
     const db = openAgentOsDb();
     const tableInfo = db

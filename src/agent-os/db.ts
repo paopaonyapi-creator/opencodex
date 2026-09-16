@@ -12,6 +12,25 @@ import { getConfigDir } from "../config";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
+// v30: media_jobs, media_artifacts, media_sources, media_events, media_provider_health,
+// media_permissions, media_presets, media_secret_references
+// (Phase 20.24 Pao-hubPro × OmniGet Local Media Acquisition & MCP Engine).
+// v31: registry_tools, registry_tool_health, registry_runs, registry_run_steps,
+// registry_approvals, registry_audit_events, registry_preferences
+// (Phase 20.25 Pao-hubPro × Agentic AI Universal Registry & Toolchain).
+// v32: douyin_creators, douyin_media_items, douyin_search_snapshots,
+// douyin_hot_board_snapshots, douyin_comments, douyin_transcripts,
+// douyin_sessions, douyin_idempotency
+// (Phase 20.26 Pao-hubPro × Douyin Media Intelligence & Downloader Engine).
+// v29: notification_events, notification_destinations, notification_subscriptions,
+// notification_deliveries, notification_attempts, notification_rate_limit_states,
+// notification_provider_gates, notification_circuits, notification_aggregations,
+// notification_dead_letters, notification_invalid_requests, notification_audit_events
+// (Phase 20.23 Pao-hubPro Unified Notification Gateway).
+// v26: social_providers, social_tools, social_registry_refreshes, social_research_jobs,
+// social_provider_runs, social_usage_records, social_normalized_items,
+// social_trend_signals, social_opportunities, social_audit_events
+// (Phase 20.20 Pao-hubPro Social Intelligence Engine × Social Media Scraping API Router).
 // v25: mobile_devices, mobile_tasks, mobile_task_events, mobile_artifacts, mobile_policy_decisions
 // (Phase 20.12 Pao-hubPro × Google ARTEMIS Mobile Agent Gateway).
 // v24: stock_autonomous_pipeline_runs (End-to-End Autonomous Stock Production & Submission Pipeline).
@@ -73,7 +92,65 @@ import { join } from "node:path";
 // reviews (Phase 16 slice), write_permits (Phase 16 gateway). Databases created
 // by v1 builds lack these tables; the v2-v4 migrations are additive (CREATE TABLE IF
 // NOT EXISTS) and never touch prior data.
-export const AGENT_OS_SCHEMA_VERSION = 25;
+// v28: orchestration_runs, orchestration_events, orchestration_checkpoints,
+// orchestration_approvals, orchestration_tool_calls, orchestration_mcp_servers
+// (Phase 20.22 Pao-hubPro x LangChain Agent Orchestration & MCP Runtime Layer).
+// v27: codex_runtime_nodes, codex_runtime_sessions, codex_runtime_jobs,
+// codex_runtime_events, codex_runtime_approvals, codex_runtime_audit_logs,
+// codex_runtime_capabilities, codex_runtime_mcp_tools (Phase 20.21 Pao-hubPro x OpenAI Codex Native Runtime Integration).
+// v26: social_tools, social_registry_refreshes, social_research_jobs,
+// social_provider_runs, social_usage_records, social_normalized_items,
+// social_trend_signals, social_opportunities, social_audit_events (Phase 20.20 Social Intelligence Engine).
+// v33: speech_jobs, speech_artifacts, voice_profiles, voice_consents,
+// model_licenses, speech_policy_checks, speech_runtime_health, speech_audit
+// (Phase 20.32 VoiceStudio speech runtime).
+// v34: lead_profiles, lead_contact_points, lead_social_profiles,
+// lead_source_records, lead_field_evidence, lead_providers,
+// lead_provider_health, lead_provider_usage, lead_jobs, lead_pipelines,
+// lead_pipeline_runs, lead_suppression, lead_exports, lead_audit
+// (Phase 20.34 Lead Intelligence Control Plane).
+// v35: unified_providers, unified_provider_health, unified_route_executions,
+// unified_workspace_grants, unified_audit (Phase 20.35 unified runtime control plane).
+// v36: biz_opportunities, biz_opportunity_versions, biz_sources,
+// biz_source_imports, biz_capability_registry, biz_compliance_checks,
+// biz_cost_estimates, biz_mvp_specs, biz_experiments, biz_audit
+// (Phase 30.36 Pao Business Builder).
+// v37: orch_agents, orch_skills, orch_hook_policies, orch_runs,
+// orch_tool_calls, orch_approvals, orch_worktrees, orch_memories,
+// orch_audit_events (Phase 20.37 Agentic Development OS control plane).
+// v38: dv_packages, dv_artifacts, dv_projects, dv_project_items, dv_bundles,
+// dv_policy_decisions, dv_audit_events (Phase 20.38 Dependency Vault).
+// v39: cc_workspaces, cc_providers, cc_provider_instances, cc_sessions,
+// cc_session_events, cc_runs, cc_tool_executions, cc_context_refs,
+// cc_approvals, cc_locks, cc_usage, cc_artifacts, cc_audit
+// (Phase 20.39 Unified AI Coding Workspace cockpit).
+// v40: observability_sessions, observability_events, observability_evidence,
+// observability_process_evidence, observability_integrity_checks,
+// observability_aliases, observability_alert_rules, observability_alert_events,
+// observability_scan_cycles (Phase 20.40 Agent Observability Control Plane).
+// v41: memory_workspaces, memory_projects, memory_agents, memories,
+// memory_revisions, memory_tags, memory_tag_links, memory_chunks,
+// memory_embeddings, memory_observations, memory_observation_sources,
+// memory_supersession_links, memory_search_traces, memory_search_trace_results,
+// memory_mutation_previews, memory_idempotency_keys, memory_oauth_clients,
+// memory_oauth_authorization_codes, memory_oauth_access_tokens,
+// memory_oauth_refresh_tokens, memory_oauth_consents
+// (Phase 20.41 Trustworthy MCP Memory Plane).
+// v42: bw_workspaces, bw_agents, bw_teams, bw_team_members, bw_conversations,
+// bw_messages, bw_message_mentions, bw_drafts, bw_provider_bindings,
+// bw_runtime_bindings, bw_group_rounds, bw_agent_executions,
+// bw_execution_events, bw_approvals, bw_routines, bw_routine_runs,
+// bw_audit_events (Phase 20.42 Named AI Teammate Workspace).
+// v43: memory_engram_registry, memory_episode_registry, memory_feedback,
+// memory_policy_rules, memory_sync_profiles, memory_sync_runs,
+// memory_injection_receipts, memory_agent_adapters, memory_approvals,
+// memory_conflicts, memory_audit_events (Phase 20.43 PLUR Shared Agent
+// Memory Runtime control plane).
+// v44: ap_* agent platform (Phase 20.54).
+// v45: mobile leases/approvals/traces (Phase 20.55).
+// v46: cap_* Micro-App Capability Lab (Phase 20.56).
+// v47: sg_* Skill Gate control plane (Phase 20.57).
+export const AGENT_OS_SCHEMA_VERSION = 51;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -3008,6 +3085,2980 @@ function migrate(db: Database): void {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_mobile_policy_task ON mobile_policy_decisions(task_id);
+
+      -- v26: Phase 20.20 Pao-hubPro Social Intelligence Engine.
+      CREATE TABLE IF NOT EXISTS social_providers (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        priority INTEGER NOT NULL DEFAULT 0,
+        base_url TEXT,
+        auth_type TEXT NOT NULL DEFAULT 'api_key',
+        status TEXT NOT NULL DEFAULT 'unknown',
+        last_health_check_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_providers_slug ON social_providers(slug);
+
+      CREATE TABLE IF NOT EXISTS social_tools (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        owner TEXT,
+        name TEXT NOT NULL,
+        title TEXT,
+        description TEXT,
+        url TEXT,
+        platform TEXT NOT NULL DEFAULT 'unknown',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        categories_json TEXT NOT NULL DEFAULT '[]',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        enabled_source TEXT NOT NULL DEFAULT 'auto',
+        verified INTEGER NOT NULL DEFAULT 0,
+        pricing_state TEXT NOT NULL DEFAULT 'unknown',
+        pricing_model TEXT,
+        estimated_unit_cost REAL,
+        currency TEXT,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        timeout_count INTEGER NOT NULL DEFAULT 0,
+        cancel_count INTEGER NOT NULL DEFAULT 0,
+        avg_duration_ms REAL,
+        p95_duration_ms REAL,
+        durations_json TEXT NOT NULL DEFAULT '[]',
+        last_success_at TEXT,
+        last_failure_at TEXT,
+        last_health_check_at TEXT,
+        external_created_at TEXT,
+        external_modified_at TEXT,
+        discovered_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(provider_id, external_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_tools_provider ON social_tools(provider_id, enabled);
+      CREATE INDEX IF NOT EXISTS idx_social_tools_platform ON social_tools(platform);
+      CREATE INDEX IF NOT EXISTS idx_social_tools_pricing ON social_tools(pricing_state);
+
+      CREATE TABLE IF NOT EXISTS social_registry_refreshes (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        discovered INTEGER NOT NULL DEFAULT 0,
+        inserted INTEGER NOT NULL DEFAULT 0,
+        updated INTEGER NOT NULL DEFAULT 0,
+        unchanged INTEGER NOT NULL DEFAULT 0,
+        marked_stale INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        detail_json TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_refresh_provider ON social_registry_refreshes(provider_id, started_at);
+
+      CREATE TABLE IF NOT EXISTS social_research_jobs (
+        id TEXT PRIMARY KEY,
+        platform TEXT NOT NULL DEFAULT 'any',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        query TEXT,
+        max_items INTEGER NOT NULL DEFAULT 100,
+        max_cost_usd REAL NOT NULL DEFAULT 0.10,
+        freshness TEXT NOT NULL DEFAULT 'cached_ok',
+        state TEXT NOT NULL DEFAULT 'draft',
+        selected_tool_id TEXT,
+        estimated_cost REAL,
+        approved_max_usd REAL,
+        approval_token_hash TEXT,
+        approval_expires_at TEXT,
+        fallback_history_json TEXT NOT NULL DEFAULT '[]',
+        result_summary_json TEXT NOT NULL DEFAULT '{}',
+        error_code TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_jobs_state ON social_research_jobs(state);
+      CREATE INDEX IF NOT EXISTS idx_social_jobs_platform ON social_research_jobs(platform);
+      CREATE INDEX IF NOT EXISTS idx_social_jobs_created ON social_research_jobs(created_at);
+
+      CREATE TABLE IF NOT EXISTS social_provider_runs (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES social_research_jobs(id) ON DELETE CASCADE,
+        provider_id TEXT NOT NULL,
+        tool_id TEXT NOT NULL,
+        provider_run_id TEXT,
+        attempt INTEGER NOT NULL DEFAULT 1,
+        fallback_index INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        duration_ms INTEGER,
+        estimated_cost REAL,
+        actual_cost REAL,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        error_code TEXT,
+        error_message TEXT,
+        fallback_reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_runs_job ON social_provider_runs(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_social_runs_tool ON social_provider_runs(tool_id);
+      CREATE INDEX IF NOT EXISTS idx_social_runs_status ON social_provider_runs(status);
+
+      CREATE TABLE IF NOT EXISTS social_usage_records (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        tool_id TEXT NOT NULL,
+        estimated_cost REAL NOT NULL DEFAULT 0.0,
+        actual_cost REAL,
+        currency TEXT,
+        input_item_count INTEGER NOT NULL DEFAULT 0,
+        output_item_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_usage_job ON social_usage_records(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_social_usage_created ON social_usage_records(created_at);
+
+      CREATE TABLE IF NOT EXISTS social_normalized_items (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES social_research_jobs(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        content_type TEXT NOT NULL DEFAULT 'other',
+        external_id TEXT,
+        source_tool_id TEXT NOT NULL,
+        source_url TEXT,
+        author_external_id TEXT,
+        author_display_name TEXT,
+        title TEXT,
+        text TEXT,
+        description TEXT,
+        published_at TEXT,
+        observed_at TEXT NOT NULL,
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        hashtags_json TEXT NOT NULL DEFAULT '[]',
+        mentions_json TEXT NOT NULL DEFAULT '[]',
+        language TEXT,
+        duplicate_of TEXT,
+        provenance_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_items_job ON social_normalized_items(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_social_items_platform_external ON social_normalized_items(platform, external_id);
+      CREATE INDEX IF NOT EXISTS idx_social_items_observed ON social_normalized_items(observed_at);
+
+      CREATE TABLE IF NOT EXISTS social_trend_signals (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES social_research_jobs(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        key TEXT NOT NULL,
+        platforms_json TEXT NOT NULL DEFAULT '[]',
+        occurrences INTEGER NOT NULL DEFAULT 0,
+        evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+        stats_json TEXT NOT NULL DEFAULT '{}',
+        observed_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_signals_job ON social_trend_signals(research_job_id);
+      CREATE INDEX IF NOT EXISTS idx_social_signals_kind ON social_trend_signals(kind, occurrences DESC);
+
+      CREATE TABLE IF NOT EXISTS social_opportunities (
+        id TEXT PRIMARY KEY,
+        research_job_id TEXT NOT NULL REFERENCES social_research_jobs(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        buyer_problem TEXT NOT NULL,
+        commercial_use_cases_json TEXT NOT NULL DEFAULT '[]',
+        observed_themes_json TEXT NOT NULL DEFAULT '[]',
+        evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+        evidence_confidence REAL NOT NULL DEFAULT 0.0,
+        opportunity_score REAL,
+        score_basis TEXT NOT NULL DEFAULT '',
+        risks_json TEXT NOT NULL DEFAULT '[]',
+        suggested_directions_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_opportunities_job ON social_opportunities(research_job_id);
+
+      CREATE TABLE IF NOT EXISTS social_audit_events (
+        id TEXT PRIMARY KEY,
+        event TEXT NOT NULL,
+        actor TEXT NOT NULL DEFAULT 'system',
+        research_job_id TEXT,
+        tool_id TEXT,
+        provider_id TEXT,
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_social_audit_event ON social_audit_events(event, created_at);
+      CREATE INDEX IF NOT EXISTS idx_social_audit_job ON social_audit_events(research_job_id, created_at);
+
+      -- Phase 20.21: OpenAI Codex Native Runtime Integration ----------------
+      CREATE TABLE IF NOT EXISTS codex_runtime_nodes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        hostname TEXT NOT NULL,
+        codex_version TEXT,
+        runtime_mode TEXT NOT NULL DEFAULT 'auto',
+        connection_state TEXT NOT NULL DEFAULT 'offline',
+        last_seen TEXT,
+        capability_report_json TEXT NOT NULL DEFAULT '{}',
+        policy_profile TEXT NOT NULL DEFAULT 'NORMAL',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_nodes_platform ON codex_runtime_nodes(platform);
+      CREATE INDEX IF NOT EXISTS idx_codex_nodes_state ON codex_runtime_nodes(connection_state);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_sessions (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT,
+        workspace_root TEXT NOT NULL,
+        node_id TEXT NOT NULL REFERENCES codex_runtime_nodes(id),
+        runtime_mode TEXT NOT NULL DEFAULT 'auto',
+        status TEXT NOT NULL DEFAULT 'idle',
+        policy_profile TEXT NOT NULL DEFAULT 'NORMAL',
+        title TEXT,
+        active_turn_id TEXT,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_sessions_status ON codex_runtime_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_codex_sessions_node ON codex_runtime_sessions(node_id);
+      CREATE INDEX IF NOT EXISTS idx_codex_sessions_thread ON codex_runtime_sessions(thread_id);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_jobs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES codex_runtime_sessions(id) ON DELETE CASCADE,
+        turn_id TEXT,
+        node_id TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'turn',
+        state TEXT NOT NULL DEFAULT 'queued',
+        priority INTEGER NOT NULL DEFAULT 0,
+        prompt TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_jobs_session ON codex_runtime_jobs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_codex_jobs_state ON codex_runtime_jobs(state);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES codex_runtime_sessions(id) ON DELETE CASCADE,
+        turn_id TEXT,
+        type TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        timestamp TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_events_session ON codex_runtime_events(session_id);
+      CREATE INDEX IF NOT EXISTS idx_codex_events_turn ON codex_runtime_events(turn_id);
+      CREATE INDEX IF NOT EXISTS idx_codex_events_time ON codex_runtime_events(timestamp);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_approvals (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES codex_runtime_sessions(id) ON DELETE CASCADE,
+        turn_id TEXT,
+        node_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        command TEXT,
+        path TEXT,
+        network_intent TEXT,
+        risk_level TEXT NOT NULL DEFAULT 'high',
+        status TEXT NOT NULL DEFAULT 'pending',
+        decision TEXT,
+        decided_by TEXT,
+        decided_at TEXT,
+        requested_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_approvals_session ON codex_runtime_approvals(session_id);
+      CREATE INDEX IF NOT EXISTS idx_codex_approvals_status ON codex_runtime_approvals(status);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_audit_logs (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        actor TEXT NOT NULL DEFAULT 'system',
+        session_id TEXT,
+        turn_id TEXT,
+        node_id TEXT,
+        action TEXT NOT NULL,
+        risk TEXT NOT NULL DEFAULT 'low',
+        result TEXT NOT NULL DEFAULT 'ok',
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_audit_action ON codex_runtime_audit_logs(action, timestamp);
+      CREATE INDEX IF NOT EXISTS idx_codex_audit_session ON codex_runtime_audit_logs(session_id, timestamp);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_capabilities (
+        id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL REFERENCES codex_runtime_nodes(id) ON DELETE CASCADE,
+        codex_installed INTEGER NOT NULL DEFAULT 0,
+        codex_version TEXT,
+        python_sdk_available INTEGER NOT NULL DEFAULT 0,
+        app_server_available INTEGER NOT NULL DEFAULT 0,
+        exec_server_available INTEGER NOT NULL DEFAULT 0,
+        daemon_available INTEGER NOT NULL DEFAULT 0,
+        remote_control_available INTEGER NOT NULL DEFAULT 0,
+        mcp_available INTEGER NOT NULL DEFAULT 0,
+        experimental_api_enabled INTEGER NOT NULL DEFAULT 0,
+        platform TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_cap_node ON codex_runtime_capabilities(node_id);
+
+      CREATE TABLE IF NOT EXISTS codex_runtime_mcp_tools (
+        id TEXT PRIMARY KEY,
+        server_name TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        description TEXT,
+        risk TEXT NOT NULL DEFAULT 'low',
+        approval_behavior TEXT NOT NULL DEFAULT 'auto',
+        source TEXT NOT NULL DEFAULT 'mcp',
+        health TEXT NOT NULL DEFAULT 'healthy',
+        last_error TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE(server_name, tool_name)
+      );
+      CREATE INDEX IF NOT EXISTS idx_codex_mcp_server ON codex_runtime_mcp_tools(server_name);
+      CREATE INDEX IF NOT EXISTS idx_codex_mcp_risk ON codex_runtime_mcp_tools(risk);
+
+      -- v28: Orchestration Subsystem (Phase 20.22 Pao-hubPro x LangChain Agent Orchestration & MCP Runtime Layer)
+      CREATE TABLE IF NOT EXISTS orchestration_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT,
+        workflow_id TEXT,
+        runtime_type TEXT NOT NULL DEFAULT 'langchain',
+        status TEXT NOT NULL DEFAULT 'queued',
+        prompt TEXT NOT NULL,
+        resolved_prompt TEXT,
+        primary_model TEXT NOT NULL,
+        fallback_model TEXT,
+        model_call_count INTEGER NOT NULL DEFAULT 0,
+        tool_call_count INTEGER NOT NULL DEFAULT 0,
+        total_input_tokens INTEGER NOT NULL DEFAULT 0,
+        total_output_tokens INTEGER NOT NULL DEFAULT 0,
+        total_cost_usd REAL NOT NULL DEFAULT 0.0,
+        max_model_calls INTEGER NOT NULL DEFAULT 25,
+        max_tool_calls INTEGER NOT NULL DEFAULT 50,
+        timeout_ms INTEGER NOT NULL DEFAULT 300000,
+        output_text TEXT,
+        structured_output_json TEXT,
+        error_text TEXT,
+        error_code TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_runs_status ON orchestration_runs(status);
+      CREATE INDEX IF NOT EXISTS idx_orch_runs_session ON orchestration_runs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_orch_runs_created ON orchestration_runs(created_at);
+
+      CREATE TABLE IF NOT EXISTS orchestration_events (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES orchestration_runs(id) ON DELETE CASCADE,
+        sequence_number INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        agent_role TEXT,
+        tool_name TEXT,
+        input_payload_json TEXT,
+        output_payload_json TEXT,
+        duration_ms INTEGER,
+        tokens_used INTEGER,
+        cost_usd REAL,
+        timestamp TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_events_run_seq ON orchestration_events(run_id, sequence_number);
+      CREATE INDEX IF NOT EXISTS idx_orch_events_timestamp ON orchestration_events(timestamp);
+
+      CREATE TABLE IF NOT EXISTS orchestration_checkpoints (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES orchestration_runs(id) ON DELETE CASCADE,
+        step_number INTEGER NOT NULL,
+        state_hash TEXT NOT NULL,
+        state_json TEXT NOT NULL,
+        pending_action_json TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE(run_id, step_number)
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_checkpoints_run ON orchestration_checkpoints(run_id, step_number);
+
+      CREATE TABLE IF NOT EXISTS orchestration_approvals (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES orchestration_runs(id) ON DELETE CASCADE,
+        tool_name TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        action_summary TEXT NOT NULL,
+        tool_args_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        requested_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_approvals_run ON orchestration_approvals(run_id);
+      CREATE INDEX IF NOT EXISTS idx_orch_approvals_status ON orchestration_approvals(status, expires_at);
+
+      CREATE TABLE IF NOT EXISTS orchestration_tool_calls (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES orchestration_runs(id) ON DELETE CASCADE,
+        tool_name TEXT NOT NULL,
+        server_name TEXT NOT NULL DEFAULT 'builtin',
+        risk_level TEXT NOT NULL DEFAULT 'R1',
+        input_args_json TEXT NOT NULL,
+        output_result_json TEXT,
+        status TEXT NOT NULL DEFAULT 'executing',
+        execution_ms INTEGER,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_tool_calls_run ON orchestration_tool_calls(run_id);
+      CREATE INDEX IF NOT EXISTS idx_orch_tool_calls_tool ON orchestration_tool_calls(tool_name);
+
+      CREATE TABLE IF NOT EXISTS orchestration_mcp_servers (
+        id TEXT PRIMARY KEY,
+        server_name TEXT NOT NULL UNIQUE,
+        trust_level TEXT NOT NULL DEFAULT 'approved_third_party',
+        transport TEXT NOT NULL DEFAULT 'stdio',
+        endpoint_or_command TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        tool_count INTEGER NOT NULL DEFAULT 0,
+        last_heartbeat TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_mcp_trust ON orchestration_mcp_servers(trust_level);
+      CREATE INDEX IF NOT EXISTS idx_orch_mcp_status ON orchestration_mcp_servers(status);
+
+      -- v29: Unified Notification Gateway (Phase 20.23) --------------------
+      CREATE TABLE IF NOT EXISTS notification_destinations (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        environment TEXT NOT NULL DEFAULT 'all',
+        channel_class TEXT NOT NULL DEFAULT 'general',
+        secret_ref TEXT NOT NULL,
+        health TEXT NOT NULL DEFAULT 'unknown',
+        invalid_reason TEXT,
+        rate_limit_state_key TEXT,
+        last_success_at TEXT,
+        last_failure_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_destinations_enabled
+        ON notification_destinations(enabled, provider);
+
+      CREATE TABLE IF NOT EXISTS notification_events (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT,
+        severity TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT,
+        progress REAL,
+        entity_type TEXT,
+        entity_id TEXT,
+        dedupe_key TEXT,
+        aggregation_key TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        data_json TEXT NOT NULL DEFAULT '{}',
+        requested_destinations_json TEXT NOT NULL DEFAULT '[]',
+        occurred_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_at_ms INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_events_type
+        ON notification_events(event_type, created_at_ms DESC);
+      CREATE INDEX IF NOT EXISTS idx_notification_events_source
+        ON notification_events(source, created_at_ms DESC);
+      CREATE INDEX IF NOT EXISTS idx_notification_events_dedupe
+        ON notification_events(dedupe_key, created_at_ms DESC);
+
+      CREATE TABLE IF NOT EXISTS notification_subscriptions (
+        id TEXT PRIMARY KEY,
+        event_pattern TEXT NOT NULL,
+        destination_id TEXT NOT NULL REFERENCES notification_destinations(id) ON DELETE CASCADE,
+        source TEXT,
+        min_severity TEXT,
+        max_priority TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(event_pattern, destination_id, source)
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_subscriptions_destination
+        ON notification_subscriptions(destination_id, enabled);
+
+      CREATE TABLE IF NOT EXISTS notification_deliveries (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL REFERENCES notification_events(id) ON DELETE CASCADE,
+        destination_id TEXT NOT NULL REFERENCES notification_destinations(id),
+        provider TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'QUEUED',
+        priority TEXT NOT NULL,
+        attempt INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 5,
+        available_at_ms INTEGER NOT NULL,
+        reserved_by TEXT,
+        reserved_at_ms INTEGER,
+        lease_expires_at_ms INTEGER,
+        sent_at TEXT,
+        delivered_at TEXT,
+        provider_message_id TEXT,
+        last_status_code INTEGER,
+        last_error_code TEXT,
+        last_error_message TEXT,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_queue
+        ON notification_deliveries(status, available_at_ms, priority, created_at);
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_event
+        ON notification_deliveries(event_id);
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_destination
+        ON notification_deliveries(destination_id, status, available_at_ms);
+
+      CREATE TABLE IF NOT EXISTS notification_attempts (
+        id TEXT PRIMARY KEY,
+        delivery_id TEXT NOT NULL REFERENCES notification_deliveries(id) ON DELETE CASCADE,
+        attempt INTEGER NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL,
+        status_code INTEGER,
+        error_code TEXT,
+        retry_after_ms INTEGER,
+        bucket_id TEXT,
+        rate_limit_remaining INTEGER,
+        rate_limit_reset_after_ms INTEGER,
+        global_rate_limited INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_attempts_delivery
+        ON notification_attempts(delivery_id, attempt);
+
+      CREATE TABLE IF NOT EXISTS notification_rate_limit_states (
+        state_key TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        destination_id TEXT,
+        bucket_id TEXT,
+        scope TEXT,
+        limit_value INTEGER,
+        remaining INTEGER,
+        reset_after_ms INTEGER,
+        blocked_until_ms INTEGER,
+        observed_at TEXT,
+        last_request_at_ms INTEGER,
+        lease_owner TEXT,
+        lease_expires_at_ms INTEGER,
+        rate_limited_count INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_rate_limit_destination
+        ON notification_rate_limit_states(destination_id, provider);
+      CREATE INDEX IF NOT EXISTS idx_notification_rate_limit_blocked
+        ON notification_rate_limit_states(provider, blocked_until_ms);
+
+      CREATE TABLE IF NOT EXISTS notification_provider_gates (
+        provider TEXT PRIMARY KEY,
+        blocked_until_ms INTEGER,
+        reason TEXT,
+        observed_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS notification_circuits (
+        destination_id TEXT PRIMARY KEY REFERENCES notification_destinations(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'CLOSED',
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        opened_until_ms INTEGER,
+        reason TEXT,
+        probe_owner TEXT,
+        probe_expires_at_ms INTEGER,
+        last_failure_at TEXT,
+        last_success_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_circuits_state
+        ON notification_circuits(state, opened_until_ms);
+
+      CREATE TABLE IF NOT EXISTS notification_aggregations (
+        id TEXT PRIMARY KEY,
+        aggregation_key TEXT NOT NULL,
+        destination_id TEXT NOT NULL REFERENCES notification_destinations(id) ON DELETE CASCADE,
+        root_event_id TEXT NOT NULL REFERENCES notification_events(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        event_count INTEGER NOT NULL DEFAULT 1,
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        flush_at_ms INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_aggregations_open
+        ON notification_aggregations(aggregation_key, destination_id)
+        WHERE status = 'OPEN';
+      CREATE INDEX IF NOT EXISTS idx_notification_aggregations_flush
+        ON notification_aggregations(status, flush_at_ms);
+
+      CREATE TABLE IF NOT EXISTS notification_dead_letters (
+        id TEXT PRIMARY KEY,
+        delivery_id TEXT NOT NULL UNIQUE REFERENCES notification_deliveries(id) ON DELETE CASCADE,
+        event_id TEXT NOT NULL,
+        destination_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        last_error_code TEXT,
+        attempts INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_dead_letters_status
+        ON notification_dead_letters(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS notification_invalid_requests (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        destination_id TEXT,
+        status_code INTEGER NOT NULL,
+        error_code TEXT NOT NULL,
+        occurred_at_ms INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_invalid_requests_window
+        ON notification_invalid_requests(provider, occurred_at_ms DESC);
+
+      CREATE TABLE IF NOT EXISTS notification_audit_events (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        actor TEXT NOT NULL DEFAULT 'system',
+        event_id TEXT,
+        delivery_id TEXT,
+        destination_id TEXT,
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_audit_type
+        ON notification_audit_events(event_type, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_notification_audit_delivery
+        ON notification_audit_events(delivery_id, created_at);
+
+      -- v30: Media Acquisition Engine (Phase 20.24) --------------------
+      CREATE TABLE IF NOT EXISTS media_jobs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'download',
+        provider TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        normalized_url TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        priority TEXT NOT NULL DEFAULT 'P2',
+        preset TEXT NOT NULL DEFAULT 'best',
+        progress_percent REAL NOT NULL DEFAULT 0,
+        download_speed_bytes_sec REAL,
+        eta_seconds REAL,
+        downloaded_bytes INTEGER,
+        total_bytes INTEGER,
+        output_path TEXT,
+        output_artifact_id TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        max_retries INTEGER NOT NULL DEFAULT 3,
+        requested_by TEXT NOT NULL DEFAULT 'agent',
+        usage_class TEXT NOT NULL DEFAULT 'research_reference',
+        export_to_stock INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        error_code TEXT,
+        error_message TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_jobs_status
+        ON media_jobs(status, priority, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_media_jobs_url
+        ON media_jobs(normalized_url);
+
+      CREATE TABLE IF NOT EXISTS media_artifacts (
+        artifact_id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL REFERENCES media_jobs(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        source_platform TEXT NOT NULL,
+        title TEXT NOT NULL,
+        local_path TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        duration_sec REAL,
+        width INTEGER,
+        height INTEGER,
+        thumbnail_path TEXT,
+        transcript_path TEXT,
+        usage_class TEXT NOT NULL DEFAULT 'research_reference',
+        export_to_stock INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        derived_from_artifact_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_artifacts_job
+        ON media_artifacts(job_id);
+      CREATE INDEX IF NOT EXISTS idx_media_artifacts_sha
+        ON media_artifacts(sha256);
+      CREATE INDEX IF NOT EXISTS idx_media_artifacts_created
+        ON media_artifacts(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS media_sources (
+        id TEXT PRIMARY KEY,
+        domain TEXT NOT NULL UNIQUE,
+        platform TEXT NOT NULL,
+        preferred_provider TEXT NOT NULL DEFAULT 'omniget',
+        rate_limit_per_min INTEGER NOT NULL DEFAULT 30,
+        requires_auth INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS media_events (
+        id TEXT PRIMARY KEY,
+        job_id TEXT REFERENCES media_jobs(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        actor TEXT NOT NULL DEFAULT 'system',
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_events_job
+        ON media_events(job_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS media_provider_health (
+        provider TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        available INTEGER NOT NULL DEFAULT 1,
+        version TEXT,
+        binary_path TEXT,
+        latency_ms REAL,
+        capabilities_json TEXT NOT NULL DEFAULT '{}',
+        error_message TEXT,
+        last_checked_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS media_permissions (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        tier INTEGER NOT NULL,
+        allowed INTEGER NOT NULL DEFAULT 1,
+        reason TEXT,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS media_presets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL,
+        ffmpeg_args_json TEXT NOT NULL DEFAULT '[]',
+        description TEXT,
+        is_builtin INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS media_secret_references (
+        ref_id TEXT PRIMARY KEY,
+        category TEXT NOT NULL,
+        label TEXT NOT NULL,
+        domain TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT
+      );
+
+      -- v31: Universal Agent Capability Registry (Phase 20.25) -------------
+      CREATE TABLE IF NOT EXISTS registry_tools (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        type TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'active',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        input_types_json TEXT NOT NULL DEFAULT '[]',
+        output_types_json TEXT NOT NULL DEFAULT '[]',
+        auth_json TEXT NOT NULL DEFAULT '{}',
+        auth_status TEXT NOT NULL DEFAULT 'none',
+        runtime_json TEXT NOT NULL DEFAULT '{}',
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        permission_class TEXT NOT NULL DEFAULT 'read_only',
+        requires_approval INTEGER NOT NULL DEFAULT 0,
+        cost_json TEXT NOT NULL DEFAULT '{}',
+        limits_json TEXT NOT NULL DEFAULT '{}',
+        quality_json TEXT NOT NULL DEFAULT '{}',
+        source_json TEXT NOT NULL DEFAULT '{}',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        executable INTEGER NOT NULL DEFAULT 0,
+        health TEXT NOT NULL DEFAULT 'unknown',
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_registry_tools_type ON registry_tools(type);
+      CREATE INDEX IF NOT EXISTS idx_registry_tools_status ON registry_tools(status);
+      CREATE INDEX IF NOT EXISTS idx_registry_tools_slug ON registry_tools(slug);
+
+      CREATE TABLE IF NOT EXISTS registry_tool_health (
+        tool_id TEXT NOT NULL REFERENCES registry_tools(id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        latency_ms INTEGER,
+        checked_at TEXT NOT NULL,
+        error TEXT,
+        PRIMARY KEY (tool_id, checked_at)
+      );
+
+      CREATE TABLE IF NOT EXISTS registry_runs (
+        id TEXT PRIMARY KEY,
+        goal TEXT NOT NULL,
+        profile TEXT NOT NULL DEFAULT 'balanced',
+        mode TEXT NOT NULL DEFAULT 'execute',
+        status TEXT NOT NULL DEFAULT 'planned',
+        plan_json TEXT NOT NULL,
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        approval_required INTEGER NOT NULL DEFAULT 0,
+        estimated_cost TEXT NOT NULL DEFAULT 'unknown',
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_registry_runs_status ON registry_runs(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS registry_run_steps (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES registry_runs(id) ON DELETE CASCADE,
+        step_index INTEGER NOT NULL,
+        capability TEXT NOT NULL,
+        tool_id TEXT,
+        tool_name TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        input_summary TEXT NOT NULL DEFAULT '',
+        output_summary TEXT,
+        error_code TEXT,
+        started_at TEXT,
+        finished_at TEXT,
+        latency_ms INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_registry_steps_run ON registry_run_steps(run_id, step_index);
+
+      CREATE TABLE IF NOT EXISTS registry_approvals (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        step_id TEXT,
+        tool_id TEXT NOT NULL,
+        tool_name TEXT,
+        action TEXT NOT NULL,
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL DEFAULT '',
+        preview TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT 'once',
+        status TEXT NOT NULL DEFAULT 'pending',
+        requested_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        expires_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_registry_approvals_status ON registry_approvals(status, requested_at DESC);
+
+      CREATE TABLE IF NOT EXISTS registry_audit_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts_ms INTEGER NOT NULL,
+        run_id TEXT,
+        step_id TEXT,
+        tool_id TEXT,
+        actor TEXT NOT NULL DEFAULT 'agent',
+        action TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ok',
+        input_summary TEXT NOT NULL DEFAULT '',
+        output_summary TEXT NOT NULL DEFAULT '',
+        error_code TEXT,
+        permission_class TEXT,
+        risk_level INTEGER,
+        approval_id TEXT,
+        latency_ms INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_registry_audit_ts ON registry_audit_events(ts_ms DESC);
+      CREATE INDEX IF NOT EXISTS idx_registry_audit_run ON registry_audit_events(run_id);
+
+      CREATE TABLE IF NOT EXISTS registry_preferences (
+        user_id TEXT NOT NULL DEFAULT 'local',
+        tool_id TEXT NOT NULL,
+        weight REAL NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, tool_id)
+      );
+
+      -- v32: Douyin Media Intelligence provider (Phase 20.26) --------------
+      CREATE TABLE IF NOT EXISTS douyin_creators (
+        id TEXT PRIMARY KEY,
+        provider_creator_id TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        canonical_url TEXT NOT NULL,
+        avatar_url TEXT,
+        bio TEXT,
+        statistics_json TEXT NOT NULL DEFAULT '{}',
+        first_seen_at TEXT NOT NULL,
+        last_synced_at TEXT,
+        last_sync_cursor TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS douyin_media_items (
+        id TEXT PRIMARY KEY,
+        provider_item_id TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL DEFAULT 'video',
+        canonical_url TEXT NOT NULL,
+        creator_provider_id TEXT,
+        creator_name TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        published_at TEXT,
+        duration_ms INTEGER,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        statistics_json TEXT NOT NULL DEFAULT '{}',
+        raw_metadata_ref TEXT,
+        rights_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_douyin_items_creator ON douyin_media_items(creator_provider_id);
+      CREATE INDEX IF NOT EXISTS idx_douyin_items_created ON douyin_media_items(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS douyin_search_snapshots (
+        id TEXT PRIMARY KEY,
+        query TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        item_ids_json TEXT NOT NULL DEFAULT '[]',
+        source_note TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_douyin_search_query ON douyin_search_snapshots(query, fetched_at DESC);
+
+      CREATE TABLE IF NOT EXISTS douyin_hot_board_snapshots (
+        id TEXT PRIMARY KEY,
+        captured_at TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        keyword TEXT NOT NULL,
+        score REAL,
+        raw_ref TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_douyin_hot_captured ON douyin_hot_board_snapshots(captured_at DESC, rank);
+
+      CREATE TABLE IF NOT EXISTS douyin_comments (
+        id TEXT PRIMARY KEY,
+        provider_comment_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        parent_comment_id TEXT,
+        author_name TEXT,
+        text TEXT NOT NULL,
+        published_at TEXT,
+        statistics_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        UNIQUE (provider_comment_id, media_item_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_douyin_comments_item ON douyin_comments(media_item_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS douyin_transcripts (
+        id TEXT PRIMARY KEY,
+        media_item_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT,
+        language TEXT,
+        text TEXT NOT NULL,
+        segments_json TEXT NOT NULL DEFAULT '[]',
+        artifact_ref TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_douyin_transcripts_item ON douyin_transcripts(media_item_id);
+
+      CREATE TABLE IF NOT EXISTS douyin_sessions (
+        id TEXT PRIMARY KEY,
+        profile TEXT NOT NULL UNIQUE,
+        secret_ref TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'inactive',
+        last_verified_at TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS douyin_idempotency (
+        key TEXT PRIMARY KEY,
+        job_ref TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      -- v33: VoiceStudio speech runtime (Phase 20.32) ----------------------
+      CREATE TABLE IF NOT EXISTS speech_jobs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        engine TEXT,
+        model_id TEXT,
+        voice_id TEXT,
+        request_json TEXT NOT NULL,
+        policy_snapshot_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL,
+        progress INTEGER NOT NULL DEFAULT 0,
+        attempt INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        error_code TEXT,
+        error_message TEXT,
+        output_artifact_id TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_speech_jobs_project ON speech_jobs(project_id);
+      CREATE INDEX IF NOT EXISTS idx_speech_jobs_status ON speech_jobs(status);
+
+      CREATE TABLE IF NOT EXISTS speech_artifacts (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        raw_path TEXT,
+        final_path TEXT,
+        sha256 TEXT,
+        duration_ms INTEGER,
+        sample_rate INTEGER,
+        channels INTEGER,
+        manifest_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_speech_artifacts_project ON speech_artifacts(project_id);
+
+      CREATE TABLE IF NOT EXISTS voice_profiles (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        provider_profile_id TEXT,
+        name TEXT NOT NULL,
+        language TEXT,
+        purposes_json TEXT NOT NULL DEFAULT '[]',
+        origin TEXT NOT NULL DEFAULT 'synced',
+        status TEXT NOT NULL DEFAULT 'unreviewed',
+        commercial_use_status TEXT NOT NULL DEFAULT 'unknown',
+        consent_status TEXT NOT NULL DEFAULT 'none',
+        license_status TEXT NOT NULL DEFAULT 'unknown',
+        impersonates_public_figure INTEGER NOT NULL DEFAULT 0,
+        stock_approved_at TEXT,
+        created_from_json TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        last_used_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS voice_consents (
+        id TEXT PRIMARY KEY,
+        voice_id TEXT,
+        subject_type TEXT NOT NULL,
+        subject_alias TEXT NOT NULL,
+        consent_basis TEXT NOT NULL,
+        consent_document_ref TEXT,
+        allowed_uses_json TEXT NOT NULL DEFAULT '[]',
+        commercial_use_allowed INTEGER NOT NULL DEFAULT 0,
+        stock_use_allowed INTEGER NOT NULL DEFAULT 0,
+        voice_clone_allowed INTEGER NOT NULL DEFAULT 0,
+        expires_at TEXT,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS model_licenses (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        engine TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        model_version TEXT,
+        code_license TEXT,
+        weights_license TEXT,
+        commercial_use INTEGER NOT NULL DEFAULT 0,
+        stock_use INTEGER NOT NULL DEFAULT 0,
+        attribution_required INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        source_url TEXT,
+        verified_at TEXT,
+        verified_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS speech_policy_checks (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        gate TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        reason_code TEXT,
+        required_action TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_speech_policy_checks_job ON speech_policy_checks(job_id);
+
+      CREATE TABLE IF NOT EXISTS speech_runtime_health (
+        id TEXT PRIMARY KEY,
+        checked_at TEXT NOT NULL,
+        state TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        version_detected TEXT,
+        version_pin TEXT NOT NULL,
+        detail_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS speech_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target TEXT NOT NULL,
+        before_json TEXT,
+        after_json TEXT,
+        reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_speech_audit_ts ON speech_audit(ts DESC);
+
+      -- v34: Lead Intelligence Control Plane (Phase 20.34) ------------------
+      CREATE TABLE IF NOT EXISTS lead_profiles (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'raw',
+        confidence REAL NOT NULL DEFAULT 0.3,
+        canonical_key TEXT NOT NULL,
+        company_json TEXT,
+        person_json TEXT,
+        score_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_profiles_key ON lead_profiles(canonical_key);
+      CREATE INDEX IF NOT EXISTS idx_lead_profiles_status ON lead_profiles(status);
+      CREATE INDEX IF NOT EXISTS idx_lead_profiles_kind ON lead_profiles(kind);
+
+      CREATE TABLE IF NOT EXISTS lead_contact_points (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        normalized_value TEXT NOT NULL,
+        source_provider_id TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        verification_status TEXT NOT NULL DEFAULT 'unknown',
+        verified_at TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_contacts_lead ON lead_contact_points(lead_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_lead_contacts_unique ON lead_contact_points(lead_id, type, normalized_value);
+
+      CREATE TABLE IF NOT EXISTS lead_social_profiles (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        url TEXT NOT NULL,
+        source_provider_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_social_lead ON lead_social_profiles(lead_id);
+
+      CREATE TABLE IF NOT EXISTS lead_source_records (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        provider_run_id TEXT,
+        source_url TEXT,
+        raw_ref TEXT,
+        collected_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_sources_lead ON lead_source_records(lead_id);
+
+      CREATE TABLE IF NOT EXISTS lead_field_evidence (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        value_preview TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        collected_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_evidence_lead ON lead_field_evidence(lead_id);
+
+      CREATE TABLE IF NOT EXISTS lead_providers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        adapter TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        capabilities_json TEXT NOT NULL,
+        pricing_model TEXT NOT NULL DEFAULT 'unknown',
+        cost_per_1000 REAL NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        timeout_ms INTEGER NOT NULL DEFAULT 60000,
+        max_concurrency INTEGER NOT NULL DEFAULT 2,
+        quality_score REAL NOT NULL DEFAULT 0.5,
+        reliability_score REAL NOT NULL DEFAULT 0.5,
+        requires_approval INTEGER NOT NULL DEFAULT 0,
+        secret_ref TEXT,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS lead_provider_health (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        checked_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        latency_ms INTEGER,
+        last_message TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_health_provider ON lead_provider_health(provider_id, checked_at DESC);
+
+      CREATE TABLE IF NOT EXISTS lead_provider_usage (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        units INTEGER,
+        estimated_cost REAL NOT NULL DEFAULT 0,
+        actual_cost REAL,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_usage_provider ON lead_provider_usage(provider_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS lead_jobs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        request_json TEXT NOT NULL,
+        strategy TEXT NOT NULL DEFAULT 'BALANCED',
+        budget_json TEXT NOT NULL,
+        selected_providers_json TEXT NOT NULL DEFAULT '[]',
+        estimated_cost REAL NOT NULL DEFAULT 0,
+        actual_cost REAL NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        result_json TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_jobs_status ON lead_jobs(status);
+      CREATE INDEX IF NOT EXISTS idx_lead_jobs_type ON lead_jobs(type);
+
+      CREATE TABLE IF NOT EXISTS lead_pipelines (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        steps_json TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS lead_pipeline_runs (
+        id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        request_json TEXT NOT NULL,
+        steps_json TEXT NOT NULL,
+        estimated_cost REAL NOT NULL DEFAULT 0,
+        actual_cost REAL NOT NULL DEFAULT 0,
+        error_code TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_runs_pipeline ON lead_pipeline_runs(pipeline_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS lead_suppression (
+        id TEXT PRIMARY KEY,
+        match_type TEXT NOT NULL,
+        match_value TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_suppression_value ON lead_suppression(match_type, match_value);
+
+      CREATE TABLE IF NOT EXISTS lead_exports (
+        id TEXT PRIMARY KEY,
+        format TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        row_count INTEGER NOT NULL DEFAULT 0,
+        filters_json TEXT NOT NULL DEFAULT '{}',
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS lead_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_audit_ts ON lead_audit(ts DESC);
+
+      -- v35: Unified AI runtime control plane (Phase 20.35) -----------------
+      CREATE TABLE IF NOT EXISTS unified_providers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        is_local INTEGER NOT NULL DEFAULT 0,
+        capabilities_json TEXT NOT NULL,
+        routing_json TEXT NOT NULL,
+        limits_json TEXT NOT NULL,
+        policy_json TEXT NOT NULL,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS unified_provider_health (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        checked_at TEXT NOT NULL,
+        state TEXT NOT NULL,
+        latency_ms INTEGER NOT NULL DEFAULT 0,
+        circuit_state TEXT NOT NULL DEFAULT 'CLOSED',
+        message TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_unified_health_provider ON unified_provider_health(provider_id, checked_at DESC);
+
+      CREATE TABLE IF NOT EXISTS unified_route_executions (
+        id TEXT PRIMARY KEY,
+        virtual_model TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        selected_provider TEXT,
+        fallbacks_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL,
+        execution_class TEXT NOT NULL DEFAULT 'provider_mode',
+        workspace_id TEXT,
+        total_ms INTEGER NOT NULL DEFAULT 0,
+        estimated_cost_usd REAL NOT NULL DEFAULT 0,
+        error_code TEXT,
+        request_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_unified_exec_provider ON unified_route_executions(selected_provider, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS unified_workspace_grants (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL UNIQUE,
+        grants_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS unified_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        event TEXT NOT NULL,
+        risk TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        workspace_id TEXT,
+        execution_id TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_unified_audit_ts ON unified_audit(ts DESC);
+
+      -- v36: Pao Business Builder (Phase 30.36) ------------------------------
+      CREATE TABLE IF NOT EXISTS biz_opportunities (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'imported',
+        edited_manually INTEGER NOT NULL DEFAULT 0,
+        payload_json TEXT NOT NULL,
+        provenance_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_opps_slug ON biz_opportunities(slug);
+      CREATE INDEX IF NOT EXISTS idx_biz_opps_status ON biz_opportunities(status);
+
+      CREATE TABLE IF NOT EXISTS biz_opportunity_versions (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        edited_by TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_versions_opp ON biz_opportunity_versions(opportunity_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS biz_sources (
+        id TEXT PRIMARY KEY,
+        repo TEXT NOT NULL UNIQUE,
+        url TEXT,
+        license TEXT NOT NULL DEFAULT 'LICENSE_UNKNOWN',
+        source_commit TEXT,
+        last_import_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS biz_source_imports (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        dry_run INTEGER NOT NULL DEFAULT 0,
+        files_seen INTEGER NOT NULL DEFAULT 0,
+        opportunities_created INTEGER NOT NULL DEFAULT 0,
+        opportunities_updated INTEGER NOT NULL DEFAULT 0,
+        skipped_duplicates INTEGER NOT NULL DEFAULT 0,
+        conflicts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS biz_capability_registry (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        derived_from TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS biz_compliance_checks (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL,
+        dimensions_json TEXT NOT NULL,
+        overall TEXT NOT NULL,
+        requires_review INTEGER NOT NULL DEFAULT 1,
+        reviewed_by TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_compliance_opp ON biz_compliance_checks(opportunity_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS biz_cost_estimates (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL,
+        categories_json TEXT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        prototype_cost REAL NOT NULL DEFAULT 0,
+        monthly_fixed_cost REAL NOT NULL DEFAULT 0,
+        cost_per_customer REAL NOT NULL DEFAULT 0,
+        suggested_price REAL NOT NULL DEFAULT 0,
+        gross_margin REAL NOT NULL DEFAULT 0,
+        break_even_customers INTEGER,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_costs_opp ON biz_cost_estimates(opportunity_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS biz_mvp_specs (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        output_dir TEXT NOT NULL DEFAULT '',
+        artifacts_json TEXT NOT NULL DEFAULT '{}',
+        blocked INTEGER NOT NULL DEFAULT 0,
+        block_reasons_json TEXT NOT NULL DEFAULT '[]',
+        warnings_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_mvp_opp ON biz_mvp_specs(opportunity_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS biz_experiments (
+        id TEXT PRIMARY KEY,
+        opportunity_id TEXT NOT NULL,
+        hypothesis TEXT NOT NULL DEFAULT '',
+        customer_segment TEXT NOT NULL DEFAULT '',
+        offer TEXT NOT NULL DEFAULT '',
+        price REAL NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        acquisition_channel TEXT NOT NULL DEFAULT '',
+        landing_page_url TEXT,
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        conversion_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'running',
+        decision TEXT NOT NULL DEFAULT 'PENDING',
+        decision_reasons_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        ended_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_experiments_opp ON biz_experiments(opportunity_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS biz_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        event TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        before_json TEXT,
+        after_json TEXT,
+        reason TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_biz_audit_ts ON biz_audit(ts DESC);
+
+      -- v37: Agentic Development OS control plane (Phase 20.37) -------------
+      CREATE TABLE IF NOT EXISTS orch_agents (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        version TEXT NOT NULL,
+        runtime_kind TEXT NOT NULL,
+        risk_ceiling INTEGER NOT NULL DEFAULT 1,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        tools_allow_json TEXT NOT NULL DEFAULT '[]',
+        tools_deny_json TEXT NOT NULL DEFAULT '[]',
+        skills_json TEXT NOT NULL DEFAULT '[]',
+        routing_json TEXT NOT NULL DEFAULT '{}',
+        limits_json TEXT NOT NULL DEFAULT '{}',
+        manifest_hash TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS orch_skills (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        version TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        trigger_terms_json TEXT NOT NULL DEFAULT '[]',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        required_tools_json TEXT NOT NULL DEFAULT '[]',
+        optional_tools_json TEXT NOT NULL DEFAULT '[]',
+        workflow_json TEXT NOT NULL DEFAULT '{}',
+        manifest_hash TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS orch_hook_policies (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        event TEXT NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 100,
+        mode TEXT NOT NULL DEFAULT 'enforce',
+        action TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        when_json TEXT NOT NULL DEFAULT '{}',
+        message TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_hooks_event_priority ON orch_hook_policies(event, enabled, priority);
+
+      CREATE TABLE IF NOT EXISTS orch_runs (
+        id TEXT PRIMARY KEY,
+        workflow_slug TEXT NOT NULL DEFAULT 'auto',
+        requested_by TEXT,
+        source TEXT NOT NULL DEFAULT 'internal',
+        status TEXT NOT NULL DEFAULT 'RECEIVED',
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        route_json TEXT,
+        input_summary TEXT,
+        output_summary TEXT,
+        concern_summary TEXT,
+        approval_id TEXT,
+        worktree_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_runs_status_created ON orch_runs(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS orch_tool_calls (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        agent_slug TEXT,
+        tool_name TEXT NOT NULL,
+        tool_kind TEXT NOT NULL,
+        risk_level INTEGER NOT NULL DEFAULT 0,
+        policy_decision TEXT NOT NULL,
+        request_summary TEXT,
+        response_summary TEXT,
+        duration_ms INTEGER,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_tool_calls_run ON orch_tool_calls(run_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS orch_approvals (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        approval_type TEXT NOT NULL DEFAULT 'tool_execution',
+        risk_level INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        action_summary TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        requested_by TEXT,
+        decided_by TEXT,
+        expires_at TEXT,
+        decided_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_approvals_pending ON orch_approvals(status, created_at);
+
+      CREATE TABLE IF NOT EXISTS orch_worktrees (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        repo_root TEXT NOT NULL,
+        worktree_path TEXT NOT NULL,
+        branch_name TEXT,
+        base_revision TEXT,
+        status TEXT NOT NULL DEFAULT 'ALLOCATING',
+        is_dirty INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        released_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_worktrees_status ON orch_worktrees(status, created_at);
+
+      CREATE TABLE IF NOT EXISTS orch_memories (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        memory_type TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        key TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        confidence REAL,
+        source_ref TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (scope, key)
+      );
+
+      CREATE TABLE IF NOT EXISTS orch_audit_events (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        event_type TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'info',
+        actor_ref TEXT,
+        target_type TEXT,
+        target_ref TEXT,
+        summary TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_orch_audit_run_created ON orch_audit_events(run_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_orch_audit_type_created ON orch_audit_events(event_type, created_at);
+
+      -- v38: Dependency Vault (Phase 20.38) ---------------------------------
+      CREATE TABLE IF NOT EXISTS dv_packages (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        registry TEXT NOT NULL,
+        package_key TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_dv_packages_name ON dv_packages(name);
+
+      CREATE TABLE IF NOT EXISTS dv_artifacts (
+        id TEXT PRIMARY KEY,
+        package_key TEXT NOT NULL,
+        tarball_url TEXT,
+        registry_origin TEXT NOT NULL DEFAULT '',
+        integrity TEXT,
+        sha512 TEXT,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        storage_path TEXT,
+        trust_state TEXT NOT NULL DEFAULT 'DISCOVERED',
+        pinned INTEGER NOT NULL DEFAULT 0,
+        pinned_by TEXT,
+        verified_at TEXT,
+        downloaded_at TEXT,
+        last_accessed_at TEXT,
+        quarantine_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dv_artifacts_sha512 ON dv_artifacts(sha512) WHERE sha512 IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_dv_artifacts_package ON dv_artifacts(package_key);
+      CREATE INDEX IF NOT EXISTS idx_dv_artifacts_trust ON dv_artifacts(trust_state);
+
+      CREATE TABLE IF NOT EXISTS dv_projects (
+        id TEXT PRIMARY KEY,
+        project_key TEXT NOT NULL UNIQUE,
+        project_path TEXT,
+        package_manager TEXT NOT NULL DEFAULT 'npm',
+        lockfile_type TEXT,
+        lockfile_hash TEXT,
+        last_resolved_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS dv_project_items (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        package_name TEXT NOT NULL,
+        version TEXT NOT NULL,
+        integrity TEXT,
+        direct INTEGER NOT NULL DEFAULT 0,
+        dev INTEGER NOT NULL DEFAULT 0,
+        optional INTEGER NOT NULL DEFAULT 0,
+        peer INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_dv_items_project ON dv_project_items(project_id);
+
+      CREATE TABLE IF NOT EXISTS dv_bundles (
+        id TEXT PRIMARY KEY,
+        bundle_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        manifest_hash TEXT NOT NULL,
+        output_path TEXT NOT NULL,
+        package_count INTEGER NOT NULL DEFAULT 0,
+        total_size_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS dv_policy_decisions (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        subject_type TEXT NOT NULL,
+        subject_key TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        reason TEXT,
+        policy_rule TEXT,
+        actor TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_dv_decisions_subject ON dv_policy_decisions(subject_type, subject_key);
+
+      CREATE TABLE IF NOT EXISTS dv_audit_events (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        actor_type TEXT,
+        actor_id TEXT,
+        project_key TEXT,
+        package_key TEXT,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_dv_audit_type ON dv_audit_events(event_type, created_at DESC);
+
+      -- v39: Unified AI Coding Workspace (Phase 20.39) ------------------------
+      CREATE TABLE IF NOT EXISTS cc_workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        root_path TEXT NOT NULL,
+        normalized_root_path TEXT NOT NULL UNIQUE,
+        git_remote_url TEXT,
+        git_branch TEXT,
+        git_head_sha TEXT,
+        trust_level TEXT NOT NULL DEFAULT 'STANDARD',
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_opened_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS cc_providers (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        adapter_type TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS cc_provider_instances (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        instance_key TEXT NOT NULL,
+        version TEXT,
+        status TEXT NOT NULL DEFAULT 'UNKNOWN',
+        capabilities_json TEXT NOT NULL DEFAULT '{}',
+        last_probe_at TEXT,
+        metadata_json TEXT,
+        UNIQUE (provider_id, instance_key)
+      );
+
+      CREATE TABLE IF NOT EXISTS cc_sessions (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        native_session_id TEXT,
+        parent_session_id TEXT,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DISCOVERED',
+        mode TEXT NOT NULL DEFAULT 'CHAT',
+        writer_state TEXT NOT NULL DEFAULT 'NONE',
+        started_at TEXT,
+        ended_at TEXT,
+        last_activity_at TEXT,
+        native_metadata_json TEXT,
+        capabilities_json TEXT,
+        resume_token_ref TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_sessions_workspace ON cc_sessions(workspace_id, COALESCE(last_activity_at, updated_at) DESC);
+      CREATE INDEX IF NOT EXISTS idx_cc_sessions_native ON cc_sessions(provider_id, native_session_id);
+      CREATE INDEX IF NOT EXISTS idx_cc_sessions_status ON cc_sessions(status);
+
+      CREATE TABLE IF NOT EXISTS cc_session_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        run_id TEXT,
+        sequence INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        raw_ref TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (session_id, sequence)
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_events_session ON cc_session_events(session_id, sequence);
+
+      CREATE TABLE IF NOT EXISTS cc_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'RUNNING',
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        error_code TEXT,
+        error_summary TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_runs_session ON cc_runs(session_id, started_at DESC);
+
+      CREATE TABLE IF NOT EXISTS cc_tool_executions (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        session_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'RUNNING',
+        risk_score INTEGER,
+        approval_request_id TEXT,
+        input_json TEXT,
+        output_summary TEXT,
+        exit_code INTEGER,
+        started_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_tools_session ON cc_tool_executions(session_id, started_at);
+
+      CREATE TABLE IF NOT EXISTS cc_context_refs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        label TEXT NOT NULL,
+        workspace_id TEXT,
+        target_id TEXT,
+        path TEXT,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_ctx_workspace ON cc_context_refs(workspace_id, type);
+
+      CREATE TABLE IF NOT EXISTS cc_approvals (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        normalized_input_json TEXT NOT NULL,
+        input_hash TEXT NOT NULL,
+        risk_score INTEGER NOT NULL DEFAULT 0,
+        reasons_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        requested_at TEXT NOT NULL,
+        expires_at TEXT,
+        decided_at TEXT,
+        decided_by TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_approvals_status ON cc_approvals(status, requested_at DESC);
+
+      CREATE TABLE IF NOT EXISTS cc_locks (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        owner_instance_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        acquired_at TEXT NOT NULL,
+        heartbeat_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_locks_active ON cc_locks(workspace_id) WHERE status = 'ACTIVE';
+      CREATE INDEX IF NOT EXISTS idx_cc_locks_expiry ON cc_locks(status, expires_at);
+
+      CREATE TABLE IF NOT EXISTS cc_usage (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        cache_write_tokens INTEGER,
+        reasoning_tokens INTEGER,
+        reported_cost_usd REAL,
+        estimated_cost_usd REAL,
+        source TEXT NOT NULL DEFAULT 'UNKNOWN',
+        recorded_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_usage_recorded ON cc_usage(recorded_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_cc_usage_session ON cc_usage(session_id);
+
+      CREATE TABLE IF NOT EXISTS cc_artifacts (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        label TEXT NOT NULL,
+        relative_path TEXT,
+        mime_type TEXT,
+        size_bytes INTEGER,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_artifacts_run ON cc_artifacts(run_id);
+
+      CREATE TABLE IF NOT EXISTS cc_audit (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT,
+        workspace_id TEXT,
+        session_id TEXT,
+        run_id TEXT,
+        provider_id TEXT,
+        event_type TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'info',
+        action TEXT NOT NULL,
+        decision TEXT,
+        risk_score INTEGER,
+        summary TEXT NOT NULL,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cc_audit_created ON cc_audit(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_cc_audit_session ON cc_audit(session_id, created_at DESC);
+
+      -- v40: Agent Observability Control Plane (Phase 20.40, read-only) -----
+      CREATE TABLE IF NOT EXISTS observability_sessions (
+        id TEXT PRIMARY KEY,
+        source_session_id TEXT,
+        runtime TEXT NOT NULL,
+        source_type TEXT NOT NULL DEFAULT 'unknown',
+        project_id TEXT,
+        project_name TEXT,
+        working_directory_hash TEXT,
+        parent_session_id TEXT,
+        root_session_id TEXT,
+        depth INTEGER NOT NULL DEFAULT 0,
+        tier TEXT NOT NULL DEFAULT 'session',
+        activity_state TEXT NOT NULL DEFAULT 'unknown',
+        process_state TEXT NOT NULL DEFAULT 'unknown',
+        execution_state TEXT NOT NULL DEFAULT 'unknown',
+        health_state TEXT NOT NULL DEFAULT 'unknown',
+        integrity_state TEXT NOT NULL DEFAULT 'unchecked',
+        confidence REAL NOT NULL DEFAULT 0,
+        started_at TEXT,
+        last_recorded_event_at TEXT,
+        last_file_modified_at TEXT,
+        explicit_ended_at TEXT,
+        latest_event_type TEXT,
+        latest_role TEXT,
+        latest_tool_name TEXT,
+        source_path_hash TEXT,
+        source_revision TEXT,
+        source_size_bytes INTEGER,
+        first_observed_at TEXT NOT NULL,
+        last_observed_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_sessions_runtime ON observability_sessions(runtime);
+      CREATE INDEX IF NOT EXISTS idx_obs_sessions_observed ON observability_sessions(last_observed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_obs_sessions_health ON observability_sessions(health_state);
+      CREATE INDEX IF NOT EXISTS idx_obs_sessions_activity ON observability_sessions(activity_state);
+
+      CREATE TABLE IF NOT EXISTS observability_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        runtime TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'unknown',
+        recorded_at TEXT,
+        observed_at TEXT NOT NULL,
+        tool_name TEXT,
+        summary TEXT,
+        content_preview TEXT,
+        source_offset INTEGER,
+        source_revision TEXT,
+        truncated INTEGER NOT NULL DEFAULT 0,
+        malformed INTEGER NOT NULL DEFAULT 0,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_events_recorded ON observability_events(COALESCE(recorded_at, observed_at) DESC);
+      CREATE INDEX IF NOT EXISTS idx_obs_events_session ON observability_events(session_id, COALESCE(recorded_at, observed_at) DESC);
+
+      CREATE TABLE IF NOT EXISTS observability_evidence (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        observation_cycle_id TEXT,
+        type TEXT NOT NULL,
+        source TEXT NOT NULL,
+        value_json TEXT,
+        confidence REAL NOT NULL DEFAULT 0,
+        observed_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_evidence_session ON observability_evidence(session_id, observed_at DESC);
+
+      CREATE TABLE IF NOT EXISTS observability_process_evidence (
+        id TEXT PRIMARY KEY,
+        session_id TEXT,
+        runtime TEXT,
+        pid INTEGER NOT NULL,
+        process_name TEXT,
+        match_type TEXT NOT NULL,
+        match_confidence REAL NOT NULL DEFAULT 0,
+        command_hash TEXT,
+        observed_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_process_session ON observability_process_evidence(session_id, observed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_obs_process_expiry ON observability_process_evidence(expires_at);
+
+      CREATE TABLE IF NOT EXISTS observability_integrity_checks (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        algorithm TEXT NOT NULL DEFAULT 'sha256',
+        fingerprint TEXT,
+        source_revision TEXT,
+        status TEXT NOT NULL,
+        forced INTEGER NOT NULL DEFAULT 0,
+        checked_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_integrity_session ON observability_integrity_checks(session_id, checked_at DESC);
+
+      CREATE TABLE IF NOT EXISTS observability_aliases (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL UNIQUE,
+        alias TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS observability_alert_rules (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        scope_json TEXT NOT NULL,
+        condition_type TEXT NOT NULL,
+        condition_json TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'warning',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS observability_alert_events (
+        id TEXT PRIMARY KEY,
+        rule_id TEXT NOT NULL,
+        session_id TEXT,
+        severity TEXT NOT NULL,
+        title TEXT NOT NULL,
+        details_json TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        resolved_at TEXT,
+        notification_state TEXT NOT NULL DEFAULT 'local'
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_alerts_unresolved ON observability_alert_events(resolved_at, first_seen_at DESC);
+
+      CREATE TABLE IF NOT EXISTS observability_scan_cycles (
+        id TEXT PRIMARY KEY,
+        adapter_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        scan_ms INTEGER NOT NULL DEFAULT 0,
+        sources_seen INTEGER NOT NULL DEFAULT 0,
+        sources_changed INTEGER NOT NULL DEFAULT 0,
+        events_emitted INTEGER NOT NULL DEFAULT 0,
+        errors_count INTEGER NOT NULL DEFAULT 0,
+        metadata_json TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_obs_cycles_started ON observability_scan_cycles(started_at DESC);
+
+      -- v41: Trustworthy MCP Memory Plane (Phase 20.41) ------------------------
+      CREATE TABLE IF NOT EXISTS memory_workspaces (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_projects (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        repository_url TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (workspace_id, slug)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_agents (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        agent_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        provider TEXT,
+        model TEXT,
+        trust_level TEXT NOT NULL DEFAULT 'standard',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (workspace_id, agent_key)
+      );
+
+      -- v41 note: the legacy Phase-18 memories table (line ~257) is left
+      -- untouched per spec section 48; the Memory Plane canonical table is
+      -- memory_items.
+      CREATE TABLE IF NOT EXISTS memory_items (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        project_id TEXT,
+        authority TEXT NOT NULL DEFAULT 'observed',
+        kind TEXT NOT NULL DEFAULT 'note',
+        current_revision INTEGER NOT NULL DEFAULT 1,
+        current_hash TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_path TEXT,
+        created_by_agent_id TEXT,
+        supersedes_memory_id TEXT,
+        indexing_state TEXT NOT NULL DEFAULT 'pending',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        forgotten_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_items_workspace ON memory_items(workspace_id, status);
+      CREATE INDEX IF NOT EXISTS idx_memory_items_kind ON memory_items(kind, authority);
+
+      CREATE TABLE IF NOT EXISTS memory_revisions (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        authority TEXT NOT NULL,
+        project_id TEXT,
+        source_path TEXT,
+        created_by_agent_id TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (memory_id, revision)
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_revisions_memory ON memory_revisions(memory_id, revision DESC);
+
+      CREATE TABLE IF NOT EXISTS memory_tags (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (workspace_id, normalized_name)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_tag_links (
+        memory_id TEXT NOT NULL,
+        memory_revision INTEGER NOT NULL,
+        memory_tag_id TEXT NOT NULL,
+        PRIMARY KEY (memory_id, memory_revision, memory_tag_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_chunks (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        memory_revision INTEGER NOT NULL,
+        source_hash TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        chunk_text TEXT NOT NULL,
+        chunk_hash TEXT NOT NULL,
+        token_count INTEGER,
+        embedding_provider TEXT,
+        embedding_model TEXT,
+        embedding_version TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (memory_id, memory_revision, chunk_index)
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_chunks_memory ON memory_chunks(memory_id, memory_revision);
+
+      CREATE TABLE IF NOT EXISTS memory_embeddings (
+        id TEXT PRIMARY KEY,
+        chunk_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        dimensions INTEGER NOT NULL,
+        vector_ref TEXT,
+        vector_blob TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (chunk_id, provider, model)
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_embeddings_chunk ON memory_embeddings(chunk_id);
+
+      CREATE TABLE IF NOT EXISTS memory_observations (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        project_id TEXT,
+        observation_text TEXT NOT NULL,
+        confidence REAL,
+        created_by_agent_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_observation_sources (
+        observation_id TEXT NOT NULL,
+        memory_id TEXT NOT NULL,
+        memory_revision INTEGER NOT NULL,
+        source_hash TEXT NOT NULL,
+        evidence_json TEXT,
+        PRIMARY KEY (observation_id, memory_id, memory_revision)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_supersession_links (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        supersedes_memory_id TEXT NOT NULL,
+        superseded_revision INTEGER NOT NULL,
+        superseded_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_search_traces (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        project_id TEXT,
+        actor_agent_id TEXT,
+        requested_mode TEXT NOT NULL,
+        actual_mode TEXT NOT NULL,
+        query_hash TEXT NOT NULL,
+        query_length INTEGER,
+        provider TEXT,
+        model TEXT,
+        degraded INTEGER NOT NULL DEFAULT 0,
+        degrade_reason TEXT,
+        result_count INTEGER NOT NULL DEFAULT 0,
+        latency_ms INTEGER,
+        created_at TEXT NOT NULL,
+        expires_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_traces_created ON memory_search_traces(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS memory_search_trace_results (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT NOT NULL,
+        memory_id TEXT NOT NULL,
+        memory_revision INTEGER NOT NULL,
+        source_hash TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        keyword_rank INTEGER,
+        semantic_rank INTEGER,
+        keyword_score REAL,
+        semantic_score REAL,
+        fused_score REAL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_trace_results_trace ON memory_search_trace_results(trace_id, rank);
+
+      CREATE TABLE IF NOT EXISTS memory_mutation_previews (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        snapshot_hash TEXT NOT NULL,
+        expected_revision INTEGER,
+        expected_source_hash TEXT,
+        impact_json TEXT NOT NULL,
+        actor_agent_id TEXT,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_previews_open ON memory_mutation_previews(expires_at, consumed_at);
+
+      CREATE TABLE IF NOT EXISTS memory_idempotency_keys (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        actor_key TEXT NOT NULL,
+        key_hash TEXT NOT NULL,
+        memory_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (workspace_id, actor_key, key_hash)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_oauth_clients (
+        id TEXT PRIMARY KEY,
+        client_name TEXT NOT NULL,
+        client_secret_hash TEXT,
+        redirect_uris_json TEXT NOT NULL,
+        grant_types_json TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        token_endpoint_auth TEXT NOT NULL DEFAULT 'client_secret_basic',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_oauth_authorization_codes (
+        id TEXT PRIMARY KEY,
+        code_hash TEXT NOT NULL UNIQUE,
+        client_id TEXT NOT NULL,
+        redirect_uri TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        code_challenge TEXT NOT NULL,
+        code_challenge_method TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        consumed_at TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_oauth_access_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        client_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        family_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_oauth_refresh_tokens (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        client_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        family_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        rotated_at TEXT,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_oauth_consents (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        decided_by TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'approved',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (client_id, scope)
+      );
+
+      -- v42: Named AI Teammate Workspace (Phase 20.42) ------------------------
+      CREATE TABLE IF NOT EXISTS bw_workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        settings_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS bw_agents (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        avatar_ref TEXT,
+        description TEXT,
+        role TEXT NOT NULL DEFAULT 'custom',
+        system_instructions TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        visibility TEXT NOT NULL DEFAULT 'visible',
+        provider_binding_id TEXT,
+        runtime_binding_id TEXT,
+        default_model TEXT,
+        context_policy_json TEXT NOT NULL DEFAULT '{}',
+        capability_policy_json TEXT NOT NULL DEFAULT '{}',
+        approval_policy_json TEXT NOT NULL DEFAULT '{}',
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (workspace_id, slug)
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_agents_workspace ON bw_agents(workspace_id, status);
+
+      CREATE TABLE IF NOT EXISTS bw_teams (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        description TEXT,
+        lead_agent_id TEXT,
+        orchestration_mode TEXT NOT NULL DEFAULT 'ordered',
+        default_recipient_order_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (workspace_id, slug)
+      );
+
+      CREATE TABLE IF NOT EXISTS bw_team_members (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        role_in_team TEXT,
+        is_required INTEGER NOT NULL DEFAULT 1,
+        can_delegate INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        UNIQUE (team_id, agent_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_team_members ON bw_team_members(team_id, position);
+
+      CREATE TABLE IF NOT EXISTS bw_conversations (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        agent_id TEXT,
+        team_id TEXT,
+        title TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        last_message_at TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_conversations_ws ON bw_conversations(workspace_id, COALESCE(last_message_at, updated_at) DESC);
+
+      CREATE TABLE IF NOT EXISTS bw_messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        sender_type TEXT NOT NULL,
+        sender_id TEXT,
+        role TEXT NOT NULL DEFAULT 'unknown',
+        content_json TEXT NOT NULL,
+        reply_to_message_id TEXT,
+        parent_execution_id TEXT,
+        client_message_id TEXT,
+        status TEXT NOT NULL DEFAULT 'final',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_messages_conv ON bw_messages(conversation_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS bw_message_mentions (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        mentioned_agent_id TEXT NOT NULL,
+        start_offset INTEGER,
+        end_offset INTEGER,
+        mention_token TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_mentions_message ON bw_message_mentions(message_id);
+
+      CREATE TABLE IF NOT EXISTS bw_drafts (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        owner_key TEXT NOT NULL,
+        content_json TEXT NOT NULL,
+        selected_agent_ids_json TEXT NOT NULL DEFAULT '[]',
+        attachment_refs_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL,
+        UNIQUE (conversation_id, owner_key)
+      );
+
+      CREATE TABLE IF NOT EXISTS bw_provider_bindings (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        provider_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        endpoint TEXT,
+        model TEXT,
+        credential_ref TEXT,
+        settings_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'unverified',
+        last_healthcheck_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS bw_runtime_bindings (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        runtime_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'unverified',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS bw_group_rounds (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        initiating_message_id TEXT NOT NULL,
+        orchestration_mode TEXT NOT NULL,
+        requested_agent_order_json TEXT NOT NULL,
+        resolved_agent_order_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft',
+        current_position INTEGER NOT NULL DEFAULT 0,
+        failure_policy TEXT NOT NULL DEFAULT 'stop_on_failure',
+        stop_reason TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_rounds_conv ON bw_group_rounds(conversation_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS bw_agent_executions (
+        id TEXT PRIMARY KEY,
+        group_round_id TEXT,
+        routine_run_id TEXT,
+        agent_id TEXT NOT NULL,
+        provider_binding_id TEXT,
+        runtime_binding_id TEXT,
+        model TEXT,
+        position INTEGER,
+        attempt INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'created',
+        input_snapshot_ref TEXT,
+        output_message_id TEXT,
+        error_code TEXT,
+        error_message_safe TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_exec_round ON bw_agent_executions(group_round_id, position, attempt);
+      CREATE INDEX IF NOT EXISTS idx_bw_exec_agent ON bw_agent_executions(agent_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS bw_execution_events (
+        id TEXT PRIMARY KEY,
+        execution_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        UNIQUE (execution_id, sequence)
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_events_exec ON bw_execution_events(execution_id, sequence);
+
+      CREATE TABLE IF NOT EXISTS bw_approvals (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        execution_id TEXT,
+        requested_by_agent_id TEXT,
+        action_type TEXT NOT NULL,
+        action_summary TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        action_fingerprint TEXT NOT NULL,
+        request_payload_redacted_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        decision_by TEXT,
+        decision_reason TEXT,
+        expires_at TEXT,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_approvals_status ON bw_approvals(status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS bw_routines (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        owner_agent_id TEXT,
+        owner_team_id TEXT,
+        trigger_type TEXT NOT NULL DEFAULT 'manual',
+        trigger_config_json TEXT NOT NULL DEFAULT '{}',
+        instruction_template TEXT NOT NULL,
+        skill_slug TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        concurrency_policy TEXT NOT NULL DEFAULT 'skip_if_running',
+        approval_policy_json TEXT NOT NULL DEFAULT '{}',
+        last_run_at TEXT,
+        next_run_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_routines_due ON bw_routines(status, next_run_at);
+
+      CREATE TABLE IF NOT EXISTS bw_routine_runs (
+        id TEXT PRIMARY KEY,
+        routine_id TEXT NOT NULL,
+        trigger_source TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'created',
+        root_execution_id TEXT,
+        idempotency_key TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        error_code TEXT,
+        error_message_safe TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_routine_runs ON bw_routine_runs(routine_id, created_at DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_bw_routine_runs_idem ON bw_routine_runs(routine_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS bw_audit_events (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        outcome TEXT NOT NULL DEFAULT 'ok',
+        metadata_redacted_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_bw_audit_ws ON bw_audit_events(workspace_id, created_at DESC);
+
+      -- v43: PLUR Shared Agent Memory Runtime control plane (Phase 20.43) ----
+      CREATE TABLE IF NOT EXISTS memory_engram_registry (
+        id TEXT PRIMARY KEY,
+        engine_engram_id TEXT UNIQUE,
+        content_hash TEXT NOT NULL,
+        title TEXT,
+        content TEXT,
+        memory_type TEXT NOT NULL,
+        domain TEXT,
+        scope TEXT NOT NULL,
+        visibility TEXT NOT NULL DEFAULT 'project',
+        polarity TEXT,
+        source_kind TEXT NOT NULL DEFAULT 'explicit',
+        source_agent_id TEXT,
+        source_session_id TEXT,
+        source_run_id TEXT,
+        project_id TEXT,
+        workspace_id TEXT,
+        owner_user_id TEXT,
+        sensitivity TEXT NOT NULL DEFAULT 'normal',
+        secret_scan_status TEXT NOT NULL DEFAULT 'clean',
+        policy_decision TEXT NOT NULL DEFAULT 'allow',
+        state TEXT NOT NULL DEFAULT 'active',
+        confidence REAL,
+        last_recalled_at TEXT,
+        last_feedback_at TEXT,
+        recall_count INTEGER NOT NULL DEFAULT 0,
+        positive_feedback_count INTEGER NOT NULL DEFAULT 0,
+        negative_feedback_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        retired_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_engram_scope ON memory_engram_registry(scope, state);
+      CREATE INDEX IF NOT EXISTS idx_mem_engram_project ON memory_engram_registry(project_id, state);
+      CREATE INDEX IF NOT EXISTS idx_mem_engram_agent ON memory_engram_registry(source_agent_id);
+      CREATE INDEX IF NOT EXISTS idx_mem_engram_hash ON memory_engram_registry(content_hash);
+
+      CREATE TABLE IF NOT EXISTS memory_episode_registry (
+        id TEXT PRIMARY KEY,
+        plur_episode_id TEXT,
+        summary TEXT NOT NULL,
+        agent_id TEXT,
+        session_id TEXT,
+        run_id TEXT,
+        channel TEXT,
+        project_id TEXT,
+        workspace_id TEXT,
+        severity TEXT,
+        event_type TEXT NOT NULL,
+        happened_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_episode_time ON memory_episode_registry(happened_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_mem_episode_agent ON memory_episode_registry(agent_id);
+
+      CREATE TABLE IF NOT EXISTS memory_feedback (
+        id TEXT PRIMARY KEY,
+        engram_registry_id TEXT NOT NULL,
+        engine_engram_id TEXT,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        signal TEXT NOT NULL,
+        reason TEXT,
+        source_task_id TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_feedback_engram ON memory_feedback(engram_registry_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS memory_policy_rules (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        priority INTEGER NOT NULL DEFAULT 50,
+        action TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        matcher_json TEXT NOT NULL DEFAULT '{}',
+        effect_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_sync_profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        remote_type TEXT NOT NULL DEFAULT 'personal',
+        remote_ref TEXT,
+        allowed_scope_patterns_json TEXT NOT NULL DEFAULT '[]',
+        denied_scope_patterns_json TEXT NOT NULL DEFAULT '[]',
+        require_secret_scan INTEGER NOT NULL DEFAULT 1,
+        require_approval INTEGER NOT NULL DEFAULT 1,
+        last_sync_at TEXT,
+        last_sync_status TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_sync_runs (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        dry_run INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL,
+        pushed_count INTEGER NOT NULL DEFAULT 0,
+        skipped_count INTEGER NOT NULL DEFAULT 0,
+        blocked_count INTEGER NOT NULL DEFAULT 0,
+        warning_count INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        summary_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_injection_receipts (
+        id TEXT PRIMARY KEY,
+        session_id TEXT,
+        run_id TEXT,
+        agent_id TEXT,
+        project_id TEXT,
+        query_hash TEXT NOT NULL,
+        scope_set_json TEXT NOT NULL,
+        requested_budget_tokens INTEGER NOT NULL,
+        used_tokens INTEGER NOT NULL,
+        injected_count INTEGER NOT NULL,
+        injected_engram_ids_json TEXT NOT NULL DEFAULT '[]',
+        policy_filtered_count INTEGER NOT NULL DEFAULT 0,
+        secret_filtered_count INTEGER NOT NULL DEFAULT 0,
+        latency_ms INTEGER,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_receipts_created ON memory_injection_receipts(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS memory_agent_adapters (
+        id TEXT PRIMARY KEY,
+        adapter_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        adapter_type TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        auto_inject INTEGER NOT NULL DEFAULT 0,
+        auto_learn INTEGER NOT NULL DEFAULT 0,
+        default_scope TEXT,
+        trust_level TEXT NOT NULL DEFAULT 'standard',
+        last_seen_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_approvals (
+        id TEXT PRIMARY KEY,
+        operation TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        approved_by TEXT,
+        decision TEXT NOT NULL DEFAULT 'pending',
+        reason TEXT,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        decided_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_conflicts (
+        id TEXT PRIMARY KEY,
+        engram_a_id TEXT NOT NULL,
+        engram_b_id TEXT,
+        conflict_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        resolution TEXT,
+        detected_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_audit_events (
+        id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        agent_id TEXT,
+        scope TEXT,
+        decision TEXT NOT NULL,
+        engram_registry_id TEXT,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_audit_corr ON memory_audit_events(correlation_id);
+      CREATE INDEX IF NOT EXISTS idx_mem_audit_created ON memory_audit_events(created_at DESC);
+
+      -- v44: Pao Agent Platform (Phase 20.54)
+      CREATE TABLE IF NOT EXISTS ap_agents (id TEXT PRIMARY KEY, name TEXT NOT NULL, version TEXT NOT NULL, owner TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, manifest_json TEXT NOT NULL, registered_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_capabilities (id TEXT PRIMARY KEY, description TEXT NOT NULL, risk_level TEXT NOT NULL, mutability TEXT NOT NULL, approval_default TEXT NOT NULL, sandbox_required INTEGER NOT NULL DEFAULT 0, receipt_required INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS ap_agent_capabilities (agent_id TEXT NOT NULL, capability_id TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (agent_id, capability_id));
+      CREATE TABLE IF NOT EXISTS ap_platform_tasks (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, status TEXT NOT NULL, goal TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_tool_calls (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, agent_id TEXT NOT NULL, tool_id TEXT NOT NULL, capability_id TEXT NOT NULL, arguments_hash TEXT, status TEXT NOT NULL, result_hash TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_policy_decisions (id TEXT PRIMARY KEY, task_id TEXT, agent_id TEXT, capability_id TEXT, decision TEXT NOT NULL, reason_code TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_platform_approvals (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, agent_id TEXT NOT NULL, capability_id TEXT NOT NULL, target TEXT, arguments_hash TEXT, risk_level TEXT NOT NULL, status TEXT NOT NULL, consumed INTEGER NOT NULL DEFAULT 0, requested_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT, expires_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_audit_events (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, task_id TEXT, payload_json TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_crypto_receipts (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, payload_json TEXT NOT NULL, payload_hash TEXT NOT NULL, signature TEXT NOT NULL, signing_key_id TEXT NOT NULL, previous_hash TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ap_receipts_agent ON ap_crypto_receipts(agent_id, created_at);
+      CREATE TABLE IF NOT EXISTS ap_agent_memories (id TEXT PRIMARY KEY, memory_type TEXT NOT NULL, scope TEXT NOT NULL, content TEXT NOT NULL, created_by TEXT NOT NULL, confidence REAL, sensitivity TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ap_agent_evaluations (id TEXT PRIMARY KEY, suite TEXT NOT NULL, passed INTEGER NOT NULL, report_json TEXT NOT NULL, created_at TEXT NOT NULL);
+
+      -- v45: Mobile runtime (Phase 20.55)
+      CREATE TABLE IF NOT EXISTS mobile_approvals (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, device_id TEXT, risk_level TEXT NOT NULL, status TEXT NOT NULL, requested_by TEXT, resolved_by TEXT, reason TEXT, created_at INTEGER NOT NULL, resolved_at INTEGER);
+      CREATE INDEX IF NOT EXISTS idx_mobile_approvals_task ON mobile_approvals(task_id);
+      CREATE TABLE IF NOT EXISTS mobile_trace_events (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, trace_id TEXT, step INTEGER, event_type TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_mobile_trace_task ON mobile_trace_events(task_id);
+      CREATE TABLE IF NOT EXISTS mobile_device_leases (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, task_id TEXT NOT NULL, owner TEXT NOT NULL, acquired_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, released_at INTEGER);
+      CREATE INDEX IF NOT EXISTS idx_mobile_leases_device ON mobile_device_leases(device_id, released_at);
+
+      -- v46: Micro-App Capability Lab (Phase 20.56)
+      CREATE TABLE IF NOT EXISTS cap_sources (id TEXT PRIMARY KEY, source_type TEXT NOT NULL, local_path TEXT NOT NULL, snapshot_path TEXT NOT NULL, source_sha256 TEXT NOT NULL, license_spdx TEXT, imported_by TEXT, imported_at TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}');
+      CREATE TABLE IF NOT EXISTS cap_recipes (id TEXT PRIMARY KEY, source_id TEXT NOT NULL, name TEXT NOT NULL, file_path TEXT NOT NULL, entrypoint TEXT, candidate_type TEXT NOT NULL, summary TEXT, status TEXT NOT NULL, analysis_json TEXT NOT NULL, risk_score INTEGER, risk_level TEXT, recommendation TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS cap_capabilities (id TEXT PRIMARY KEY, capability_key TEXT NOT NULL UNIQUE, namespace TEXT NOT NULL, name TEXT NOT NULL, description TEXT, status TEXT NOT NULL, recipe_id TEXT, version TEXT NOT NULL, channel TEXT NOT NULL, manifest_json TEXT NOT NULL, adapters_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS cap_reviews (id TEXT PRIMARY KEY, capability_key TEXT NOT NULL, reviewer_id TEXT, decision TEXT NOT NULL, notes TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS cap_runs (id TEXT PRIMARY KEY, capability_key TEXT NOT NULL, version TEXT NOT NULL, caller_type TEXT NOT NULL, status TEXT NOT NULL, policy_decision TEXT, output_json TEXT, error_code TEXT, started_at TEXT NOT NULL, finished_at TEXT);
+      CREATE TABLE IF NOT EXISTS cap_artifacts (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, name TEXT NOT NULL, uri TEXT NOT NULL, sha256 TEXT NOT NULL, size_bytes INTEGER, mime_type TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_cap_recipes_source ON cap_recipes(source_id);
+      CREATE INDEX IF NOT EXISTS idx_cap_runs_key ON cap_runs(capability_key, started_at);
+
+      -- v47: Skill Gate control plane (Phase 20.57)
+      CREATE TABLE IF NOT EXISTS sg_sources (id TEXT PRIMARY KEY, source_type TEXT NOT NULL, display_name TEXT NOT NULL, repository_url TEXT, default_ref TEXT, trust_level TEXT NOT NULL DEFAULT 'unknown', enabled INTEGER NOT NULL DEFAULT 1, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sg_skills (id TEXT PRIMARY KEY, namespace TEXT NOT NULL, slug TEXT NOT NULL, display_name TEXT NOT NULL, description TEXT, source_id TEXT, status TEXT NOT NULL, current_version TEXT, publisher TEXT, license_spdx TEXT, trust_level TEXT NOT NULL DEFAULT 'unknown', risk_level TEXT, tags_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(namespace, slug));
+      CREATE INDEX IF NOT EXISTS idx_sg_skills_status ON sg_skills(status);
+      CREATE INDEX IF NOT EXISTS idx_sg_skills_source ON sg_skills(source_id);
+      CREATE TABLE IF NOT EXISTS sg_skill_versions (id TEXT PRIMARY KEY, skill_id TEXT NOT NULL, version TEXT NOT NULL, source_ref TEXT, source_commit TEXT, source_path TEXT, manifest_json TEXT NOT NULL, content_sha256 TEXT NOT NULL, snapshot_dir TEXT NOT NULL, scanner_version TEXT, scan_status TEXT NOT NULL DEFAULT 'pending', risk_score INTEGER, risk_level TEXT, approval_status TEXT NOT NULL DEFAULT 'not_required', immutable INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TEXT NOT NULL, published_at TEXT, published_by TEXT, UNIQUE(skill_id, version));
+      CREATE INDEX IF NOT EXISTS idx_sg_versions_skill ON sg_skill_versions(skill_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS sg_skill_files (id TEXT PRIMARY KEY, skill_version_id TEXT NOT NULL, relative_path TEXT NOT NULL, size_bytes INTEGER NOT NULL, sha256 TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(skill_version_id, relative_path));
+      CREATE INDEX IF NOT EXISTS idx_sg_files_version ON sg_skill_files(skill_version_id);
+      CREATE TABLE IF NOT EXISTS sg_scan_findings (id TEXT PRIMARY KEY, skill_version_id TEXT NOT NULL, rule_id TEXT NOT NULL, severity TEXT NOT NULL, file_path TEXT, line_start INTEGER, line_end INTEGER, evidence_hash TEXT, message TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sg_findings_version ON sg_scan_findings(skill_version_id);
+      CREATE TABLE IF NOT EXISTS sg_agents (id TEXT PRIMARY KEY, agent_type TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, adapter_version TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, detected INTEGER NOT NULL DEFAULT 0, capabilities_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sg_nodes (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL DEFAULT 'ssh', hostname TEXT, port INTEGER, username TEXT, auth_ref TEXT, host_key_fingerprint TEXT, environment TEXT, status TEXT NOT NULL DEFAULT 'unknown', allowed_roots_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sg_deployments (id TEXT PRIMARY KEY, skill_version_id TEXT NOT NULL, node_id TEXT, agent_type TEXT NOT NULL, scope TEXT NOT NULL, project_path TEXT, target_path TEXT NOT NULL, desired_sha256 TEXT NOT NULL, actual_sha256 TEXT, status TEXT NOT NULL, managed INTEGER NOT NULL DEFAULT 1, deployed_by TEXT, deployed_at TEXT, verified_at TEXT, plan_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sg_deploy_skill ON sg_deployments(skill_version_id);
+      CREATE INDEX IF NOT EXISTS idx_sg_deploy_status ON sg_deployments(status);
+      CREATE TABLE IF NOT EXISTS sg_snapshots (id TEXT PRIMARY KEY, deployment_id TEXT NOT NULL, reason TEXT NOT NULL, file_index_json TEXT NOT NULL, snapshot_dir TEXT NOT NULL, created_by TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sg_snapshots_deploy ON sg_snapshots(deployment_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS sg_drift_events (id TEXT PRIMARY KEY, deployment_id TEXT NOT NULL, drift_type TEXT NOT NULL, expected_sha256 TEXT, actual_sha256 TEXT, details_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'open', detected_at TEXT NOT NULL, resolved_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_sg_drift_deploy ON sg_drift_events(deployment_id, detected_at DESC);
+      CREATE TABLE IF NOT EXISTS sg_reviews (id TEXT PRIMARY KEY, skill_version_id TEXT NOT NULL, requested_action TEXT NOT NULL, requested_targets_json TEXT NOT NULL DEFAULT '[]', risk_snapshot_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'pending', requested_by TEXT NOT NULL, reviewed_by TEXT, decision_reason TEXT, constraints_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, decided_at TEXT, expires_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_sg_reviews_version ON sg_reviews(skill_version_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS sg_audit (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT, skill_id TEXT, skill_version_id TEXT, deployment_id TEXT, node_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sg_audit_created ON sg_audit(created_at DESC);
+
+      -- v48: Social Publishing control plane (Phase 20.60, OpenPost integration)
+      CREATE TABLE IF NOT EXISTS sp_openpost_instances (id TEXT PRIMARY KEY, name TEXT NOT NULL, base_url TEXT NOT NULL, auth_mode TEXT NOT NULL DEFAULT 'bearer_token', secret_ref TEXT NOT NULL, mcp_endpoint TEXT, mcp_scope TEXT, transport TEXT NOT NULL DEFAULT 'hybrid', status TEXT NOT NULL DEFAULT 'unknown', version TEXT, last_health_at TEXT, last_error_code TEXT, last_error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sp_accounts (id TEXT PRIMARY KEY, instance_id TEXT NOT NULL, openpost_workspace_ref TEXT NOT NULL, openpost_account_ref TEXT NOT NULL, platform TEXT NOT NULL, display_name TEXT, username TEXT, readiness_state TEXT NOT NULL DEFAULT 'unknown', readiness_reason TEXT, enabled INTEGER NOT NULL DEFAULT 1, capability_json TEXT NOT NULL DEFAULT '{}', last_sync_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(instance_id, openpost_account_ref));
+      CREATE INDEX IF NOT EXISTS idx_sp_accounts_instance ON sp_accounts(instance_id, platform);
+      CREATE TABLE IF NOT EXISTS sp_publications (id TEXT PRIMARY KEY, source_type TEXT NOT NULL, asset_ids_json TEXT NOT NULL DEFAULT '[]', master_title TEXT, master_caption TEXT, master_description TEXT, master_tags_json TEXT NOT NULL DEFAULT '[]', metadata_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'draft', risk_level TEXT NOT NULL DEFAULT 'normal', approval_mode TEXT NOT NULL DEFAULT 'human_required', scheduled_at TEXT, timezone TEXT NOT NULL DEFAULT 'UTC', created_by_type TEXT NOT NULL, created_by_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sp_publications_status ON sp_publications(status, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS sp_publication_assets (id TEXT PRIMARY KEY, publication_id TEXT NOT NULL, local_asset_id TEXT NOT NULL, openpost_media_ref TEXT, sha256 TEXT NOT NULL, mime_type TEXT NOT NULL, byte_size INTEGER NOT NULL, width INTEGER, height INTEGER, duration_ms INTEGER, provenance_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, UNIQUE(publication_id, local_asset_id));
+      CREATE INDEX IF NOT EXISTS idx_sp_assets_publication ON sp_publication_assets(publication_id);
+      CREATE TABLE IF NOT EXISTS sp_renditions (id TEXT PRIMARY KEY, publication_id TEXT NOT NULL, account_id TEXT NOT NULL, platform TEXT NOT NULL, format TEXT NOT NULL, title TEXT, caption TEXT, description TEXT, hashtags_json TEXT NOT NULL DEFAULT '[]', asset_refs_json TEXT NOT NULL DEFAULT '[]', provider_settings_json TEXT NOT NULL DEFAULT '{}', scheduled_at TEXT, capability_snapshot_json TEXT NOT NULL DEFAULT '{}', capability_snapshot_at TEXT NOT NULL, validation_status TEXT NOT NULL DEFAULT 'unvalidated', validation_issues_json TEXT NOT NULL DEFAULT '[]', approval_status TEXT NOT NULL DEFAULT 'pending', content_hash TEXT NOT NULL, delivery_status TEXT NOT NULL DEFAULT 'draft', openpost_publication_ref TEXT, openpost_rendition_ref TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(publication_id, account_id));
+      CREATE INDEX IF NOT EXISTS idx_sp_renditions_publication ON sp_renditions(publication_id);
+      CREATE INDEX IF NOT EXISTS idx_sp_renditions_delivery ON sp_renditions(delivery_status);
+      CREATE TABLE IF NOT EXISTS sp_policy_evaluations (id TEXT PRIMARY KEY, publication_id TEXT NOT NULL, rendition_id TEXT, policy_version TEXT NOT NULL, effect TEXT NOT NULL, rule_results_json TEXT NOT NULL, evaluated_by TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sp_policy_publication ON sp_policy_evaluations(publication_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS sp_approvals (id TEXT PRIMARY KEY, publication_id TEXT NOT NULL, rendition_id TEXT, decision TEXT NOT NULL, approver_type TEXT NOT NULL, approver_id TEXT NOT NULL, approval_scope TEXT NOT NULL, content_hash TEXT NOT NULL, note TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sp_approvals_publication ON sp_approvals(publication_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS sp_delivery_jobs (id TEXT PRIMARY KEY, publication_id TEXT NOT NULL, rendition_id TEXT, idempotency_key TEXT NOT NULL UNIQUE, job_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempt_count INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 5, next_attempt_at TEXT, locked_at TEXT, locked_by TEXT, last_error_class TEXT, last_error_code TEXT, last_error_message TEXT, remote_operation_ref TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sp_jobs_status ON sp_delivery_jobs(status, next_attempt_at);
+      CREATE INDEX IF NOT EXISTS idx_sp_jobs_publication ON sp_delivery_jobs(publication_id);
+      CREATE TABLE IF NOT EXISTS sp_analytics_snapshots (id TEXT PRIMARY KEY, publication_id TEXT, rendition_id TEXT, account_id TEXT NOT NULL, captured_at TEXT NOT NULL, views INTEGER, impressions INTEGER, reach INTEGER, engagements INTEGER, likes INTEGER, comments INTEGER, shares INTEGER, followers_delta INTEGER, raw_metrics_json TEXT NOT NULL DEFAULT '{}');
+      CREATE INDEX IF NOT EXISTS idx_sp_analytics_account ON sp_analytics_snapshots(account_id, captured_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_sp_analytics_publication ON sp_analytics_snapshots(publication_id, captured_at DESC);
+      CREATE TABLE IF NOT EXISTS sp_audit (id TEXT PRIMARY KEY, actor_type TEXT NOT NULL, actor_id TEXT, action TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, policy_effect TEXT, approval_ref TEXT, instance_id TEXT, remote_ref TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sp_audit_created ON sp_audit(created_at DESC);
+
+      -- v49: Agent Runtime control plane (Phase 20.61, amux integration)
+      CREATE TABLE IF NOT EXISTS ar_tasks (id TEXT PRIMARY KEY, parent_task_id TEXT, title TEXT NOT NULL, description TEXT NOT NULL, acceptance_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'draft', priority INTEGER NOT NULL DEFAULT 50, role TEXT NOT NULL DEFAULT 'implementer', claim_owner TEXT, claim_token TEXT, claim_version INTEGER NOT NULL DEFAULT 0, claimed_at TEXT, lease_expires_at TEXT, heartbeat_at TEXT, attempt INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 3, runtime_provider TEXT, runtime_task_id TEXT, runtime_session_id TEXT, policy_profile TEXT NOT NULL DEFAULT 'restricted-dev', requires_human_approval INTEGER NOT NULL DEFAULT 1, repo_root TEXT, worktree_path TEXT, branch TEXT, checkpoint_json TEXT NOT NULL DEFAULT '{}', created_by_type TEXT NOT NULL DEFAULT 'human', created_by_id TEXT NOT NULL DEFAULT 'operator', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ar_tasks_status ON ar_tasks(status, priority);
+      CREATE TABLE IF NOT EXISTS ar_workers (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, provider TEXT NOT NULL, roles_json TEXT NOT NULL DEFAULT '[]', capabilities_json TEXT NOT NULL DEFAULT '[]', max_concurrency INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'unknown', runtime_worker_id TEXT, last_seen_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ar_sessions (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, worker_id TEXT NOT NULL, runtime_session_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'running', attempt INTEGER NOT NULL DEFAULT 1, started_at TEXT NOT NULL, heartbeat_at TEXT, ended_at TEXT, exit_reason TEXT);
+      CREATE INDEX IF NOT EXISTS idx_ar_sessions_task ON ar_sessions(task_id);
+      CREATE TABLE IF NOT EXISTS ar_task_evidence (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, evidence_type TEXT NOT NULL, uri TEXT, sha256 TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_by TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ar_evidence_task ON ar_task_evidence(task_id);
+      CREATE TABLE IF NOT EXISTS ar_approval_requests (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, action TEXT NOT NULL, risk_level TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', requested_by TEXT NOT NULL, requested_at TEXT NOT NULL, decided_by TEXT, decided_at TEXT, decision_reason TEXT, payload_hash TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ar_approvals_task ON ar_approval_requests(task_id, status);
+      CREATE TABLE IF NOT EXISTS ar_execution_audit (id TEXT PRIMARY KEY, task_id TEXT, session_id TEXT, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, action TEXT NOT NULL, decision TEXT NOT NULL, request_hash TEXT, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ar_audit_created ON ar_execution_audit(created_at DESC);
+      CREATE TABLE IF NOT EXISTS ar_idempotency_keys (key TEXT PRIMARY KEY, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT, status TEXT NOT NULL DEFAULT 'completed', expires_at TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ar_events (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, task_id TEXT, session_id TEXT, source TEXT NOT NULL, idempotency_key TEXT NOT NULL UNIQUE, payload_json TEXT NOT NULL DEFAULT '{}', occurred_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ar_events_task ON ar_events(task_id, occurred_at DESC);
+
+      -- v50: Code Intelligence control plane (Phase 20.62, Graft integration)
+      CREATE TABLE IF NOT EXISTS ci_repositories (id TEXT PRIMARY KEY, name TEXT NOT NULL, canonical_path TEXT NOT NULL UNIQUE, repo_type TEXT NOT NULL DEFAULT 'single', vcs_type TEXT NOT NULL DEFAULT 'git', remote_url TEXT, default_branch TEXT, trust_level TEXT NOT NULL DEFAULT 'trusted', sensitivity TEXT NOT NULL DEFAULT 'normal', indexing_enabled INTEGER NOT NULL DEFAULT 1, deep_enrichment_enabled INTEGER NOT NULL DEFAULT 0, provider_key TEXT NOT NULL DEFAULT 'graft', graph_state TEXT NOT NULL DEFAULT 'uninitialized', last_build_at TEXT, last_fingerprint TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ci_workspace_repositories (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, repository_id TEXT NOT NULL, alias TEXT, cross_repo_trace_enabled INTEGER NOT NULL DEFAULT 0, trust_boundary TEXT NOT NULL DEFAULT 'trusted', created_at TEXT NOT NULL, UNIQUE(workspace_id, repository_id));
+      CREATE TABLE IF NOT EXISTS ci_graph_builds (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL, provider TEXT NOT NULL, provider_version TEXT, build_mode TEXT NOT NULL DEFAULT 'structural', status TEXT NOT NULL DEFAULT 'started', fingerprint TEXT, started_at TEXT NOT NULL, completed_at TEXT, duration_ms INTEGER, indexed_files INTEGER, indexed_symbols INTEGER, error_code TEXT, error_summary TEXT);
+      CREATE INDEX IF NOT EXISTS idx_ci_builds_repo ON ci_graph_builds(repository_id, started_at DESC);
+      CREATE TABLE IF NOT EXISTS ci_evidence (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL, graph_build_id TEXT, operation TEXT NOT NULL, request_fingerprint TEXT NOT NULL, request_json TEXT NOT NULL DEFAULT '{}', result_digest TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}', freshness_state TEXT NOT NULL DEFAULT 'unavailable', provider TEXT NOT NULL, provider_version TEXT, actor_id TEXT NOT NULL, task_id TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ci_evidence_repo ON ci_evidence(repository_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS ci_impact_reports (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL, task_id TEXT, worktree_path TEXT, requested_by TEXT NOT NULL, target_type TEXT NOT NULL, target_ref TEXT NOT NULL, direction TEXT NOT NULL DEFAULT 'in', depth INTEGER NOT NULL DEFAULT 2, graph_build_id TEXT, freshness_state TEXT NOT NULL DEFAULT 'missing', fingerprint TEXT, direct_dependency_count INTEGER NOT NULL DEFAULT 0, transitive_dependency_count INTEGER NOT NULL DEFAULT 0, cross_repo_dependency_count INTEGER NOT NULL DEFAULT 0, affected_tests_json TEXT NOT NULL DEFAULT '[]', protected_json TEXT NOT NULL DEFAULT '[]', risk_score INTEGER NOT NULL DEFAULT 0, risk_level TEXT NOT NULL DEFAULT 'low', policy_decision TEXT NOT NULL DEFAULT 'allow', factors_json TEXT NOT NULL DEFAULT '[]', provider TEXT NOT NULL DEFAULT 'graft', reduced_confidence INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ci_impact_repo ON ci_impact_reports(repository_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ci_impact_risk ON ci_impact_reports(risk_level);
+      CREATE TABLE IF NOT EXISTS ci_provider_status (id TEXT PRIMARY KEY, provider_key TEXT NOT NULL, repository_id TEXT, detected_version TEXT, expected_version_range TEXT, runtime_version TEXT, status TEXT NOT NULL DEFAULT 'unavailable', last_health_check_at TEXT, last_success_at TEXT, last_error_code TEXT, last_error_summary TEXT, capabilities_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS ci_audit (id TEXT PRIMARY KEY, action TEXT NOT NULL, decision TEXT NOT NULL, repository_id TEXT, actor_id TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_ci_audit_created ON ci_audit(created_at DESC);
+
+      -- v51: External Capability Registry (Phase 20.63, Public APIs integration)
+      CREATE TABLE IF NOT EXISTS eap_sources (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, source_url TEXT NOT NULL, parser_version TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS eap_snapshots (id TEXT PRIMARY KEY, source_key TEXT NOT NULL, upstream_revision TEXT NOT NULL, content_sha256 TEXT NOT NULL, parse_status TEXT NOT NULL, record_count INTEGER NOT NULL DEFAULT 0, category_count INTEGER NOT NULL DEFAULT 0, warnings_json TEXT NOT NULL DEFAULT '{}', last_known_good INTEGER NOT NULL DEFAULT 0, fetched_at TEXT NOT NULL, UNIQUE(source_key, content_sha256));
+      CREATE TABLE IF NOT EXISTS eap_providers (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, description TEXT, homepage_url TEXT, docs_url TEXT, hostname TEXT NOT NULL, source_category TEXT, categories_json TEXT NOT NULL DEFAULT '[]', auth_label TEXT, auth_type TEXT NOT NULL DEFAULT 'none', upstream_https INTEGER, upstream_cors TEXT, lifecycle TEXT NOT NULL DEFAULT 'discovered', health TEXT NOT NULL DEFAULT 'unknown', trust_score INTEGER, risk_score INTEGER, trust_confidence INTEGER, source_presence TEXT NOT NULL DEFAULT 'active', source_snapshot_id TEXT, raw_json TEXT NOT NULL DEFAULT '{}', aliases_json TEXT NOT NULL DEFAULT '[]', circuit TEXT NOT NULL DEFAULT 'closed', last_observed_at TEXT, approved_at TEXT, revoked_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_eap_providers_lifecycle ON eap_providers(lifecycle, hostname);
+      CREATE TABLE IF NOT EXISTS eap_operations (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, operation_key TEXT NOT NULL, http_method TEXT NOT NULL, path_template TEXT NOT NULL, server_url TEXT, summary TEXT, mutating INTEGER NOT NULL DEFAULT 0, auth_required INTEGER NOT NULL DEFAULT 0, data_classes_json TEXT NOT NULL DEFAULT '[]', risk_level TEXT NOT NULL DEFAULT 'high', lifecycle TEXT NOT NULL DEFAULT 'discovered', capabilities_json TEXT NOT NULL DEFAULT '[]', spec_snapshot_id TEXT, request_schema_json TEXT, response_schema_json TEXT, cacheable INTEGER NOT NULL DEFAULT 0, cache_ttl_seconds INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(provider_id, operation_key));
+      CREATE INDEX IF NOT EXISTS idx_eap_operations_provider ON eap_operations(provider_id);
+      CREATE TABLE IF NOT EXISTS eap_credential_profiles (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, auth_type TEXT NOT NULL, secret_ref TEXT, scopes_json TEXT NOT NULL DEFAULT '[]', environment TEXT NOT NULL DEFAULT 'test', owner_type TEXT NOT NULL DEFAULT 'workspace', owner_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', header_name TEXT NOT NULL DEFAULT 'Authorization', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS eap_tools (id TEXT PRIMARY KEY, operation_id TEXT NOT NULL, tool_name TEXT NOT NULL UNIQUE, display_name TEXT, input_schema_json TEXT NOT NULL DEFAULT '{}', risk_level TEXT NOT NULL, mutating INTEGER NOT NULL DEFAULT 0, approval_mode TEXT NOT NULL DEFAULT 'always', enabled INTEGER NOT NULL DEFAULT 0, spec_snapshot_id TEXT, policy_version TEXT NOT NULL, contract_tested INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS eap_health_checks (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, status TEXT NOT NULL, http_status INTEGER, latency_ms INTEGER, error_code TEXT, url TEXT, checked_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_eap_health_provider ON eap_health_checks(provider_id, checked_at DESC);
+      CREATE TABLE IF NOT EXISTS eap_runtime_calls (id TEXT PRIMARY KEY, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, provider_id TEXT NOT NULL, operation_id TEXT NOT NULL, tool_id TEXT, policy_decision TEXT NOT NULL, outcome TEXT NOT NULL, http_status INTEGER, latency_ms INTEGER, request_json TEXT NOT NULL DEFAULT '{}', response_json TEXT NOT NULL DEFAULT '{}', started_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_eap_calls_provider ON eap_runtime_calls(provider_id, started_at DESC);
+      CREATE TABLE IF NOT EXISTS eap_audit (id TEXT PRIMARY KEY, action TEXT NOT NULL, decision TEXT NOT NULL, provider_id TEXT, actor_id TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_eap_audit_created ON eap_audit(created_at DESC);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

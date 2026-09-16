@@ -90,10 +90,8 @@
         "require-yield": "error",
         "use-isnan": "error",
         "valid-typeof": "error",
-
         "no-array-constructor": "error",
         "no-unused-expressions": "error",
-
         "typescript/ban-ts-comment": "error",
         "typescript/no-duplicate-enum-values": "error",
         "typescript/no-empty-object-type": "error",
@@ -111,11 +109,9 @@
         "typescript/prefer-as-const": "error",
         "typescript/prefer-namespace-keyword": "error",
         "typescript/triple-slash-reference": "error",
-
         "react/exhaustive-deps": "warn",
         "react/rules-of-hooks": "error",
         "react/react-compiler": "error",
-
         "react/only-export-components": [
           "error",
           {
@@ -164,6 +160,12 @@
     },
     {
       "files": [
+        "src/pages/SocialPublishing.tsx",
+        "src/pages/ExternalApis.tsx",
+        "src/pages/CodeIntelligence.tsx",
+        "src/pages/AgentRuntime.tsx",
+        "src/pages/AgentPlatform.tsx",
+        "src/pages/CapabilityLab.tsx",
         "src/pages/AgentControlCenter.tsx",
         "src/pages/BrowserStudio.tsx",
         "src/pages/MobileGateway.tsx",
@@ -174,7 +176,29 @@
         "src/pages/SecurityConsole.tsx",
         "src/pages/VideoIntelligence.tsx",
         "src/pages/MediaMemory.tsx",
-        "src/pages/ControlPlane.tsx"
+        "src/pages/ControlPlane.tsx",
+        "src/pages/EccAgentHarness.tsx",
+        "src/pages/SocialIntelligence.tsx",
+        "src/pages/CodexNativeRuntime.tsx",
+        "src/pages/AgentOrchestrator.tsx",
+        "src/pages/NotificationGateway.tsx",
+        "src/pages/MediaAcquisition.tsx",
+        "src/pages/UniversalRegistry.tsx",
+        "src/pages/DouyinWorkspace.tsx",
+        "src/pages/SpeechRuntime.tsx",
+        "src/pages/AiWorkspace.tsx",
+        "src/pages/LeadIntelligence.tsx",
+        "src/pages/UnifiedRuntime.tsx",
+        "src/pages/BusinessBuilder.tsx",
+        "src/pages/AgenticOs.tsx",
+        "src/pages/DependencyVault.tsx",
+        "src/pages/CodingWorkspace.tsx",
+        "src/pages/AgentFleet.tsx",
+        "src/pages/MemoryPlane.tsx",
+        "src/pages/TeammateWorkspace.tsx",
+        "src/pages/AgentMemory.tsx",
+        "src/pages/AgentCockpit.tsx",
+        "src/pages/GovernanceDashboard.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

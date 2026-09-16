@@ -1,0 +1,27 @@
+{
+  "id": "policy_browser_safe",
+  "version": 1,
+  "name": "browser-safe-navigation",
+  "enabled": true,
+  "deny": [
+    {
+      "id": "deny-metadata-hosts",
+      "when": { "field": "resource.host", "op": "matches", "value": "169\\.254\\.169\\.254|metadata\\.google\\.internal" },
+      "reasonCode": "GOVERNANCE_RESOURCE_OUT_OF_SCOPE"
+    }
+  ],
+  "requireApproval": [
+    {
+      "id": "approve-browser-submit",
+      "when": { "field": "tool", "op": "in", "value": ["browser.click", "browser.fill", "browser.type", "browser.download"] },
+      "reasonCode": "GOVERNANCE_APPROVAL_REQUIRED"
+    }
+  ],
+  "allow": [
+    {
+      "id": "allow-browser-read",
+      "when": { "field": "effect", "op": "eq", "value": "read" },
+      "reasonCode": "policy.allow.read"
+    }
+  ]
+}

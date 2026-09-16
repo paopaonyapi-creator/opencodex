@@ -81,6 +81,7 @@ import { handleDesktopAgentRoutes } from "./management/desktop-agent-routes";
 import { handleDesktopRoutes } from "./management/desktop-routes";
 import { handleCouncilRoutes } from "./management/council-routes";
 import { handleTrendRoutes } from "./management/trend-routes";
+import { handleSocialRoutes } from "./management/social-routes";
 import { handleKnowledgeRoutes } from "./management/knowledge-routes";
 import { handleBrowserRoutes } from "./management/browser-routes";
 import { handleWorkflowRoutes } from "./management/workflow-routes";
@@ -276,6 +277,7 @@ export async function handleManagementAPI(
     ??     (await handleDesktopRoutes(ctx))
     ??     (await handleCouncilRoutes(ctx))
     ??     (await handleTrendRoutes(ctx))
+    ??     (await handleSocialRoutes(ctx))
     ??     (await handleKnowledgeRoutes(ctx))
     ??     (await handleBrowserRoutes(ctx))
     ??     (await handleWorkflowRoutes(ctx))

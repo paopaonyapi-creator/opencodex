@@ -5,6 +5,7 @@ import { getMobileTaskManager } from "./task-manager";
 import { getArtemisProvider } from "./artemis-adapter";
 import { getMobileConfig } from "./config";
 import type { TaskProfile, VerificationLevel } from "./types";
+import { diagnoseMobileRuntime } from "./diagnostics";
 
 export interface MobileToolDefinition {
   name: string;
@@ -18,7 +19,7 @@ export function createMobileMcpTools(): MobileToolDefinition[] {
   const taskManager = getMobileTaskManager();
   const provider = getArtemisProvider();
 
-  return [
+  const tools: MobileToolDefinition[] = [
     {
       name: "pao_mobile_list_devices",
       description: "Lists all registered Android mobile devices, emulators, trust levels, and availability.",
@@ -145,6 +146,7 @@ export function createMobileMcpTools(): MobileToolDefinition[] {
         action: "status" | "stop" | "inject" | "approve" | "reject";
         instruction?: string;
         reason?: string;
+        actorId?: string;
       }) => {
         const task = taskManager.getTask(args.taskId);
         if (!task) return { error: `Task ${args.taskId} not found` };
@@ -166,7 +168,7 @@ export function createMobileMcpTools(): MobileToolDefinition[] {
 
         if (args.action === "approve") {
           try {
-            const resumedTask = await taskManager.approveTask(args.taskId, "mcp_operator");
+            const resumedTask = await taskManager.approveTask(args.taskId, args.actorId ?? "mcp_operator");
             return { success: true, task: resumedTask };
           } catch (err: any) {
             return { error: err.message };
@@ -223,4 +225,42 @@ export function createMobileMcpTools(): MobileToolDefinition[] {
       },
     },
   ];
+  const byName = new Map(tools.map((t) => [t.name, t]));
+  const alias = (dotted: string, source: string, description?: string): MobileToolDefinition => {
+    const src = byName.get(source);
+    if (!src) throw new Error(`missing mobile tool ${source}`);
+    return { ...src, name: dotted, description: description ?? src.description };
+  };
+  tools.push(
+    alias("pao.mobile.devices", "pao_mobile_list_devices"),
+    alias("pao.mobile.run", "pao_mobile_run_task"),
+    alias("pao.mobile.observe", "pao_mobile_get_device_state"),
+    alias("pao.mobile.manage", "pao_mobile_manage_task"),
+    alias("pao.mobile.inspect", "pao_mobile_inspect_trace"),
+    {
+      name: "pao.mobile.diagnose",
+      description: "Diagnose ARTEMIS runtime, loopback bind, and device readiness (ready/degraded/blocked).",
+      parameters: { type: "object", properties: {} },
+      handler: async () => diagnoseMobileRuntime(),
+    },
+    {
+      name: "pao.mobile.approve",
+      description: "Approve or reject a waiting mobile task. High-impact actions stay human-gated.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string" },
+          decision: { type: "string", enum: ["approve", "reject"] },
+          actorId: { type: "string" },
+        },
+        required: ["taskId", "decision"],
+      },
+      handler: async (args: { taskId: string; decision: string; actorId?: string }) => {
+        const manage = byName.get("pao_mobile_manage_task");
+        if (!manage) return { error: "manage tool missing" };
+        return manage.handler({ taskId: args.taskId, action: args.decision === "reject" ? "reject" : "approve", actorId: args.actorId });
+      },
+    },
+  );
+  return tools;
 }

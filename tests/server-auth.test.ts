@@ -48,10 +48,12 @@ import { LOCAL_PROVIDER_RELOAD_CAPABILITY_VERSION } from "../src/lib/local-provi
 import { resetCodexModelEntitlementCacheForTests } from "../src/codex/model-entitlements";
 import { getDebugLogEntries, resetDebugLogBufferForTests } from "../src/lib/debug-log-buffer";
 import { resetDebugSettingsForTests, setDebugSettings } from "../src/lib/debug-settings";
+import { closeAgentOsDbForTests } from "../src/agent-os/db";
 
 import { watchdogMs } from "./helpers/ci-watchdog";
 const previousApiToken = process.env.OPENCODEX_API_AUTH_TOKEN;
 const previousOpencodexHome = process.env.OPENCODEX_HOME;
+const previousGenerationEnabled = process.env.PAO_GENERATION_ENABLED;
 const originalGlobalFetch = globalThis.fetch;
 // A per-run directory, not a fixed path. This used to be
 // join(import.meta.dir, ".tmp-server-auth-test"), the exact same literal that
@@ -130,6 +132,10 @@ function stubModelDiscoveryFor(...origins: string[]): void {
 
 beforeEach(() => {
   isolatedCodexHome = installIsolatedCodexHome("ocx-server-auth-codex-");
+  // This suite replaces global fetch with strict auth/forwarding probes. The optional
+  // Generation Studio startup health check is unrelated to those assertions and would
+  // add a ComfyUI request to the captured outbound list.
+  process.env.PAO_GENERATION_ENABLED = "false";
 });
 
 afterEach(() => {
@@ -138,6 +144,8 @@ afterEach(() => {
   else process.env.OPENCODEX_API_AUTH_TOKEN = previousApiToken;
   if (previousOpencodexHome === undefined) delete process.env.OPENCODEX_HOME;
   else process.env.OPENCODEX_HOME = previousOpencodexHome;
+  if (previousGenerationEnabled === undefined) delete process.env.PAO_GENERATION_ENABLED;
+  else process.env.PAO_GENERATION_ENABLED = previousGenerationEnabled;
   isolatedCodexHome?.restore();
   isolatedCodexHome = null;
   clearCodexUpstreamHealth();
@@ -148,6 +156,12 @@ afterEach(() => {
   resetCodexModelEntitlementCacheForTests();
   resetDebugSettingsForTests();
   resetDebugLogBufferForTests();
+  // startServer wires the generation orchestrator, whose storage lazily opens the
+  // process-global agent-os SQLite handle against whatever OPENCODEX_HOME was active
+  // for that test. On Windows an open WAL handle makes the afterEach rmSync(TEST_DIR)
+  // below fail with EBUSY (Linux silently unlinks, which is why CI never saw this),
+  // and every later assertion in the file then drowns in cleanup throwaways.
+  closeAgentOsDbForTests();
   if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
 });
 
@@ -212,6 +226,11 @@ async function startPoolRetryHarness(
     modelRosterByAccount?: Record<string, string[]>;
   } = {},
 ): Promise<PoolRetryHarness> {
+  // startServer wires the generation orchestrator, whose storage lazily opens the
+  // process-global agent-os SQLite handle against whatever OPENCODEX_HOME was active.
+  // A previous test's handle must be released before this rmSync re-creates the tree,
+  // or Windows EBUSYs the delete (Linux unlinks silently, which is why CI never saw it).
+  closeAgentOsDbForTests();
   await removeTestDirBestEffort(TEST_DIR);
   mkdirSync(TEST_DIR, { recursive: true });
   process.env.OPENCODEX_HOME = TEST_DIR;

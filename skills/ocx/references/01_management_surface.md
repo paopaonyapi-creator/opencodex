@@ -320,6 +320,25 @@ JSON mode: `payload`.
 
 Each of these writes. Check the flags column before running one unattended.
 
+### `ocx provider switch-pool`
+
+Atomically replace a key-auth provider's endpoint, key pool, and default model after verifying the candidate.
+
+| Method | Route |
+|---|---|
+| POST | `/api/providers/switch-pool` |
+
+| Flag | Value | Meaning |
+|---|---|---|
+| `--base-url` | string | Replacement endpoint for the provider. |
+| `--default-model` | string | Replacement default model id. |
+| `--json` | boolean | Emit the switch result as JSON. |
+
+JSON mode: `payload`.
+
+- The replacement key is piped on stdin, never accepted as an argv flag, so it cannot land in shell history or process listings.
+- Verification runs before persistence: on any failure the currently working endpoint and its key pool stay untouched.
+
 ### `ocx account pause`
 
 Stop routing new requests to one account in the Codex pool.
@@ -530,6 +549,6 @@ JSON mode: `payload`.
 
 ## Counts
 
-- declared capabilities: 29
-- of those, state-changing: 11
+- declared capabilities: 30
+- of those, state-changing: 12
 - head-resolved invocations: 2

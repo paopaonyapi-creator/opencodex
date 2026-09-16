@@ -1,0 +1,373 @@
+/* Phase 20.22 — Pao-hubPro x LangChain Agent Orchestration & MCP Runtime Layer */
+/* Premium Glassmorphic Dark-Mode UI Theme */
+
+:root {
+  --orch-bg-primary: #090d16;
+  --orch-bg-card: rgba(18, 24, 38, 0.7);
+  --orch-bg-hover: rgba(30, 41, 59, 0.8);
+  --orch-border: rgba(255, 255, 255, 0.08);
+  --orch-border-active: rgba(99, 102, 241, 0.4);
+  --orch-primary: #6366f1;
+  --orch-primary-glow: rgba(99, 102, 241, 0.25);
+  --orch-accent: #38bdf8;
+  --orch-success: #10b981;
+  --orch-warning: #f59e0b;
+  --orch-danger: #ef4444;
+  --orch-text-primary: #f8fafc;
+  --orch-text-secondary: #94a3b8;
+  --orch-text-muted: #64748b;
+  --orch-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.agent-orchestrator-container {
+  min-height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #090d16 60%);
+  color: var(--orch-text-primary);
+  padding: 1.5rem 2rem 3rem 2rem;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Header */
+.agent-orchestrator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--orch-bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--orch-border);
+  border-radius: 1rem;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36);
+}
+
+.agent-orchestrator-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.agent-orchestrator-header p {
+  margin: 0.25rem 0 0 0;
+  color: var(--orch-text-secondary);
+  font-size: 0.9rem;
+}
+
+.header-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--orch-success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orch-success);
+  box-shadow: 0 0 8px var(--orch-success);
+}
+
+/* Stats Row */
+.orchestrator-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: var(--orch-bg-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--orch-border);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--orch-border-active);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--orch-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-subtext {
+  font-size: 0.75rem;
+  color: var(--orch-text-muted);
+}
+
+/* Tab Navigation */
+.orchestrator-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--orch-border);
+  padding-bottom: 0.5rem;
+}
+
+.orchestrator-tab {
+  background: transparent;
+  border: none;
+  color: var(--orch-text-secondary);
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.orchestrator-tab:hover {
+  color: var(--orch-text-primary);
+  background: var(--orch-bg-hover);
+}
+
+.orchestrator-tab.active {
+  color: #ffffff;
+  background: var(--orch-primary);
+  box-shadow: 0 0 16px var(--orch-primary-glow);
+}
+
+/* Content Area */
+.orchestrator-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.orch-panel {
+  background: var(--orch-bg-card);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--orch-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.orch-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.orch-panel-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--orch-text-primary);
+}
+
+/* Forms & Inputs */
+.orch-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.orch-form-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--orch-text-secondary);
+}
+
+.orch-input, .orch-textarea, .orch-select {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--orch-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: var(--orch-text-primary);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.orch-input:focus, .orch-textarea:focus, .orch-select:focus {
+  border-color: var(--orch-primary);
+  box-shadow: 0 0 8px var(--orch-primary-glow);
+}
+
+.orch-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Buttons */
+.orch-btn {
+  background: var(--orch-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orch-btn:hover:not(:disabled) {
+  background: #4f46e5;
+  box-shadow: 0 0 12px var(--orch-primary-glow);
+}
+
+.orch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.orch-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--orch-text-primary);
+}
+
+.orch-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.orch-btn-danger {
+  background: var(--orch-danger);
+}
+
+.orch-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* Tables & Lists */
+.orch-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orch-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--orch-text-muted);
+  border-bottom: 1px solid var(--orch-border);
+}
+
+.orch-table td {
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.orch-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Pills & Tags */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--orch-success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-running {
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--orch-accent);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.status-waiting_approval {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--orch-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-failed, .status-cancelled {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--orch-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Timeline & Steps */
+.orch-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  position: relative;
+  padding-left: 1.5rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: calc(-1.5rem - 5px);
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--orch-primary);
+  border: 2px solid var(--orch-bg-primary);
+}
+
+.timeline-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.timeline-desc {
+  font-size: 0.8rem;
+  color: var(--orch-text-secondary);
+}
+
+.code-output {
+  font-family: var(--orch-font-mono);
+  background: rgba(10, 15, 26, 0.9);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--orch-border);
+  color: #a5b4fc;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 250px;
+  overflow-y: auto;
+}

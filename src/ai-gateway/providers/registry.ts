@@ -12,6 +12,7 @@ import { AnthropicProvider } from "./anthropic";
 import { GeminiProvider } from "./gemini";
 import { OpenAICompatibleProvider } from "./openai-compatible";
 import { ExperientialProvider } from "./experiential";
+import { NineRouterProvider } from "./nine-router";
 
 /**
  * Create a provider adapter from configuration.
@@ -34,6 +35,8 @@ function createProvider(config: GatewayProviderConfig): ModelProvider | null {
       // The upstream lock check lives with the loader, not here: this function is
       // synchronous and must not block registry construction on network state.
       return new ExperientialProvider({ config });
+    case "nine-router":
+      return new NineRouterProvider(config);
     default:
       return null;
   }

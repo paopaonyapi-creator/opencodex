@@ -222,6 +222,16 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
     ],
   },
   {
+    name: "agent-platform",
+    usage: "ocx agent-platform <health|list|show|patterns|capabilities|approvals|approve|reject|receipts|verify-chain> ...",
+    summary: "Inspect and operate the Phase 20.54 Agent Platform (registry, policy, approvals, receipts).",
+  },
+  {
+    name: "capability-lab",
+    usage: "ocx capability-lab <health|seed|sources|recipes|list|publish|run> ...",
+    summary: "Import, analyze, publish, and invoke Capability Lab recipes (Phase 20.56).",
+  },
+  {
     name: "inspect",
     usage: "ocx inspect <config|catalog|routing-analytics|pacing|key-providers|codex-prompt|client-config|star|windows-tray> ...",
     summary: "Read effective config, catalog, analytics, pacing, and the generated client-config snippet.",

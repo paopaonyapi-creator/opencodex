@@ -181,6 +181,18 @@ export function scanRoutes(file: string): ScannedRoute[] {
           method = narrowings[narrowings.length - 1]!.method;
         }
       }
+      // Namespace anchors: guards that register nothing themselves. A guard whose
+      // method stays unresolvable and whose body immediately declines the namespace
+      // (`!== x && !startsWith(x/)`), decodes a path variable for a later dispatch
+      // (`path = url.pathname.slice(...)` / `path = ""`), or delegates to a
+      // sub-handler (`return handleX(ctx)` / `await import(...)`) is a dispatch
+      // chain link, not a route. Unresolved guards never produced pairs, so
+      // classifying these as anchors removes nothing from the reconciled table —
+      // it keeps the fail-loud list meaningful for guards that SHOULD resolve.
+      if (method === null && isNamespaceAnchor(conditionSpan, form, lines, i)) {
+        depth += depthDelta(line);
+        continue;
+      }
       routes.push({ path, method, line: i + 1, form });
     } else {
       // `if (req.method !== "GET") return null;` narrows everything after it.
@@ -215,4 +227,41 @@ export function distinctRoutes(scanned: readonly ScannedRoute[]): {
     pairs.add(`${r.method} ${r.path}`);
   }
   return { pairs: [...pairs].sort(), unresolved };
+}
+
+/**
+ * True when an unresolvable guard is a namespace anchor rather than a forgotten
+ * route: a whole-namespace decline, a prefix-decode assignment, or a delegation of
+ * the whole request to another handler. Only called when the method could not be
+ * resolved, so a real route with a method anywhere in its span is never classified
+ * as an anchor. A delegation must pass the request context (`(ctx`) — a handler
+ * receiving some computed value is exactly the unknowable shape the fail-loud path
+ * exists to catch.
+ */
+function isNamespaceAnchor(
+  conditionSpan: string,
+  form: "equality" | "negated",
+  lines: string[],
+  guardIndex: number,
+): boolean {
+  // Decline: `if (pathname !== "/x" && !pathname.startsWith("/x/")) return null;`
+  if (form === "negated" && /!\s*(?:url\.)?pathname\.startsWith\(/.test(conditionSpan)) {
+    return true;
+  }
+  // Inspect the first statements of the block this guard opens.
+  const blockLines: string[] = [];
+  for (let j = guardIndex + 1; j <= Math.min(guardIndex + 5, lines.length - 1); j++) {
+    const ahead = stripCommentsAndStrings(lines[j] ?? "");
+    if (/^\s*\}/.test(ahead)) break;
+    blockLines.push(ahead);
+  }
+  const block = blockLines.join(" ");
+  if (!block.trim()) return false;
+  // Prefix-decode: the block assigns a path variable for a later dispatch.
+  if (/[\w.]+\s*=\s*(?:url\.)?pathname\.slice\(/.test(block)) return true;
+  if (/[\w.]+\s*=\s*["'`]["'`]\s*;/.test(block)) return true;
+  // Delegation: the block hands the whole request to another handler.
+  if (/return\s+[A-Za-z_$][\w$]*\s*\(\s*ctx\s*[,)]/.test(block)) return true;
+  if (/await\s+import\(/.test(block)) return true;
+  return false;
 }

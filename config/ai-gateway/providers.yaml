@@ -37,3 +37,13 @@ providers:
     type: openai-compatible
     base_url: ${RUNPOD_H3_BASE_URL}
     api_key_env: RUNPOD_API_KEY
+
+  # 9Router multi-provider gateway sidecar (Phase 20.51).
+  # Provider credentials live inside the 9Router process; Pao holds only the
+  # gateway key. Disabled by default: deploy the sidecar (deploy/9router/),
+  # then enable deliberately here and in nine-router.yaml.
+  nine-router-gateway:
+    type: nine-router
+    base_url: ${PAO_AI_GATEWAY_NINE_ROUTER_BASE_URL}
+    api_key_env: PAO_AI_GATEWAY_NINE_ROUTER_API_KEY
+    enabled: false

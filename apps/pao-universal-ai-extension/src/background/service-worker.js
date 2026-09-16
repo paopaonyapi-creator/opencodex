@@ -166,11 +166,74 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
+// Phase 20.24: OmniGet Media Acquisition Context Menus
+const MEDIA_MENUS = [
+  { id: "pao-media-send", title: "Send to Pao-hubPro" },
+  { id: "pao-media-inspect", title: "Inspect Media" },
+  { id: "pao-media-download", title: "Download Media" },
+  { id: "pao-media-audio", title: "Download Audio" },
+  { id: "pao-media-transcript", title: "Get Transcript" },
+  { id: "pao-media-research", title: "Add to Research Queue" },
+];
+
 chrome.runtime.onInstalled.addListener(() => {
   setBadge("OFF", "#9e9e9e");
   beat();
+
+  // Create context menus if supported
+  if (chrome.contextMenus) {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: "pao-media-root",
+        title: "Pao-hubPro Media",
+        contexts: ["page", "link", "video", "audio", "image"],
+      });
+      for (const m of MEDIA_MENUS) {
+        chrome.contextMenus.create({
+          id: m.id,
+          parentId: "pao-media-root",
+          title: m.title,
+          contexts: ["page", "link", "video", "audio", "image"],
+        });
+      }
+    });
+  }
 });
+
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    const targetUrl = info.linkUrl || info.srcUrl || info.pageUrl || (tab && tab.url ? tab.url : "");
+    if (!targetUrl) return;
+
+    let action = "download";
+    let preset = "best";
+    if (info.menuItemId === "pao-media-inspect") {
+      action = "inspect";
+    } else if (info.menuItemId === "pao-media-audio") {
+      preset = "audio";
+    } else if (info.menuItemId === "pao-media-transcript") {
+      preset = "transcript";
+    } else if (info.menuItemId === "pao-media-research") {
+      preset = "reference";
+    }
+
+    try {
+      await bridgeFetch("/api/agent-os/media/jobs", {
+        method: "POST",
+        body: JSON.stringify({
+          url: targetUrl,
+          preset,
+          requestedBy: "browser-extension",
+        }),
+      });
+      await setBadge("OK", "#2e7d32");
+    } catch {
+      await setBadge("ERR", "#c62828");
+    }
+  });
+}
 
 if (heartbeatTimer) clearInterval(heartbeatTimer);
 heartbeatTimer = setInterval(beat, HEARTBEAT_MS);
 beat();
+

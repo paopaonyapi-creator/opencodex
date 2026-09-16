@@ -1,0 +1,26 @@
+# Phase 20.51 — 9Router gateway telemetry configuration
+#
+# All provider credentials stay inside the 9Router sidecar; Pao-hubPro holds
+# only the gateway credential. This file configures how the AI Gateway
+# syncs telemetry from the sidecar. A missing or 404-ing telemetry endpoint is
+# a normal outcome: the data is modeled as unknown, never as unlimited.
+#
+# The provider entry itself lives in providers.yaml (nine-router-gateway) and
+# starts disabled. Enable both files deliberately once the sidecar is deployed
+# (deploy/9router/README.md).
+
+nine_router:
+  enabled: false
+  base_url: http://127.0.0.1:20128/v1
+  api_key_env: PAO_AI_GATEWAY_NINE_ROUTER_API_KEY
+  timeout_ms: 10000
+  sync_interval_sec: 120
+  # Management-surface paths probed for quota telemetry. 9Router's management
+  # surface changes between releases; adjust here without code changes.
+  quota_paths:
+    - /api/quotas
+    - /api/quota
+    - /api/usage
+  version_paths:
+    - /api/version
+    - /api/status

@@ -16,6 +16,8 @@ import type {
   GatewayBudgetConfig,
   IdentityGuardrailPolicy,
   TraceContentMode,
+  NineRouterConfig,
+  RoutingGovernanceConfig,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -88,22 +90,18 @@ function parseSimpleYaml(raw: string): unknown {
 
     const indent = line.length - trimmed.length;
 
-    // Array item
+    // Array item: every "- " line starts a new item. Continuation keys
+    // (deeper-indented "k: v" lines) are attached by the key:value branch
+    // below — extending the previous item here would collapse multi-route
+    // lists into their last entry.
     if (trimmed.startsWith("- ")) {
       const val = trimmed.slice(2).trim();
       if (currentArray && indent >= currentArrayIndent) {
-        // Check if it's a key: value pair inside array
         const colonIdx = val.indexOf(":");
         if (colonIdx > 0 && !val.startsWith('"') && !val.startsWith("'")) {
           const k = val.slice(0, colonIdx).trim();
           const v = parseYamlValue(val.slice(colonIdx + 1).trim());
-          // Array of objects: check if last item can be extended
-          const lastItem = currentArray[currentArray.length - 1];
-          if (lastItem && typeof lastItem === "object" && !Array.isArray(lastItem)) {
-            (lastItem as YamlNode)[k] = v;
-          } else {
-            currentArray.push({ [k]: v });
-          }
+          currentArray.push({ [k]: v });
         } else {
           currentArray.push(parseYamlValue(val));
         }
@@ -124,6 +122,16 @@ function parseSimpleYaml(raw: string): unknown {
     if (colonIdx > 0) {
       const key = trimmed.slice(0, colonIdx).trim();
       const valueStr = trimmed.slice(colonIdx + 1).trim();
+
+      // Continuation of the current array item: a deeper-indented key after
+      // "- k: v" belongs to that item, not to the enclosing object.
+      if (currentArray && indent > currentArrayIndent && currentArray.length > 0) {
+        const lastItem = currentArray[currentArray.length - 1];
+        if (lastItem && typeof lastItem === "object" && !Array.isArray(lastItem)) {
+          (lastItem as YamlNode)[key] = parseYamlValue(valueStr);
+          continue;
+        }
+      }
 
       // Pop stack to find parent
       while (stack.length > 1 && stack[stack.length - 1]!.indent >= indent) {
@@ -366,6 +374,142 @@ function getDefaultIdentities(): GatewayIdentity[] {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 20.51 — governance + 9Router configuration
+// ---------------------------------------------------------------------------
+
+const DEFAULT_GOVERNANCE: RoutingGovernanceConfig = {
+  enabled: false,
+  weightProfile: "balanced",
+  weights: {
+    quality: 0,
+    quota: 0,
+    health: 0,
+    latency: 0,
+    cost: 0,
+    affinity: 0,
+    freshness: 0,
+  },
+  fallback: {
+    maxRouteAttempts: 4,
+    maxSameProviderAttempts: 2,
+    totalDeadlineMs: 180_000,
+    backoffMs: [500, 1500, 4000],
+  },
+  circuitBreaker: {
+    failureThreshold: 3,
+    cooldownMs: 300_000,
+    rateLimitCooldownMs: 60_000,
+  },
+  quota: {
+    agingAfterSec: 120,
+    staleAfterSec: 600,
+    stalePenalty: 0.15,
+    unknownPenalty: 0.25,
+    softLowRemainingRatio: 0.2,
+    criticalRemainingRatio: 0.08,
+  },
+  sessionLeaseTtlMin: 60,
+};
+
+/**
+ * Governance settings come from governance.yaml when present, otherwise from
+ * defaults. The master switch additionally requires the strict "true" env
+ * flag so a stray value cannot silently turn autonomous fallback on.
+ */
+function loadGovernance(rootDir: string): RoutingGovernanceConfig {
+  const raw = parseConfigFile(configPath(rootDir, "governance.yaml")) as
+    | { governance?: Record<string, unknown> }
+    | undefined;
+  const g = raw?.governance ?? {};
+  const fallback = (g.fallback ?? {}) as Record<string, unknown>;
+  const breaker = (g.circuit_breaker ?? {}) as Record<string, unknown>;
+  const quota = (g.quota ?? {}) as Record<string, unknown>;
+  const weights = (g.weights ?? {}) as Record<string, unknown>;
+
+  const enabled = envFlag("PAO_AI_GATEWAY_GOVERNANCE", false) && g.enabled !== false;
+
+  return {
+    enabled,
+    weightProfile: typeof g.weight_profile === "string" ? g.weight_profile : DEFAULT_GOVERNANCE.weightProfile,
+    weights: {
+      quality: numOr(weights.quality, DEFAULT_GOVERNANCE.weights.quality),
+      quota: numOr(weights.quota, DEFAULT_GOVERNANCE.weights.quota),
+      health: numOr(weights.health, DEFAULT_GOVERNANCE.weights.health),
+      latency: numOr(weights.latency, DEFAULT_GOVERNANCE.weights.latency),
+      cost: numOr(weights.cost, DEFAULT_GOVERNANCE.weights.cost),
+      affinity: numOr(weights.affinity, DEFAULT_GOVERNANCE.weights.affinity),
+      freshness: numOr(weights.freshness, DEFAULT_GOVERNANCE.weights.freshness),
+    },
+    fallback: {
+      maxRouteAttempts: intOr(fallback.max_route_attempts, DEFAULT_GOVERNANCE.fallback.maxRouteAttempts, 1),
+      maxSameProviderAttempts: intOr(
+        fallback.max_same_provider_attempts,
+        DEFAULT_GOVERNANCE.fallback.maxSameProviderAttempts,
+        1,
+      ),
+      totalDeadlineMs: intOr(fallback.total_deadline_ms, DEFAULT_GOVERNANCE.fallback.totalDeadlineMs, 1000),
+      backoffMs: Array.isArray(fallback.backoff_ms)
+        ? (fallback.backoff_ms as unknown[]).filter((v): v is number => typeof v === "number" && v >= 0)
+        : DEFAULT_GOVERNANCE.fallback.backoffMs,
+    },
+    circuitBreaker: {
+      failureThreshold: intOr(breaker.failure_threshold, DEFAULT_GOVERNANCE.circuitBreaker.failureThreshold, 1),
+      cooldownMs: intOr(breaker.cooldown_ms, DEFAULT_GOVERNANCE.circuitBreaker.cooldownMs, 1000),
+      rateLimitCooldownMs: intOr(
+        breaker.rate_limit_cooldown_ms,
+        DEFAULT_GOVERNANCE.circuitBreaker.rateLimitCooldownMs,
+        1000,
+      ),
+    },
+    quota: {
+      agingAfterSec: intOr(quota.aging_after_sec, DEFAULT_GOVERNANCE.quota.agingAfterSec, 1),
+      staleAfterSec: intOr(quota.stale_after_sec, DEFAULT_GOVERNANCE.quota.staleAfterSec, 1),
+      stalePenalty: numOr(quota.stale_penalty, DEFAULT_GOVERNANCE.quota.stalePenalty),
+      unknownPenalty: numOr(quota.unknown_penalty, DEFAULT_GOVERNANCE.quota.unknownPenalty),
+      softLowRemainingRatio: numOr(quota.soft_low_remaining_ratio, DEFAULT_GOVERNANCE.quota.softLowRemainingRatio),
+      criticalRemainingRatio: numOr(
+        quota.critical_remaining_ratio,
+        DEFAULT_GOVERNANCE.quota.criticalRemainingRatio,
+      ),
+    },
+    sessionLeaseTtlMin: intOr(g.session_lease_ttl_min, DEFAULT_GOVERNANCE.sessionLeaseTtlMin, 1),
+  };
+}
+
+function loadNineRouter(rootDir: string): NineRouterConfig {
+  const raw = parseConfigFile(configPath(rootDir, "nine-router.yaml")) as
+    | { nine_router?: Record<string, unknown> }
+    | undefined;
+  const n = raw?.nine_router ?? {};
+  const baseUrl =
+    typeof n.base_url === "string" && n.base_url.trim() !== ""
+      ? resolveEnvInterpolation(n.base_url).trim()
+      : process.env.PAO_AI_GATEWAY_NINE_ROUTER_BASE_URL?.trim() || "http://127.0.0.1:20128/v1";
+  return {
+    enabled: n.enabled === true,
+    baseUrl,
+    apiKeyEnv: typeof n.api_key_env === "string" && n.api_key_env !== "" ? n.api_key_env : "PAO_AI_GATEWAY_NINE_ROUTER_API_KEY",
+    timeoutMs: intOr(n.timeout_ms, 10_000, 100),
+    syncIntervalSec: intOr(n.sync_interval_sec, 120, 5),
+    quotaPaths: Array.isArray(n.quota_paths)
+      ? (n.quota_paths as unknown[]).filter((v): v is string => typeof v === "string" && v.startsWith("/"))
+      : ["/api/quotas", "/api/quota", "/api/usage"],
+    versionPaths: Array.isArray(n.version_paths)
+      ? (n.version_paths as unknown[]).filter((v): v is string => typeof v === "string" && v.startsWith("/"))
+      : ["/api/version", "/api/status"],
+  };
+}
+
+function numOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function intOr(value: unknown, fallback: number, min: number): number {
+  const parsed = typeof value === "number" ? Math.floor(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= min ? parsed : fallback;
+}
+
+// ---------------------------------------------------------------------------
 // Public loader
 // ---------------------------------------------------------------------------
 
@@ -393,6 +537,8 @@ export function loadGatewayConfig(rootDir: string): GatewayConfig {
     maxEscalations: envPositiveInt("PAO_LLM_MAX_ESCALATIONS", 2),
     directBypass: envFlag("PAO_LLM_DIRECT_BYPASS", false),
     privateTaskLocalOnly: envFlag("PAO_LLM_PRIVATE_TASK_LOCAL_ONLY", true),
+    governance: loadGovernance(rootDir),
+    nineRouter: loadNineRouter(rootDir),
   };
 }
 

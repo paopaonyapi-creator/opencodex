@@ -26,10 +26,38 @@ export type Page =
   | "economy"
   | "security"
   | "video-intelligence"
+  | "social"
   | "media-memory"
   | "control-plane"
+  | "ecc-harness"
+  | "codex-runtime"
+  | "agent-orchestrator"
   | "sdlc"
-  | "demo";
+  | "demo"
+  | "notification-gateway"
+  | "media-acquisition"
+  | "universal-registry"
+  | "douyin-workspace"
+  | "speech-runtime"
+  | "ai-workspace"
+  | "lead-intelligence"
+  | "unified-runtime"
+  | "business-builder"
+  | "agentic-os"
+  | "dependency-vault"
+  | "coding-workspace"
+  | "agent-fleet"
+  | "memory-plane"
+  | "teammate-workspace"
+  | "agent-memory"
+  | "governance"
+  | "agent-cockpit"
+  | "agent-platform"
+  | "capability-lab"
+  | "social-publishing"
+  | "agent-runtime"
+  | "code-intelligence"
+  | "external-apis";
 
 export const VALID_PAGES = new Set<Page>([
   "dashboard",
@@ -55,10 +83,38 @@ export const VALID_PAGES = new Set<Page>([
   "economy",
   "security",
   "video-intelligence",
+  "social",
   "media-memory",
   "control-plane",
+  "ecc-harness",
+  "codex-runtime",
+  "agent-orchestrator",
   "sdlc",
   "demo",
+  "notification-gateway",
+  "media-acquisition",
+  "universal-registry",
+  "douyin-workspace",
+  "speech-runtime",
+  "ai-workspace",
+  "lead-intelligence",
+  "unified-runtime",
+  "business-builder",
+  "agentic-os",
+  "dependency-vault",
+  "coding-workspace",
+  "agent-fleet",
+  "memory-plane",
+  "teammate-workspace",
+  "agent-memory",
+  "governance",
+  "agent-cockpit",
+  "agent-platform",
+  "capability-lab",
+  "social-publishing",
+  "agent-runtime",
+  "code-intelligence",
+  "external-apis",
 ]);
 
 export function readPageFromHash(hash?: string): Page {

@@ -45,6 +45,139 @@ function notFound(req: Request, message: string): Response {
 
 export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
+  // Namespace scope guard. The dispatch below slices `/api/agent-os/` off the pathname
+  // and applies a read-only 405 guard to whatever remains, so a request from another
+  // /api/* namespace (codex-auth, config, providers, ...) that reached this link would
+  // be answered by THIS handler with a wrong 405 instead of falling through. Chain
+  // links must decline out-of-namespace paths, not partially handle them.
+  if (url.pathname !== "/api/agent-os" && !url.pathname.startsWith("/api/agent-os/")) {
+    return null;
+  }
+  // Phase 20.25: Pao-hubPro × Agentic AI Universal Registry & Toolchain.
+  if (url.pathname.startsWith("/api/agent-os/registry")) {
+    const { handleRegistryRoutes } = await import("./registry-routes");
+    return handleRegistryRoutes(ctx);
+  }
+  // Phase 20.30: Pao-hubPro × FCC-inspired Universal AI Gateway control plane
+  // (alias/policy/budget layer over the existing proxy router — no second gateway).
+  if (url.pathname.startsWith("/api/agent-os/ai-gateway")) {
+    const { handleAIGatewayRoutes } = await import("./ai-gateway-routes");
+    return handleAIGatewayRoutes(ctx);
+  }
+  // Phase 20.29: Pao-hubPro × ClawFlows-inspired Workflow Registry & Safe
+  // Automation Engine.
+  if (url.pathname.startsWith("/api/agent-os/automation")) {
+    const { handleAutomationRoutes } = await import("./automation-routes");
+    return handleAutomationRoutes(ctx);
+  }
+  // Phase 20.28: Pao-hubPro × OpenBot-inspired Governed Agent Computer &
+  // Safe Execution Fabric.
+  if (url.pathname.startsWith("/api/agent-os/governance")) {
+    const { handleGovernanceRoutes } = await import("./governance-routes");
+    return handleGovernanceRoutes(ctx);
+  }
+  // Phase 20.27: Pao-hubPro × VibeRaven Agent Cockpit & Production Readiness
+  // Control Plane (extends the Phase 20.16 control plane).
+  if (url.pathname.startsWith("/api/agent-os/cockpit")) {
+    const { handleCockpitRoutes } = await import("./cockpit-routes");
+    return handleCockpitRoutes(ctx);
+  }
+  // Phase 20.32: Pao-hubPro × VoiceStudio Local AI Speech Runtime.
+  if (url.pathname.startsWith("/api/agent-os/speech")) {
+    const { handleSpeechRoutes } = await import("./speech-routes");
+    return handleSpeechRoutes(ctx);
+  }
+  // Phase 20.33: Pao-hubPro × Open WebUI Unified AI Workspace & MCP Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/ai-workspace")) {
+    const { handleAiWorkspaceRoutes } = await import("./ai-workspace-routes");
+    return handleAiWorkspaceRoutes(ctx);
+  }
+  // Phase 20.34: Pao-hubPro × Lead Gen API Stack — Lead Intelligence Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/leads")) {
+    const { handleLeadRoutes } = await import("./lead-routes");
+    return handleLeadRoutes(ctx);
+  }
+  // Phase 20.35: Pao-hubPro × Transgentic-inspired Unified AI Runtime Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/unified")) {
+    const { handleUnifiedRuntimeRoutes } = await import("./unified-runtime-routes");
+    return handleUnifiedRuntimeRoutes(ctx);
+  }
+  // Phase 30.36: Pao-hubPro × Software Income Playbooks — Pao Business Builder.
+  if (url.pathname.startsWith("/api/agent-os/business")) {
+    const { handleBusinessBuilderRoutes } = await import("./business-routes");
+    return handleBusinessBuilderRoutes(ctx);
+  }
+  // Phase 20.37: Pao-hubPro × OrchestKit-inspired Agentic Development OS.
+  if (url.pathname.startsWith("/api/agent-os/orch")) {
+    const { handleAgenticOsRoutes } = await import("./agentic-os-routes");
+    return handleAgenticOsRoutes(ctx);
+  }
+  // Phase 20.38: Pao-hubPro × OFFPack-inspired Dependency Vault.
+  if (url.pathname.startsWith("/api/agent-os/dep-vault")) {
+    const { handleDependencyVaultRoutes } = await import("./dependency-vault-routes");
+    return handleDependencyVaultRoutes(ctx);
+  }
+  // Phase 20.43: Pao x PLUR Shared Agent Memory Runtime control plane.
+  if (url.pathname.startsWith("/api/agent-memory")) {
+    const { handlePlurMemoryRoutes } = await import("./plur-memory-routes");
+    return handlePlurMemoryRoutes(ctx);
+  }
+  // Phase 20.42: Pao-hubPro Named AI Teammate Workspace.
+  if (url.pathname.startsWith("/api/agent-workspace")) {
+    const { handleBotWorkspaceRoutes } = await import("./bot-workspace-routes");
+    return handleBotWorkspaceRoutes(ctx);
+  }
+  // Phase 20.41: Pao-hubPro Trustworthy MCP Memory Plane.
+  if (url.pathname.startsWith("/api/memory")) {
+    const { handleMemoryPlaneRoutes } = await import("./memory-plane-routes");
+    return handleMemoryPlaneRoutes(ctx);
+  }
+  // Phase 20.40: Pao-hubPro Agent Observability Control Plane (read-only).
+  if (url.pathname.startsWith("/api/agent-os/observability")) {
+    const { handleObservabilityRoutes } = await import("./observability-routes");
+    return handleObservabilityRoutes(ctx);
+  }
+  // Phase 20.39: Pao-hubPro Unified AI Coding Workspace. The 20.27 agency
+  // cockpit keeps /api/agent-os/cockpit (dispatched earlier above); this is
+  // the provider-neutral coding surface.
+  if (url.pathname.startsWith("/api/agent-os/coding-workspace")) {
+    const { handleCodingCockpitRoutes } = await import("./coding-cockpit-routes");
+    return handleCodingCockpitRoutes(ctx);
+  }
+  // Phase 20.26: Pao-hubPro × Douyin Media Intelligence & Downloader Engine.
+  // Must be dispatched BEFORE the generic media prefix below.
+  if (url.pathname.startsWith("/api/agent-os/media/douyin")) {
+    const { handleDouyinRoutes } = await import("./douyin-routes");
+    return handleDouyinRoutes(ctx);
+  }
+  // Phase 20.24: Pao-hubPro × OmniGet Local Media Acquisition & MCP Engine.
+  if (url.pathname.startsWith("/api/agent-os/media")) {
+    const { handleMediaRoutes } = await import("./media-routes");
+    return handleMediaRoutes(ctx);
+  }
+  // Phase 20.23: Pao-hubPro Unified Notification Gateway × Discord Webhook Reliability Layer.
+  if (url.pathname.startsWith("/api/agent-os/notifications")) {
+    const { handleNotificationRoutes } = await import("./notification-routes");
+    return handleNotificationRoutes(ctx);
+  }
+  // Phase 20.22: Pao-hubPro × LangChain Agent Orchestration & MCP Runtime Layer.
+  // A bare prefix test with no equality branch matching the control-plane dispatcher.
+  if (url.pathname.startsWith("/api/agent-os/orchestration")) {
+    const { handleOrchestrationRoutes } = await import("./orchestration-routes");
+    return handleOrchestrationRoutes(ctx);
+  }
+  // Phase 20.21: Pao-hubPro × OpenAI Codex Native Runtime Integration.
+  // A bare prefix test with no equality branch matching the control-plane dispatcher.
+  if (url.pathname.startsWith("/api/agent-os/codex-runtime")) {
+    const { handleCodexRuntimeRoutes } = await import("./codex-runtime-routes");
+    return handleCodexRuntimeRoutes(ctx);
+  }
+  // Phase 20.20: Pao-hubPro × ECC Agent Harness OS.
+  // A bare prefix test with no equality branch matching the control-plane dispatcher.
+  if (url.pathname.startsWith("/api/agent-os/ecc")) {
+    const { handleEccRoutes } = await import("./ecc-routes");
+    return handleEccRoutes(ctx);
+  }
   // Phase 20.16: Pao-hubPro Multi-AI Control Plane.
   // A bare prefix test with no equality branch, matching the domain-control
   // dispatcher: this layer does not resolve HTTP methods, and an equality guard here
@@ -114,6 +247,41 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
   if (url.pathname.startsWith("/api/agent-os/mobile") || url.pathname === "/api/agent-os/mobile") {
     const { handleMobileRoutes } = await import("./mobile-routes");
     return handleMobileRoutes(ctx);
+  }
+
+  // Phase 20.54: Pao Agent Platform
+  if (url.pathname.startsWith("/api/agent-os/agent-platform") || url.pathname === "/api/agent-os/agent-platform") {
+    const { handleAgentPlatformRoutes } = await import("./agent-platform-routes");
+    return handleAgentPlatformRoutes(ctx);
+  }
+
+  if (url.pathname.startsWith("/api/agent-os/capability-lab") || url.pathname === "/api/agent-os/capability-lab") {
+    const { handleCapabilityLabRoutes } = await import("./capability-lab-routes");
+    return handleCapabilityLabRoutes(ctx);
+  }
+
+  // Phase 20.60: Social Publishing control plane (OpenPost integration).
+  if (url.pathname.startsWith("/api/agent-os/social-publishing") || url.pathname === "/api/agent-os/social-publishing") {
+    const { handleSocialPublishingRoutes } = await import("./social-publishing-routes");
+    return handleSocialPublishingRoutes(ctx);
+  }
+
+  // Phase 20.61: Agent Runtime control plane (amux integration).
+  if (url.pathname.startsWith("/api/agent-os/agent-runtime") || url.pathname === "/api/agent-os/agent-runtime") {
+    const { handleAgentRuntimeRoutes } = await import("./agent-runtime-routes");
+    return handleAgentRuntimeRoutes(ctx);
+  }
+
+  // Phase 20.62: Code Intelligence control plane (Graft integration).
+  if (url.pathname.startsWith("/api/agent-os/code-intelligence") || url.pathname === "/api/agent-os/code-intelligence") {
+    const { handleCodeIntelRoutes } = await import("./code-intelligence-routes");
+    return handleCodeIntelRoutes(ctx);
+  }
+
+  // Phase 20.63: External Capability Registry (Public APIs integration).
+  if (url.pathname.startsWith("/api/agent-os/external-apis") || url.pathname === "/api/agent-os/external-apis") {
+    const { handleExternalApiRoutes } = await import("./external-apis-routes");
+    return handleExternalApiRoutes(ctx);
   }
 
   // Phase 21.1: End-to-End Autonomous Stock Production & Submission Pipeline
@@ -413,7 +581,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     const q = url.searchParams.get("q") ?? "";
     return jsonResponse(askPaoBrain(q), 200, req, {});
   }
-  return notFound(req, "unknown agent-os route");
+  // This dispatcher is a chain link, not a terminator: reachability is guarded by the
+  // prefix checks above, so only /api/agent-os/* paths should ever get this far. Falling
+  // through with a 404/405 here would swallow the rest of the /api/* namespace (codex-auth,
+  // config, providers, ...) before their own handlers run — observed as surprise 404/405s
+  // from unrelated management routes.
+  return null;
 }
 
 function openAgentOsApprovalRows(): { id: string; capability: string; reason: string; status: string; requestedMs: number }[] {

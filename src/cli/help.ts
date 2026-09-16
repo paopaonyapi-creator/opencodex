@@ -66,6 +66,8 @@ Usage:
   ocx observe <sub>           Logs, usage, storage, memory, and debug data
   ocx seo <sub>               Pao SEO Agent OS + GEO engine (health, projects,
                               analyze, geo-audit, council, report)
+  ocx agent-platform <sub>    Agent platform registry, approvals, and receipts
+  ocx capability-lab <sub>    Capability Lab import/analyze/publish/run
   ocx inspect <sub>           Effective config, catalog, analytics, pacing, client-config
   ocx route <sub>             Routing features (combo, policy)
   ocx logs [filters]          Alias of ocx observe logs

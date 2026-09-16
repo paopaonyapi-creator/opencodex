@@ -17,6 +17,8 @@ import { getMobilePolicyEngine } from "./policy-engine";
 import { getArtemisProvider } from "./artemis-adapter";
 import { getMobileReviewerCouncil } from "./reviewer-hook";
 import { getMobileConfig } from "./config";
+import { selectMobileProfile } from "./profile-router";
+import { getDeviceLockService } from "./device-lock";
 
 export class MobileTaskManager {
   private deviceRegistry = getMobileDeviceRegistry();
@@ -112,11 +114,24 @@ export class MobileTaskManager {
     }
 
     // 4. Resolve Execution Profile (Auto / Flash / Pro)
-    const resolvedProfile = this.resolveProfile(task.profile, task.riskLevel, policyResult.requiresProProfile);
-    task.resolvedProfile = resolvedProfile;
+    const routed = selectMobileProfile({
+      instruction: task.goal,
+      forcedProfile: task.profile,
+      riskLevel: task.riskLevel,
+      requiresPro: policyResult.requiresProProfile,
+      verificationLevel: task.verificationLevel,
+    });
+    task.resolvedProfile = routed.profile;
+    this.logEvent(task.id, "profile_routed", { profile: routed.profile, proScore: routed.proScore, reason: routed.reason });
 
     // 5. Execute Task
-    return await this.executeTask(task, device, resolvedProfile);
+    const lock = getDeviceLockService();
+    lock.acquire(device.id, task.id, input.requestedById || "codex");
+    try {
+      return await this.executeTask(task, device, routed.profile);
+    } finally {
+      lock.release(device.id, task.id);
+    }
   }
 
   public async approveTask(taskId: string, approvedBy = "supervisor"): Promise<MobileTask> {
@@ -136,10 +151,22 @@ export class MobileTaskManager {
       .run(approvedBy, taskId);
     this.logEvent(taskId, "task_approved", { approvedBy });
 
-    const resolvedProfile = this.resolveProfile(task.profile, task.riskLevel, true);
-    task.resolvedProfile = resolvedProfile;
-
-    return await this.executeTask(task, device, resolvedProfile);
+    const routed = selectMobileProfile({
+      instruction: task.goal,
+      forcedProfile: task.profile,
+      riskLevel: task.riskLevel,
+      requiresPro: true,
+      verificationLevel: task.verificationLevel,
+    });
+    task.resolvedProfile = routed.profile;
+    this.logEvent(task.id, "profile_routed", { profile: routed.profile, proScore: routed.proScore, reason: routed.reason });
+    const lock = getDeviceLockService();
+    lock.acquire(device.id, task.id, approvedBy);
+    try {
+      return await this.executeTask(task, device, routed.profile);
+    } finally {
+      lock.release(device.id, task.id);
+    }
   }
 
   public async rejectTask(taskId: string, rejectedBy = "supervisor", reason = "Operator rejected"): Promise<MobileTask> {

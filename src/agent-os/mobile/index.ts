@@ -10,3 +10,7 @@ export * from "./policy-engine";
 export * from "./reviewer-hook";
 export * from "./task-manager";
 export * from "./mcp-tools";
+export * from "./profile-router";
+export * from "./device-lock";
+export * from "./diagnostics";
+export * from "./runtime-adapter";

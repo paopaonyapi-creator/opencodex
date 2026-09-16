@@ -131,6 +131,22 @@ export const CAPABILITIES: readonly Capability[] = [
     details: ["Reads local config; drives no management API route."],
   },
   {
+    command: ["provider", "switch-pool"],
+    summary: "Atomically replace a key-auth provider's endpoint, key pool, and default model after verifying the candidate.",
+    routes: [{ method: "POST", path: "/api/providers/switch-pool" }],
+    flags: [
+      { name: "--base-url", value: "string", summary: "Replacement endpoint for the provider." },
+      { name: "--default-model", value: "string", summary: "Replacement default model id." },
+      { name: "--json", value: "boolean", summary: "Emit the switch result as JSON." },
+    ],
+    mutates: true,
+    json: "payload",
+    details: [
+      "The replacement key is piped on stdin, never accepted as an argv flag, so it cannot land in shell history or process listings.",
+      "Verification runs before persistence: on any failure the currently working endpoint and its key pool stay untouched.",
+    ],
+  },
+  {
     command: ["account", "list"],
     summary: "Codex OAuth accounts with pool priority and pause state.",
     routes: [{ method: "GET", path: "/api/codex-auth/accounts" }],

@@ -66,3 +66,67 @@ export {
   type VersionProbeResult,
 } from "./upstream-lock";
 export { ExperientialProvider } from "./providers/experiential";
+
+// Phase 20.51 — quota-aware governance + 9Router gateway surface. Exported so
+// the management API and tooling read one module instead of reaching into
+// routing/resilience internals.
+export { QuotaStore } from "./quota/store";
+export {
+  classifyFreshness,
+  quotaHeadroomScore,
+  quotaUncertaintyPenalty,
+  cooldownRemainingMs,
+  normalizeQuotaRecord,
+  normalizeQuotaPayload,
+  selectPrimaryWindow,
+} from "./quota/model";
+export {
+  classifyGatewayFailure,
+  FAILURE_BEHAVIORS,
+  type FailureBehavior,
+  type RetrySameRoute,
+} from "./resilience/classifier";
+export { ConnectionStore, type ConnectionRecord, type SoftFailureInput } from "./resilience/connection-state";
+export { startRecoveryWorker, type RecoveryWorkerHandle, type RecoveryWorkerDeps } from "./resilience/recovery";
+export {
+  NineRouterProvider,
+  NINE_ROUTER_DEFAULT_BASE_URL,
+  type NineRouterTelemetry,
+} from "./providers/nine-router";
+export { LeaseStore } from "./routing/leases";
+export {
+  planQuotaAwareRoute,
+  routeKeyOf,
+  WEIGHT_PROFILES,
+  resolveWeights,
+  costScore,
+  type GovernanceCandidate,
+  type QuotaRoutingContext,
+  type QuotaRoutingInput,
+  type QuotaRoutingResult,
+  type ScoredRouteCandidate,
+} from "./routing/quota-router";
+export {
+  executeGoverned,
+  type GovernedExecutionInput,
+  type GovernedExecutionResult,
+} from "./routing/fallback-controller";
+export {
+  recordDecision,
+  recordRouteAttempt,
+  recordGatewayEvent,
+  readDecisions,
+  readGatewayEvents,
+  readRouteAttempts,
+} from "./traces/decision-ledger";
+export type {
+  ConnectionState,
+  GatewayFailureClass,
+  QuotaConfidence,
+  QuotaFreshness,
+  QuotaWindow,
+  QuotaWindowType,
+  RouteDecisionRecord,
+  RouteLease,
+  RoutingGovernanceConfig,
+} from "./types";

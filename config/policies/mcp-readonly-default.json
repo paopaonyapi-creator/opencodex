@@ -1,0 +1,27 @@
+{
+  "id": "policy_mcp_readonly_default",
+  "version": 1,
+  "name": "mcp-readonly-default",
+  "enabled": true,
+  "deny": [
+    {
+      "id": "deny-credential-effects",
+      "when": { "field": "effect", "op": "eq", "value": "credential" },
+      "reasonCode": "GOVERNANCE_CREDENTIAL_DENIED"
+    }
+  ],
+  "requireApproval": [
+    {
+      "id": "approve-unknown-tool",
+      "when": { "field": "effect", "op": "in", "value": ["unknown", "write", "external_write", "destructive"] },
+      "reasonCode": "GOVERNANCE_APPROVAL_REQUIRED"
+    }
+  ],
+  "allow": [
+    {
+      "id": "allow-mcp-read",
+      "when": { "field": "effect", "op": "eq", "value": "read" },
+      "reasonCode": "policy.allow.mcp_read"
+    }
+  ]
+}

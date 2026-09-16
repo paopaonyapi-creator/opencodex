@@ -48,8 +48,8 @@ describe("Phase 20.12 Pao-hubPro × Google ARTEMIS Mobile Agent Gateway", () => 
   });
 
   describe("Sprint 1: Schema Version & Database Tables", () => {
-    it("migrates to schema version 25 and creates mobile gateway tables", () => {
-      expect(AGENT_OS_SCHEMA_VERSION).toBe(25);
+    it("migrates to at least schema version 25 and creates mobile gateway tables", () => {
+      expect(AGENT_OS_SCHEMA_VERSION).toBeGreaterThanOrEqual(25);
       const db = openAgentOsDb(tempDir);
 
       const tables = db

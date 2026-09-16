@@ -16,7 +16,12 @@ export type GatewayProviderType =
   | "openrouter"
   | "openai-compatible"
   /** Experiential gateway, reached over its OpenAI-compatible HTTP API. */
-  | "experiential";
+  | "experiential"
+  /**
+   * 9Router multi-provider gateway sidecar (Phase 20.51). Reached over its
+   * OpenAI-compatible /v1 surface; provider credentials stay inside 9Router.
+   */
+  | "nine-router";
 
 export interface GatewayProviderConfig {
   readonly id: string;
@@ -327,6 +332,207 @@ export interface GatewayAttemptRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Quota windows (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+export type QuotaWindowType =
+  | "rolling"
+  | "hourly"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "credit"
+  | "unknown";
+
+export type QuotaUnit = "requests" | "tokens" | "credits" | "seconds" | "unknown";
+
+/**
+ * How much the gateway trusts this quota reading. Missing telemetry is
+ * "unknown" — never "unlimited", and never rendered as 100% remaining.
+ */
+export type QuotaConfidence = "authoritative" | "derived" | "estimated" | "unknown";
+
+export type QuotaFreshness = "fresh" | "aging" | "stale" | "unknown";
+
+export interface QuotaWindow {
+  readonly windowType: QuotaWindowType;
+  readonly label: string;
+  readonly consumed?: number;
+  readonly limit?: number;
+  readonly remaining?: number;
+  /** 0..1. Absent when it cannot be derived — absence means unknown, not 1. */
+  readonly remainingRatio?: number;
+  readonly resetAt?: string;
+  readonly unit: QuotaUnit;
+  readonly confidence: QuotaConfidence;
+  readonly observedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Failure classification & connection state (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+export type GatewayFailureClass =
+  | "auth_invalid"
+  | "permission_denied"
+  | "quota_exhausted"
+  | "rate_limited"
+  | "provider_overloaded"
+  | "provider_unavailable"
+  | "network_timeout"
+  | "protocol_error"
+  | "model_unavailable"
+  | "capability_mismatch"
+  | "budget_blocked"
+  | "policy_blocked"
+  | "content_rejected"
+  | "unknown";
+
+export type ConnectionState =
+  | "unknown"
+  | "healthy"
+  | "degraded"
+  | "cooldown"
+  | "quarantined"
+  | "recovering"
+  | "disabled";
+
+// ---------------------------------------------------------------------------
+// Session affinity (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+export interface RouteLease {
+  readonly sessionId: string;
+  readonly routeKey: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+  readonly sticky: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Route decision & event ledger (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+export interface CandidateOutcome {
+  readonly routeKey: string;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly status: "selected" | "rejected" | "attempted";
+  readonly score?: number;
+  readonly reasonCodes: readonly string[];
+}
+
+export type DecisionOutcome =
+  | "success"
+  | "failed"
+  | "no_eligible_route"
+  | "deadline_exceeded"
+  | "budget_denied";
+
+export interface RouteDecisionRecord {
+  readonly requestId: string;
+  readonly timestamp: string;
+  readonly identityId: string;
+  readonly alias: string;
+  readonly weightProfile: string;
+  readonly sessionId?: string;
+  readonly selectedRouteKey?: string;
+  readonly selectedModelId?: string;
+  readonly selectedProviderId?: string;
+  readonly candidates: readonly CandidateOutcome[];
+  readonly fallbackDepth: number;
+  readonly outcome: DecisionOutcome;
+  readonly reasonCodes: readonly string[];
+  readonly estimatedCostUsd?: number;
+  readonly actualCostUsd?: number;
+  readonly latencyMs?: number;
+}
+
+export interface RouteAttemptRecord {
+  readonly requestId: string;
+  readonly attemptNo: number;
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly startedAt: string;
+  readonly completedAt?: string;
+  readonly latencyMs?: number;
+  readonly httpStatus?: number;
+  readonly failureClass?: GatewayFailureClass;
+  readonly reasonCode?: string;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly outcome: "success" | "failure";
+}
+
+export interface GatewayEventRecord {
+  readonly timestamp: string;
+  readonly severity: "info" | "warning" | "error";
+  readonly eventType: string;
+  readonly providerId?: string;
+  readonly modelId?: string;
+  readonly reasonCode: string;
+  readonly details?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Governance configuration (Phase 20.51)
+// ---------------------------------------------------------------------------
+
+export interface GovernanceWeights {
+  readonly quality: number;
+  readonly quota: number;
+  readonly health: number;
+  readonly latency: number;
+  readonly cost: number;
+  readonly affinity: number;
+  readonly freshness: number;
+}
+
+export interface FallbackLimits {
+  readonly maxRouteAttempts: number;
+  readonly maxSameProviderAttempts: number;
+  readonly totalDeadlineMs: number;
+  readonly backoffMs: readonly number[];
+}
+
+export interface CircuitBreakerPolicy {
+  readonly failureThreshold: number;
+  readonly cooldownMs: number;
+  readonly rateLimitCooldownMs: number;
+}
+
+export interface QuotaPolicy {
+  readonly agingAfterSec: number;
+  readonly staleAfterSec: number;
+  readonly stalePenalty: number;
+  readonly unknownPenalty: number;
+  readonly softLowRemainingRatio: number;
+  readonly criticalRemainingRatio: number;
+}
+
+export interface RoutingGovernanceConfig {
+  /** Master switch. Off = existing single-attempt routing, byte-for-byte. */
+  readonly enabled: boolean;
+  readonly weightProfile: string;
+  readonly weights: GovernanceWeights;
+  readonly fallback: FallbackLimits;
+  readonly circuitBreaker: CircuitBreakerPolicy;
+  readonly quota: QuotaPolicy;
+  readonly sessionLeaseTtlMin: number;
+}
+
+export interface NineRouterConfig {
+  readonly enabled: boolean;
+  readonly baseUrl: string;
+  readonly apiKeyEnv: string;
+  readonly timeoutMs: number;
+  readonly syncIntervalSec: number;
+  /** Upstream telemetry endpoints to probe for quota data. 404/unknown is normal. */
+  readonly quotaPaths: readonly string[];
+  readonly versionPaths: readonly string[];
+}
+
+// ---------------------------------------------------------------------------
 // Full gateway config (loaded from YAML files)
 // ---------------------------------------------------------------------------
 
@@ -351,4 +557,8 @@ export interface GatewayConfig {
   readonly experientialVersion?: string;
   /** Local-only enforcement for tasks classified private or restricted. */
   readonly privateTaskLocalOnly?: boolean;
+  /** Phase 20.51 quota-aware routing, bounded fallback, breakers, decision ledger. */
+  readonly governance?: RoutingGovernanceConfig;
+  /** Phase 20.51 9Router gateway sidecar telemetry settings. */
+  readonly nineRouter?: NineRouterConfig;
 }

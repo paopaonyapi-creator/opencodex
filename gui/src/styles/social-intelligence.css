@@ -1,0 +1,313 @@
+/* Phase 20.20 — Social Intelligence dashboard.
+ * Dark-console styling consistent with the other agent-os consoles. */
+
+.social-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.social-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.social-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.social-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.9rem;
+  max-width: 60ch;
+}
+
+.social-mode-badges {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.badge-warn { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.badge-off { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+
+.social-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border, #1e293b);
+  flex-wrap: wrap;
+}
+
+.social-tab {
+  padding: 0.55rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.social-tab:hover { color: var(--text, #e2e8f0); }
+
+.social-tab-active {
+  color: var(--text, #e2e8f0);
+  border-bottom-color: #38bdf8;
+}
+
+.social-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.social-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+.social-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border, #1e293b);
+  border-radius: 10px;
+  background: var(--surface, rgba(15, 23, 42, 0.55));
+}
+
+.metric-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+}
+
+.metric-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.metric-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.social-panel {
+  border: 1px solid var(--border, #1e293b);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  background: var(--surface, rgba(15, 23, 42, 0.55));
+}
+
+.social-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.social-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.social-panel-header h2 { margin: 0; }
+
+.social-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.social-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border, #1e293b);
+}
+
+.social-table td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.6);
+  vertical-align: top;
+}
+
+.row-disabled { opacity: 0.55; }
+.mono { font-family: var(--mono, ui-monospace, monospace); font-size: 0.78rem; }
+.caps-cell { max-width: 220px; }
+.actions-cell { white-space: nowrap; }
+
+.health-pill, .state-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.health-healthy { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.health-degraded { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.health-unproven { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+.health-disabled { background: rgba(100, 116, 139, 0.2); color: #64748b; }
+
+.state-ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.state-warn { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+.state-err { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.state-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+
+.social-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.social-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.social-filters select, .social-form-grid input, .social-form-grid select {
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #1e293b);
+  background: var(--surface-2, rgba(2, 6, 23, 0.6));
+  color: var(--text, #e2e8f0);
+  font-size: 0.85rem;
+}
+
+.social-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+
+.social-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.social-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: #0284c7;
+  color: #f0f9ff;
+}
+
+.btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border, #1e293b);
+  color: var(--text, #e2e8f0);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.8rem;
+  margin-right: 0.75rem;
+}
+
+.social-state {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.9rem;
+}
+
+.social-state-error { color: #f87171; }
+
+.social-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0.6rem 0 0;
+}
+
+.social-candidate {
+  border: 1px solid var(--border, #1e293b);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.social-candidate summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.social-candidate ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.reason-item { color: #4ade80; list-style: none; }
+.risk-item { color: #fbbf24; list-style: none; }
+
+.social-approval {
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.social-approval p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text, #e2e8f0);
+}

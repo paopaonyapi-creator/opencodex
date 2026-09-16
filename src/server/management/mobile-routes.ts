@@ -8,6 +8,7 @@ import { getMobileTaskManager } from "../../agent-os/mobile/task-manager";
 import { getArtemisProvider } from "../../agent-os/mobile/artemis-adapter";
 import { getMobileConfig } from "../../agent-os/mobile/config";
 import type { RegisterDeviceInput, RunTaskInput } from "../../agent-os/mobile/types";
+import { diagnoseMobileRuntime } from "../../agent-os/mobile/diagnostics";
 
 function notFound(req: Request, message: string): Response {
   return jsonResponse({ error: { code: "not_found", message } }, 404, req, {});
@@ -64,6 +65,12 @@ export async function handleMobileRoutes(
   if (req.method === "GET" && subPath === "provider/health") {
     const health = await provider.health();
     return jsonResponse(health, health.ok ? 200 : 503, req, {});
+  }
+
+  // GET /api/mobile/diagnose
+  if (req.method === "GET" && subPath === "diagnose") {
+    const report = await diagnoseMobileRuntime();
+    return jsonResponse(report, report.verdict === "blocked" ? 503 : 200, req, {});
   }
 
   // GET /api/mobile/devices

@@ -1,0 +1,128 @@
+{
+  "$comment": "Phase 20.54 reference agents (spec §42). One manifest per entry; loaded by AgentPlatform.registerAgent. Kept as a JSON bundle to reuse the repository's JSON tooling; per-agent YAML files are a documented follow-up.",
+  "agents": [
+    {
+      "apiVersion": "pao.ai/v1",
+      "kind": "Agent",
+      "metadata": {
+        "id": "supervisor-agent",
+        "name": "Supervisor Agent",
+        "version": "1.0.0",
+        "owner": "pao-hubpro",
+        "labels": { "domain": "orchestration", "trust_tier": "internal" }
+      },
+      "spec": {
+        "description": "Owns task decomposition, delegation, conflict handling and completion criteria.",
+        "patterns": ["supervisor", "planner-worker", "multi-agent"],
+        "runtime": { "mode": "supervisor-managed", "timeoutSeconds": 600, "maxSteps": 30, "maxToolCalls": 50, "allowParallelTools": true },
+        "models": { "preferred": [{ "provider": "pao-gateway", "capability": "reasoning" }], "fallback": [{ "provider": "local", "capability": "general" }] },
+        "context": { "strategy": "dynamic", "maxTokens": 100000, "include": ["system_instructions", "task", "plan", "prior_step_results"], "compression": { "enabled": true, "thresholdRatio": 0.75 } },
+        "memory": { "read": ["semantic", "episodic", "project"], "write": ["episodic"], "writePolicy": "gated" },
+        "capabilities": { "required": ["knowledge.search", "filesystem.read"], "optional": ["git.read"] },
+        "protocols": { "mcp": { "enabled": true }, "a2a": { "enabled": true, "exposeAgentCard": true } },
+        "approvals": { "default": "required_for_r3_r4" },
+        "security": { "sandbox": "required", "networkPolicy": "allowlist", "secretsAccess": "deny-by-default" },
+        "observability": { "tracing": true, "audit": true, "cryptographicReceipts": "privileged_actions" }
+      }
+    },
+    {
+      "apiVersion": "pao.ai/v1",
+      "kind": "Agent",
+      "metadata": {
+        "id": "research-agent",
+        "name": "Research Agent",
+        "version": "1.0.0",
+        "owner": "pao-hubpro",
+        "labels": { "domain": "research", "trust_tier": "standard" }
+      },
+      "spec": {
+        "description": "Performs grounded research using approved retrieval and knowledge tools.",
+        "patterns": ["tool-use", "rag", "reflection"],
+        "runtime": { "mode": "supervisor-managed", "timeoutSeconds": 300, "maxSteps": 20, "maxToolCalls": 30, "allowParallelTools": true },
+        "models": { "preferred": [{ "provider": "pao-gateway", "capability": "reasoning" }], "fallback": [{ "provider": "local", "capability": "general" }] },
+        "context": { "strategy": "dynamic", "maxTokens": 80000, "include": ["system_instructions", "task", "project_context", "relevant_memory", "retrieved_knowledge", "tool_descriptions"], "compression": { "enabled": true, "thresholdRatio": 0.75 } },
+        "memory": { "read": ["semantic", "episodic", "project"], "write": ["episodic"], "writePolicy": "gated" },
+        "capabilities": { "required": ["knowledge.search", "memory.read"], "optional": ["filesystem.read", "network.http.read"] },
+        "protocols": { "mcp": { "enabled": true }, "a2a": { "enabled": true, "exposeAgentCard": true } },
+        "approvals": { "default": "none" },
+        "security": { "sandbox": "preferred", "networkPolicy": "allowlist", "secretsAccess": "deny-by-default" },
+        "observability": { "tracing": true, "audit": true, "cryptographicReceipts": "privileged_actions" },
+        "evaluation": { "suite": "research-agent-v1" }
+      }
+    },
+    {
+      "apiVersion": "pao.ai/v1",
+      "kind": "Agent",
+      "metadata": {
+        "id": "coding-agent",
+        "name": "Coding Agent",
+        "version": "1.0.0",
+        "owner": "pao-hubpro",
+        "labels": { "domain": "coding", "trust_tier": "internal" }
+      },
+      "spec": {
+        "description": "Workspace-scoped implementation agent; all writes inside the sandbox allowlist.",
+        "patterns": ["planner-worker", "tool-use", "reviewer"],
+        "runtime": { "mode": "supervisor-managed", "timeoutSeconds": 600, "maxSteps": 40, "maxToolCalls": 60, "allowParallelTools": false },
+        "models": { "preferred": [{ "provider": "pao-gateway", "capability": "reasoning" }], "fallback": [{ "provider": "local", "capability": "general" }] },
+        "context": { "strategy": "dynamic", "maxTokens": 120000, "include": ["system_instructions", "task", "project_context", "retrieved_knowledge", "tool_descriptions", "plan", "prior_step_results"], "compression": { "enabled": true, "thresholdRatio": 0.75 } },
+        "memory": { "read": ["semantic", "project"], "write": ["project"], "writePolicy": "gated" },
+        "capabilities": { "required": ["filesystem.read", "filesystem.write", "git.read"], "optional": ["git.commit", "shell.execute"] },
+        "approvals": { "default": "required_for_r3_r4", "rules": [{ "capability": "git.commit", "approval": "none" }] },
+        "security": { "sandbox": "required", "networkPolicy": "deny-all", "secretsAccess": "deny-by-default" },
+        "observability": { "tracing": true, "audit": true, "cryptographicReceipts": "privileged_actions" },
+        "evaluation": { "suite": "coding-agent-v1" }
+      }
+    },
+    {
+      "apiVersion": "pao.ai/v1",
+      "kind": "Agent",
+      "metadata": {
+        "id": "reviewer-agent",
+        "name": "Reviewer Agent",
+        "version": "1.0.0",
+        "owner": "pao-hubpro",
+        "labels": { "domain": "review", "trust_tier": "internal" }
+      },
+      "spec": {
+        "description": "Read-only structured reviewer; produces verdicts, never rewrites output.",
+        "patterns": ["reviewer", "reflection"],
+        "runtime": { "mode": "supervisor-managed", "timeoutSeconds": 180, "maxSteps": 10, "maxToolCalls": 10, "allowParallelTools": true },
+        "models": { "preferred": [{ "provider": "pao-gateway", "capability": "reasoning" }] },
+        "context": { "strategy": "dynamic", "maxTokens": 60000, "include": ["system_instructions", "task", "prior_step_results"] },
+        "memory": { "read": ["semantic", "project"], "write": [], "writePolicy": "deny" },
+        "capabilities": { "required": ["filesystem.read", "git.read", "knowledge.search"] },
+        "approvals": { "default": "none" },
+        "security": { "sandbox": "preferred", "networkPolicy": "deny-all", "secretsAccess": "deny-by-default" },
+        "observability": { "tracing": true, "audit": true },
+        "evaluation": { "suite": "reviewer-agent-v1" }
+      }
+    },
+    {
+      "apiVersion": "pao.ai/v1",
+      "kind": "Agent",
+      "metadata": {
+        "id": "local-fallback-agent",
+        "name": "Local Fallback Agent",
+        "version": "1.0.0",
+        "owner": "pao-hubpro",
+        "labels": { "domain": "general", "trust_tier": "standard" }
+      },
+      "spec": {
+        "description": "Offline/degraded-mode agent restricted to local models, knowledge and tools.",
+        "patterns": ["local-agent", "tool-use"],
+        "runtime": { "mode": "standalone", "timeoutSeconds": 120, "maxSteps": 10, "maxToolCalls": 15, "allowParallelTools": false },
+        "models": { "preferred": [{ "provider": "local", "capability": "general" }] },
+        "context": { "strategy": "static", "maxTokens": 32000, "include": ["system_instructions", "task"] },
+        "memory": { "read": ["semantic"], "write": [], "writePolicy": "deny" },
+        "capabilities": { "required": ["knowledge.search", "filesystem.read"] },
+        "approvals": { "default": "required_for_r3_r4" },
+        "security": { "sandbox": "required", "networkPolicy": "deny-all", "secretsAccess": "deny-by-default" },
+        "observability": { "tracing": true, "audit": true },
+        "evaluation": { "suite": "local-fallback-v1" }
+      }
+    }
+  ]
+}
+
+

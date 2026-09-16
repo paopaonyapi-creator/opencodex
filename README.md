@@ -13,6 +13,18 @@ OPENSEO_MCP_URL / OPENSEO_API_KEY ค่าเริ่มต้นใช้ Moc
 PaohupByPaoZa คุม orchestration, policy, approval และ dashboard
 ดู docs/PHASE_18_PAO_SEO_AGENT_OS.md
 
+## Unified AI Coding Workspace (Phase 20.39)
+
+เปิด http://127.0.0.1:10100/#coding-workspace — local-first cockpit สำหรับ
+drive native AI coding runtimes จากที่เดียว: register workspace, probe
+provider (OpenAI Codex / Claude Code / mock), เริ่ม-กลับ-stream session,
+ดู tool activity, @context + /command, approval gates, one-writer
+workspace lock, usage telemetry และ audit trail ครบ
+ทุก session เก็บ native session id ของ provider จริง — ไม่แต่ง transcript
+ปลอม การ execute ผ่าน execution policy engine (LEVEL_0 read-only เป็นค่าเริ่มต้น)
++ approval ที่ผูกกับพารามิเตอร์เดิมเสมอ + safe CLI bridge (argv-only, allowlist)
+รายละเอียด: docs/coding-workspace/README.md
+
 <table align="center">
   <tr>
     <td width="50%" align="center">

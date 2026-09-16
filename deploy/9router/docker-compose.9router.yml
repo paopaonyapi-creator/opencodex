@@ -1,0 +1,27 @@
+# Phase 20.51 — 9Router gateway sidecar (development baseline).
+#
+# SECURITY DEFAULTS
+# - Bound to the loopback interface only. The 9Router dashboard and API must
+#   never be exposed to a public interface (spec §28).
+# - Data persists in a named volume so provider credentials survive restarts.
+#
+# VERSION PINNING
+# `latest` is acceptable for a first local bring-up only. Before production,
+# pin a tested release (see README.md "Pinning and rollback"):
+#   image: decolua/9router:vX.Y.Z   # or an image digest
+services:
+  9router:
+    image: decolua/9router:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:20128:20128"
+    volumes:
+      - 9router-data:/app/data
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+
+volumes:
+  9router-data:

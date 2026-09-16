@@ -69,3 +69,10 @@ go/
 data/
 export/
 scratch/
+
+# Mimosa scanner working state (findings, reports, hook state) — runtime only
+.mimosa/
+docs/.mimosa/
+
+# Runtime workspace stores (user attachments, session artifacts)
+workspace/

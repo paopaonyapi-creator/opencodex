@@ -284,6 +284,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleExternalApiRoutes(ctx);
   }
 
+  // GOLD slice #1: Deterministic code review runtime (Phase 20.81 contract).
+  if (url.pathname.startsWith("/api/agent-os/code-review") || url.pathname === "/api/agent-os/code-review") {
+    const { handleCodeReviewRoutes } = await import("./code-review-routes");
+    return handleCodeReviewRoutes(ctx);
+  }
+
   // Phase 21.1: End-to-End Autonomous Stock Production & Submission Pipeline
   if (url.pathname.startsWith("/api/agent-os/stock/pipeline") || url.pathname === "/api/agent-os/stock/pipeline") {
     const { handleStockPipelineRoutes } = await import("./stock-pipeline-routes");

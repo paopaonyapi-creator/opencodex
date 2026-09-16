@@ -150,7 +150,7 @@ import { join } from "node:path";
 // v45: mobile leases/approvals/traces (Phase 20.55).
 // v46: cap_* Micro-App Capability Lab (Phase 20.56).
 // v47: sg_* Skill Gate control plane (Phase 20.57).
-export const AGENT_OS_SCHEMA_VERSION = 51;
+export const AGENT_OS_SCHEMA_VERSION = 52;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6059,6 +6059,15 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_eap_calls_provider ON eap_runtime_calls(provider_id, started_at DESC);
       CREATE TABLE IF NOT EXISTS eap_audit (id TEXT PRIMARY KEY, action TEXT NOT NULL, decision TEXT NOT NULL, provider_id TEXT, actor_id TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_eap_audit_created ON eap_audit(created_at DESC);
+
+      -- v52: Deterministic code review runtime (GOLD slice on the Phase 20.81 contract)
+      CREATE TABLE IF NOT EXISTS cr_sessions (id TEXT PRIMARY KEY, repository_path TEXT NOT NULL, mode TEXT NOT NULL, from_ref TEXT, to_ref TEXT, commit_sha TEXT, head_sha TEXT, diff_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'completed', gate TEXT, critical_count INTEGER NOT NULL DEFAULT 0, high_count INTEGER NOT NULL DEFAULT 0, medium_count INTEGER NOT NULL DEFAULT 0, protected_path_changed INTEGER NOT NULL DEFAULT 0, policy_version TEXT NOT NULL, rule_hash TEXT NOT NULL, error_code TEXT, requested_by TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_cr_sessions_diff ON cr_sessions(repository_path, mode, diff_hash);
+      CREATE INDEX IF NOT EXISTS idx_cr_sessions_created ON cr_sessions(created_at DESC);
+      CREATE TABLE IF NOT EXISTS cr_findings (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, unit_id TEXT, path TEXT NOT NULL, start_line INTEGER, end_line INTEGER, category TEXT NOT NULL, subcategory TEXT, severity TEXT NOT NULL, confidence REAL NOT NULL, title TEXT NOT NULL, description TEXT, evidence TEXT, suggestion TEXT, status TEXT NOT NULL DEFAULT 'open', source TEXT NOT NULL DEFAULT 'deterministic', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_cr_findings_session ON cr_findings(session_id);
+      CREATE TABLE IF NOT EXISTS cr_gate_results (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, gate TEXT NOT NULL, reasons_json TEXT NOT NULL DEFAULT '[]', decided_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_cr_gate_session ON cr_gate_results(session_id);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

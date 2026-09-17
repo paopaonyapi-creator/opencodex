@@ -200,6 +200,14 @@ export interface GatewayHealth {
   status: "healthy" | "degraded" | "unhealthy";
   activeAdapter: "omniroute" | "direct";
   omnirouteConnected: boolean;
+  /** Real probe result — degraded (not dead) when the daemon is offline. */
+  omniroute?: {
+    baseUrl: string;
+    status: "connected" | "unreachable" | "disabled";
+    checkedAt: string;
+    latencyMs: number | null;
+    error: string | null;
+  };
   totalRequestsToday: number;
   openCircuitsCount: number;
   circuits: CircuitState[];

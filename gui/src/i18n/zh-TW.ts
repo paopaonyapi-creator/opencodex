@@ -2164,6 +2164,7 @@ export const zhTW: Partial<Record<TKey, string>> = {
   "nav.modelGateway": "模型閘道",
   "nav.skills": "技能閘道",
   "nav.credentials": "憑證管理",
+  "nav.sensorimotor": "感知行動",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑戰示範",
   "demo.subtitle": "一鍵式代理原生素材工作流程。",

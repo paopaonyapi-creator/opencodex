@@ -10,6 +10,7 @@ export const SENSORIMOTOR_POLICY_VERSION = "aft-1";
 export type SensorimotorErrorCode =
   | "SENSORIMOTOR_DISABLED"
   | "SENSORIMOTOR_SESSION_NOT_FOUND"
+  | "SENSORIMOTOR_SESSION_STALE"
   | "SENSORIMOTOR_ACTION_NOT_FOUND"
   | "SENSORIMOTOR_INVALID_ACTION"
   | "SENSORIMOTOR_PATH_OUTSIDE_WORKSPACE"
@@ -20,6 +21,8 @@ export type SensorimotorErrorCode =
   | "SENSORIMOTOR_ABORTED"
   | "SENSORIMOTOR_TARGET_MISSING"
   | "SENSORIMOTOR_HEALTH_DEGRADED"
+  | "SENSORIMOTOR_VERIFICATION_FAILED"
+  | "SENSORIMOTOR_LOCK_TIMEOUT"
   | "SENSORIMOTOR_ROLLBACK_FAILED";
 
 export class SensorimotorError extends Error {
@@ -88,6 +91,11 @@ export interface ActionRequest {
   destination?: string;
   timeoutMs?: number;
   maxAttempts?: number;
+  /**
+   * Caller-supplied idempotency key (≤128 chars). A key that already has a
+   * terminal outcome replays that outcome instead of re-executing the mutation.
+   */
+  idempotencyKey?: string;
 }
 
 export interface HealthDelta {
@@ -110,6 +118,10 @@ export interface ActionOutcome {
   maxAttempts: number;
   checkpointId: string | null;
   rolledBack: boolean;
+  /** True when the action post-verified its on-disk effect (see runtime config). */
+  verified: boolean;
+  /** True when this response replays a previously recorded terminal outcome. */
+  duplicate: boolean;
   observation: {
     outcome: "success" | "failed" | "aborted" | "rolled_back";
     healthDelta: HealthDelta;

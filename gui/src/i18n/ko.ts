@@ -1188,6 +1188,7 @@ export const ko: Partial<Record<TKey, string>> = {
   "nav.modelGateway": "모델 게이트웨이",
   "nav.skills": "스킬 게이트",
   "nav.credentials": "자격 증명",
+  "nav.sensorimotor": "센서리모터",
   "nav.governance": "거버넌스",
   "demo.title": "WebMCP 챌린지 데모",
   "demo.subtitle": "원클릭 에이전트 네이티브 스톡 워크플로우.",

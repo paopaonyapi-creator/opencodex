@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { acquireTestRunLock, TEST_RUN_ID_ENV } from "./test-run-lock";
@@ -346,19 +346,145 @@ function canUseSerialLanes(requested: string[]): boolean {
   return !["--changed", "--shard", "--reporter-outfile", "--update-timings"].some(flag => hasCliFlag(requested, flag));
 }
 
-/** Build the default full-suite plan: one bounded main lane plus isolated risky files. */
+/**
+ * The full suite (~1200 test files, 15k+ tests) no longer fits one 15-minute
+ * parallel lane — the single lane hits the 900s ceiling and gets killed with
+ * no partial signal. Mirroring CI's shard topology, the local suite is split
+ * into a fixed number of lanes by a deterministic per-file hash: the same
+ * partition on every machine and run, disjoint coverage, and a hung lane only
+ * spends its own budget instead of the whole run's. Measured on a loaded
+ * Windows host at ~1.5 s/file under 4 workers, four lanes keep each lane's
+ * expected wall time near ~450s — half the 900s budget. This is a topology
+ * fix — the per-lane timeout is unchanged. Enumeration failure degrades to
+ * the historical single lane rather than guessing at a partial suite.
+ */
+export const FULL_SUITE_LANE_COUNT = 4;
+const FULL_SUITE_LANE_TIMEOUT_MS = 15 * 60 * 1000;
+const TEST_FILE_NAME_PATTERN = /\.(test|spec)\.(ts|tsx|js|jsx)$|_(test|spec)\.(ts|tsx|js|jsx)$/;
+
+export function listSuiteTestFiles(rootDir = "tests"): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.isFile() || !TEST_FILE_NAME_PATTERN.test(entry.name)) continue;
+      out.push("./" + full.split("\\").join("/"));
+    }
+  };
+  walk(rootDir);
+  return out.sort();
+}
+
+/** FNV-1a over the path — stable across machines, cheap, no dependencies. */
+export function testFileBucket(relativePath: string, laneCount: number): number {
+  let hash = 2166136261;
+  for (let index = 0; index < relativePath.length; index++) {
+    hash ^= relativePath.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % laneCount;
+}
+
+function partitionedSuiteLanes(requested: string[]): BunTestLane[] {
+  const serialFiles = new Set<string>(SERIAL_FULL_SUITE_FILES);
+  const suiteFiles = listSuiteTestFiles()
+    .filter(file => !serialFiles.has(file.slice("./tests/".length)));
+  if (suiteFiles.length === 0) {
+    // Enumeration unavailable (unexpected worktree shape): single lane, as before.
+    return [{
+      label: "parallel suite",
+      args: resolveBunTestArgs(requested),
+      timeoutMs: FULL_SUITE_LANE_TIMEOUT_MS,
+    }];
+  }
+
+  const baseArgs = ["--isolate"];
+  if (!hasCliFlag(requested, "--parallel")) {
+    baseArgs.push(`--parallel=${DEFAULT_TEST_PARALLELISM}`);
+  }
+  // Deadline-sensitive tests flake at Bun's 5s per-test default under 4-way
+  // local parallelism on Windows; the repository's own CI legs pass 60000 for
+  // exactly this reason. A caller-supplied --timeout still wins.
+  if (!hasCliFlag(requested, "--timeout")) {
+    baseArgs.push("--timeout=60000");
+  }
+  baseArgs.push(...requested);
+
+  const buckets: string[][] = Array.from({ length: FULL_SUITE_LANE_COUNT }, () => []);
+  for (const file of suiteFiles) {
+    buckets[testFileBucket(file, FULL_SUITE_LANE_COUNT)].push(file);
+  }
+  return buckets.map((files, index) => ({
+    label: `parallel suite ${index + 1}/${FULL_SUITE_LANE_COUNT}`,
+    args: [...baseArgs, ...files],
+    timeoutMs: FULL_SUITE_LANE_TIMEOUT_MS,
+  }));
+}
+
+/**
+ * Changed runs use the same lane topology as the full suite. The changed
+ * selection is computed by Bun per invocation (`--changed`), so each lane
+ * carries the FULL enumerated file list plus the `--changed` filter — Bun
+ * selects the changed subset within each lane. Without this, a large change
+ * set (a long-diverged merge base) selected most of the suite into one lane
+ * and hit the 900s ceiling, killing the run with no partial signal.
+ */
+function partitionedChangedLanes(requested: string[], comparisonCommit?: string): BunTestLane[] {
+  const serialFiles = new Set<string>(SERIAL_FULL_SUITE_FILES);
+  const suiteFiles = listSuiteTestFiles()
+    .filter(file => !serialFiles.has(file.slice("./tests/".length)));
+  if (suiteFiles.length === 0) {
+    return [{ label: "suite", args: resolveBunTestArgs(requested, comparisonCommit), timeoutMs: FULL_SUITE_LANE_TIMEOUT_MS }];
+  }
+
+  const callerChanged = requested.find(arg => arg === "--changed" || arg.startsWith("--changed="));
+  const changedArg = comparisonCommit ? `--changed=${comparisonCommit}` : callerChanged;
+  const extraArgs = requested.filter(arg => arg !== "--changed" && !arg.startsWith("--changed="));
+  const baseArgs = ["--isolate"];
+  if (!hasCliFlag(requested, "--parallel")) {
+    baseArgs.push(`--parallel=${DEFAULT_TEST_PARALLELISM}`);
+  }
+  // Same rationale as the parallel-suite lanes: CI's own legs pass 60000;
+  // the 5s per-test default flakes under local 4-way parallelism.
+  if (!hasCliFlag(requested, "--timeout")) {
+    baseArgs.push("--timeout=60000");
+  }
+  baseArgs.push(...extraArgs);
+  if (changedArg) baseArgs.push(changedArg);
+
+  const buckets: string[][] = Array.from({ length: FULL_SUITE_LANE_COUNT }, () => []);
+  for (const file of suiteFiles) {
+    buckets[testFileBucket(file, FULL_SUITE_LANE_COUNT)].push(file);
+  }
+  return buckets.map((files, index) => ({
+    label: `changed suite ${index + 1}/${FULL_SUITE_LANE_COUNT}`,
+    args: [...baseArgs, ...files],
+    timeoutMs: FULL_SUITE_LANE_TIMEOUT_MS,
+  }));
+}
+
+/** Build the default full-suite plan: bounded parallel lanes plus isolated risky files. */
 export function resolveBunTestPlan(requested: string[], comparisonCommit?: string): BunTestLane[] {
   if (!canUseSerialLanes(requested)) {
+    if (hasCliFlag(requested, "--changed")) {
+      return partitionedChangedLanes(requested, comparisonCommit);
+    }
     return [{ label: "suite", args: resolveBunTestArgs(requested, comparisonCommit), timeoutMs: 15 * 60 * 1000 }];
   }
 
-  const mainArgs = resolveBunTestArgs(requested, comparisonCommit);
-  const rootIndex = mainArgs.lastIndexOf("./tests/");
-  const ignores = SERIAL_FULL_SUITE_FILES.flatMap(file => ["--path-ignore-patterns", `**/${file}`]);
-  mainArgs.splice(rootIndex === -1 ? mainArgs.length : rootIndex, 0, ...ignores);
   const serialRequested = withoutParallelOverride(requested);
   return [
-    { label: "parallel suite", args: mainArgs, timeoutMs: 15 * 60 * 1000 },
+    ...partitionedSuiteLanes(requested),
     ...SERIAL_FULL_SUITE_FILES.map(file => ({
       label: file,
       args: resolveBunTestArgs(["--parallel=1", ...serialRequested, `./tests/${file}`]),

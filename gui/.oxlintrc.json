@@ -203,7 +203,8 @@
         "src/pages/ModelGateway.tsx",
         "src/pages/Skills.tsx",
         "src/pages/Security.tsx",
-        "src/pages/Credentials.tsx"
+        "src/pages/Credentials.tsx",
+        "src/pages/Sensorimotor.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

@@ -6,6 +6,13 @@ import { openAgentOsDb } from "../db";
 import { DecisionContractRegistry } from "./contracts";
 import { CalibrationEngine } from "./calibration";
 import { PolicyFusionEngine, type AuthorizationContext } from "./fusion";
+import {
+  RealTypeSafeJevProvider,
+  describeJevIntegration,
+  isKnownJevMode,
+  JevUnavailableError,
+  type JevProviderMode,
+} from "./provider-mode";
 import type {
   DecisionProvider,
   DecisionRequest,
@@ -63,25 +70,23 @@ export class DeterministicDecisionProvider implements DecisionProvider {
 }
 
 /**
- * TypeSafe Jev System One Provider Adapter.
- * Note: Bound behind TODO_PROVIDER_SCHEMA per Phase 20.84 §6.2 / §36.
- * Uses local calibrated simulation until official early-access endpoints are bound.
+ * TypeSafe Jev calibrated simulation provider.
+ *
+ * This is the explicitly-named DEVELOPMENT/TEST backend: deterministic,
+ * calibrated RLCD-shaped outputs with no network and no credential. It is
+ * never presented as the real Jev system — readiness surfaces name it
+ * "calibrated simulation" and production installs select the real provider
+ * via PAO_JEV_PROVIDER=real (see provider-mode.ts).
  */
-export class TypeSafeJevProvider implements DecisionProvider {
-  public readonly id = "typesafe-jev";
-  private apiKey: string;
-
-  constructor(config?: { apiKey?: string }) {
-    this.apiKey = config?.apiKey || process.env.TYPESAFE_API_KEY || "";
-  }
+export class CalibratedSimulationJevProvider implements DecisionProvider {
+  public readonly id = "typesafe-jev-simulated";
 
   public async computeDecision<TState, TDecision>(
     task: DecisionRequest<TState, TDecision>,
   ): Promise<DecisionResult<TDecision>> {
     const start = performance.now();
 
-    // TODO_PROVIDER_SCHEMA: TypeSafe early-access schema boundary
-    // Simulates calibrated RLCD decision output (70-120ms latency)
+    // Calibrated RLCD-shaped simulation output (70-120ms latency profile).
     const latencyMs = Math.min(Math.round(performance.now() - start + 65), 150);
     let selected: TDecision;
     let confidence = 0.96;
@@ -108,13 +113,13 @@ export class TypeSafeJevProvider implements DecisionProvider {
       contractId: task.contractId,
       contractVersion: task.contractVersion ?? "1.0.0",
       provider: this.id,
-      model: "jev-system-one",
+      model: "jev-simulated",
       selected,
       disposition: "allow",
       confidence,
       candidates: [{ value: selected, probability: confidence }],
       latencyMs,
-      providerCostUsd: 0.000042,
+      providerCostUsd: 0,
       createdAt: new Date().toISOString(),
     };
   }
@@ -122,28 +127,67 @@ export class TypeSafeJevProvider implements DecisionProvider {
   public async health(): Promise<ProviderHealth> {
     return {
       providerId: this.id,
-      status: this.apiKey ? "healthy" : "degraded",
+      status: "healthy",
       latencyP95Ms: 85,
       circuitState: "closed",
     };
   }
 }
 
+/**
+ * Back-compat alias. The simulation is now explicitly named; new code should
+ * reference CalibratedSimulationJevProvider or the real provider.
+ */
+export const TypeSafeJevProvider = CalibratedSimulationJevProvider;
+
 export class DecisionEngine {
   public readonly contracts: DecisionContractRegistry;
   public readonly calibration: CalibrationEngine;
+  public readonly providerMode: JevProviderMode;
   private providerRegistry: Record<string, DecisionProvider> = {};
 
   constructor() {
     this.contracts = new DecisionContractRegistry();
     this.calibration = new CalibrationEngine();
 
+    // Startup configuration validation: an unknown PAO_JEV_PROVIDER value is a
+    // configuration error, not a silent fallback.
+    const rawMode = (process.env.PAO_JEV_PROVIDER ?? "").trim().toLowerCase();
+    if (!isKnownJevMode(rawMode)) {
+      throw new Error(
+        `Invalid PAO_JEV_PROVIDER '${rawMode}' — expected real | simulated | disabled`,
+      );
+    }
+    this.providerMode = (rawMode || "simulated") as JevProviderMode;
+
     this.registerProvider(new DeterministicDecisionProvider());
-    this.registerProvider(new TypeSafeJevProvider());
+    this.registerProvider(new CalibratedSimulationJevProvider());
+    // The real provider is always registered so an explicit
+    // preferredProvider="typesafe-jev" produces a STRUCTURED unavailability
+    // error (and a recorded deterministic fallback) rather than a silent swap.
+    this.registerProvider(new RealTypeSafeJevProvider());
   }
 
   public registerProvider(provider: DecisionProvider): void {
     this.providerRegistry[provider.id] = provider;
+  }
+
+  public listProviders(): string[] {
+    return Object.keys(this.providerRegistry);
+  }
+
+  private resolveDefaultProviderKey(): string {
+    switch (this.providerMode) {
+      case "disabled":
+        return "deterministic";
+      case "real":
+        // Attempt real; evaluate() records a deterministic fallback with the
+        // structured reason when credentials/schema are missing.
+        return "typesafe-jev";
+      case "simulated":
+      default:
+        return "typesafe-jev-simulated";
+    }
   }
 
   public async evaluate<TState, TDecision>(
@@ -161,24 +205,53 @@ export class DecisionEngine {
       throw new Error(`Unknown decision contract '${task.contractId}'`);
     }
 
-    const providerKey = task.preferredProvider ?? (process.env.TYPESAFE_API_KEY ? "typesafe-jev" : "deterministic");
+    const providerKey = task.preferredProvider ?? this.resolveDefaultProviderKey();
     const activeProvider = this.providerRegistry[providerKey] ?? this.providerRegistry["deterministic"]!;
 
-    // 1. Get probabilistic decision from provider
-    const result = await activeProvider.computeDecision(task);
+    // 1. Get probabilistic decision from provider. Real-Jev unavailability is
+    // a structured, audited fallback — never a crash and never a silent swap.
+    let result: DecisionResult<TDecision>;
+    try {
+      result = await activeProvider.computeDecision(task);
+    } catch (err) {
+      if (err instanceof JevUnavailableError && activeProvider.id !== "deterministic") {
+        const fallback = this.providerRegistry["deterministic"]!;
+        result = await fallback.computeDecision(task);
+        result.policy = {
+          hardDenied: false,
+          reasons: [`jev_unavailable_fallback:${err.reason}`],
+        };
+        return this.finishEvaluate(task, result, contract.riskTier, options);
+      }
+      throw err;
+    }
 
-    // 2. Resolve threshold profile
-    const profile = this.calibration.getProfile(contract.thresholdProfile);
+    return this.finishEvaluate(task, result, contract.riskTier, options);
+  }
+
+  private async finishEvaluate<TState, TDecision>(
+    task: DecisionRequest<TState, TDecision>,
+    result: DecisionResult<TDecision>,
+    riskTier: string,
+    options?: {
+      hardDenied?: boolean;
+      hardDenyReasons?: string[];
+      humanApproved?: boolean;
+      withinScope?: boolean;
+      sandboxValid?: boolean;
+    },
+  ): Promise<DecisionResult<TDecision>> {
+    const profile = this.calibration.getProfile(this.contracts.get(task.contractId)!.thresholdProfile);
 
     // 3. Evaluate 10-stage policy fusion
     const authCtx: AuthorizationContext = {
-      contractId: contract.id,
+      contractId: task.contractId,
       candidateChoice: String(result.selected),
       confidence: result.confidence,
       thresholdProfile: profile,
       hardDenied: Boolean(options?.hardDenied),
       hardDenyReasons: options?.hardDenyReasons ?? [],
-      requiresHumanApproval: contract.riskTier === "critical" || contract.riskTier === "destructive",
+      requiresHumanApproval: riskTier === "critical" || riskTier === "destructive",
       humanApproved: Boolean(options?.humanApproved),
       calibrationTrusted: true,
       withinScope: options?.withinScope !== false,
@@ -188,25 +261,38 @@ export class DecisionEngine {
     const fusionDecision = PolicyFusionEngine.authorize(authCtx);
 
     result.disposition = fusionDecision.disposition;
-    result.policy = {
-      hardDenied: Boolean(options?.hardDenied),
-      reasons: fusionDecision.reason ? [fusionDecision.reason] : [],
-    };
+    if (!result.policy) {
+      result.policy = {
+        hardDenied: Boolean(options?.hardDenied),
+        reasons: fusionDecision.reason ? [fusionDecision.reason] : [],
+      };
+    } else if (fusionDecision.reason && !result.policy.reasons.includes(fusionDecision.reason)) {
+      result.policy.reasons.push(fusionDecision.reason);
+    }
     result.calibration = {
       profile: profile.name,
       trusted: true,
       ece: 0.02,
     };
 
-    // 4. Store audit record in dec_audit_records
+    // 4. Persist audit record in dec_audit_records
     this.persistAudit(task, result);
 
     return result;
   }
 
+  public async health(): Promise<{ providers: ProviderHealth[]; jev: ReturnType<typeof describeJevIntegration> }> {
+    const providers: ProviderHealth[] = [];
+    for (const provider of Object.values(this.providerRegistry)) {
+      providers.push(await provider.health());
+    }
+    return { providers, jev: describeJevIntegration() };
+  }
+
   private persistAudit<TState, TDecision>(
     task: DecisionRequest<TState, TDecision>,
     result: DecisionResult<TDecision>,
+    fallbackNote?: string,
   ): void {
     try {
       const db = openAgentOsDb();
@@ -231,7 +317,7 @@ export class DecisionEngine {
         JSON.stringify(result.candidates),
         result.disposition,
         result.policy?.hardDenied ? 1 : 0,
-        result.policy?.reasons.join("; ") ?? null,
+        [...(result.policy?.reasons ?? []), ...(fallbackNote ? [fallbackNote] : [])].join("; ") || null,
         result.latencyMs,
         result.providerCostUsd ?? 0.0,
         result.createdAt,

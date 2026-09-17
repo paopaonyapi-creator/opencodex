@@ -999,6 +999,7 @@ export const zh: Partial<Record<TKey, string>> = {
   "nav.modelGateway": "模型网关",
   "nav.skills": "技能网关",
   "nav.credentials": "凭据管理",
+  "nav.sensorimotor": "感知行动",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑战演示",
   "demo.subtitle": "一键式原生代理素材工作流。",

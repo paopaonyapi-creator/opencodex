@@ -1127,6 +1127,7 @@ export const de: Partial<Record<TKey, string>> = {
   "nav.modelGateway": "Modell-Gateway",
   "nav.skills": "Skill-Gate",
   "nav.credentials": "Anmeldedaten",
+  "nav.sensorimotor": "Sensorimotorik",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge-Demo",
   "demo.subtitle": "Agent-native Stock-Workflow mit einem Klick.",

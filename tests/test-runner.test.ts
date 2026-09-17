@@ -7,10 +7,13 @@ import {
   createIsolatedTestEnvironment,
   ensureGuiDependencies,
   inspectChangedRun,
+  listSuiteTestFiles,
   resolveBunTestArgs,
   resolveBunTestPlan,
   selectChangedComparisonRef,
   SERIAL_FULL_SUITE_FILES,
+  testFileBucket,
+  FULL_SUITE_LANE_COUNT,
 } from "../scripts/test";
 import {
   acquireTestRunLock,
@@ -158,28 +161,55 @@ describe("bun test argv", () => {
     expect(resolveBunTestArgs([])).toEqual(["--isolate", "--parallel=4", "./tests/"]);
   });
 
-  test("the default full suite quarantines load-sensitive files into one-worker lanes", () => {
+  test("the default full suite splits into deterministic parallel lanes plus one-worker serial lanes", () => {
     const plan = resolveBunTestPlan([]);
-    expect(plan).toHaveLength(SERIAL_FULL_SUITE_FILES.length + 1);
-    expect(plan[0]?.label).toBe("parallel suite");
+    expect(plan).toHaveLength(SERIAL_FULL_SUITE_FILES.length + FULL_SUITE_LANE_COUNT);
+    expect(plan[0]?.label).toBe(`parallel suite 1/${FULL_SUITE_LANE_COUNT}`);
+    expect(plan[1]?.label).toBe(`parallel suite 2/${FULL_SUITE_LANE_COUNT}`);
     expect(plan[0]?.args).toContain("--parallel=4");
-    expect(plan[0]?.args).toContain("./tests/");
+    expect(plan[1]?.args).toContain("--parallel=4");
+    // Lanes carry explicit disjoint file lists — no `./tests/` root, no
+    // path-ignore patterns — and no serial file lands in a parallel lane.
+    const parallelArgs = [...plan[0]!.args, ...plan[1]!.args];
+    expect(parallelArgs).not.toContain("./tests/");
+    expect(parallelArgs).not.toContain("--path-ignore-patterns");
+    const parallelFiles = parallelArgs.filter(arg => arg.startsWith("./tests/"));
+    expect(parallelFiles.length).toBeGreaterThan(500);
+    const unique = new Set(parallelFiles);
+    expect(unique.size).toBe(parallelFiles.length);
     for (const file of SERIAL_FULL_SUITE_FILES) {
-      expect(plan[0]?.args).toContain(`**/${file}`);
       expect(plan.find(lane => lane.label === file)?.args).toEqual([
         "--isolate",
         "--parallel=1",
         `./tests/${file}`,
       ]);
+      expect(unique.has(`./tests/${file}`)).toBe(false);
     }
     expect(plan.find(lane => lane.label === "release-helper.test.ts")?.timeoutMs).toBe(5 * 60 * 1000);
     expect(plan.find(lane => lane.label === "codex-shim.test.ts")?.timeoutMs).toBe(3 * 60 * 1000);
   });
 
-  test("serial lanes override caller parallelism without changing the main lane", () => {
+  test("suite lane partitioning is deterministic, disjoint, and total", () => {
+    const files = listSuiteTestFiles();
+    expect(files.length).toBeGreaterThan(500);
+    const serial = new Set(SERIAL_FULL_SUITE_FILES);
+    const suiteFiles = files.filter(file => !serial.has(file.slice("./tests/".length)));
+    const bucketA = new Set(suiteFiles.map(f => testFileBucket(f, FULL_SUITE_LANE_COUNT)));
+    const bucketB = suiteFiles.map(f => testFileBucket(f, 3));
+    expect(bucketA.size).toBe(FULL_SUITE_LANE_COUNT);
+    expect(new Set(bucketB).size).toBe(3);
+    // Same file, same bucket, every run.
+    expect(testFileBucket(suiteFiles[0]!, FULL_SUITE_LANE_COUNT))
+      .toBe(testFileBucket(suiteFiles[0]!, FULL_SUITE_LANE_COUNT));
+  });
+
+  test("serial lanes override caller parallelism without changing the parallel lanes", () => {
     const plan = resolveBunTestPlan(["--parallel=2", "--only-failures"]);
-    expect(plan[0]?.args).toContain("--parallel=2");
-    for (const lane of plan.slice(1)) {
+    for (const lane of plan.filter(l => l.label.startsWith("parallel suite"))) {
+      expect(lane.args).toContain("--parallel=2");
+      expect(lane.args).toContain("--only-failures");
+    }
+    for (const lane of plan.filter(l => !l.label.startsWith("parallel suite"))) {
       expect(lane.args).toContain("--parallel=1");
       expect(lane.args).not.toContain("--parallel=2");
       expect(lane.args).toContain("--only-failures");
@@ -253,7 +283,16 @@ describe("bun test argv", () => {
     const mergeBase = "0123456789abcdef0123456789abcdef01234567";
     expect(resolveBunTestArgs(["--changed=dev"], mergeBase))
       .toEqual(["--isolate", "--parallel=4", "--changed=" + mergeBase]);
-    expect(resolveBunTestPlan(["--changed=dev"])).toHaveLength(1);
+    // Changed runs share the parallel-lane topology (each lane carries the
+    // --changed filter; Bun selects the changed subset within the file list).
+    const changedPlan = resolveBunTestPlan(["--changed=dev"]);
+    expect(changedPlan).toHaveLength(FULL_SUITE_LANE_COUNT);
+    for (const lane of changedPlan) {
+      expect(lane.label).toMatch(new RegExp(`^changed suite \\d/${FULL_SUITE_LANE_COUNT}$`));
+      expect(lane.args).toContain("--changed=dev");
+    }
+    // Without a resolvable comparison commit the caller's --changed passes through.
+    expect(resolveBunTestPlan(["--changed"]).at(0)?.args).toContain("--changed");
   });
 
   test("changed-mode prefers the first existing conventional dev ref", () => {

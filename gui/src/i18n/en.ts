@@ -1832,6 +1832,7 @@ export const en = {
   "nav.modelGateway": "Model Gateway",
   "nav.skills": "Skills Gate",
   "nav.credentials": "Credentials",
+  "nav.sensorimotor": "Sensorimotor",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge Demo",
   "demo.subtitle": "One-click agent-native stock workflow.",

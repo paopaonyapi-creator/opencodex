@@ -1605,6 +1605,7 @@ export const fr: Partial<Record<TKey, string>> = {
   "nav.modelGateway": "Passerelle de modèles",
   "nav.skills": "Portail de compétences",
   "nav.credentials": "Identifiants",
+  "nav.sensorimotor": "Sensorimoteur",
   "nav.governance": "Gouvernance",
   "demo.title": "Démo Challenge WebMCP",
   "demo.subtitle": "Workflow de banque d’images natif agent en un clic.",

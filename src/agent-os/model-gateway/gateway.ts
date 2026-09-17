@@ -296,11 +296,35 @@ export class PaoModelGateway {
     const circuits = this.circuitBreaker.listCircuits();
     const openCircuits = circuits.filter((c) => c.state === "open");
 
+    // Real connection probe (cached inside the adapter). OmniRoute being
+    // offline is a DEGRADED state — the direct adapter keeps the gateway
+    // serving; it must never crash the runtime or lie about connectivity.
+    const connection = await this.omnirouteAdapter.connectionHealth();
+    const connected = this.omnirouteEnabled && connection.status === "connected";
+
+    let totalRequestsToday = 0;
+    try {
+      const row = openAgentOsDb()
+        .query("SELECT COUNT(*) AS n FROM gw_audit_records WHERE created_at >= ?")
+        .get(new Date(Date.now() - 24 * 3600 * 1000).toISOString()) as { n: number };
+      totalRequestsToday = row?.n ?? 0;
+    } catch {
+      totalRequestsToday = 0;
+    }
+
+    const degraded = openCircuits.length > 0 || (this.omnirouteEnabled && connection.status !== "connected");
     return {
-      status: openCircuits.length > 0 ? "degraded" : "healthy",
+      status: degraded ? "degraded" : "healthy",
       activeAdapter: this.omnirouteEnabled ? "omniroute" : "direct",
-      omnirouteConnected: this.omnirouteEnabled,
-      totalRequestsToday: 0,
+      omnirouteConnected: connected,
+      omniroute: {
+        baseUrl: connection.baseUrl,
+        status: connection.status,
+        checkedAt: connection.checkedAt,
+        latencyMs: connection.latencyMs,
+        error: connection.error,
+      },
+      totalRequestsToday,
       openCircuitsCount: openCircuits.length,
       circuits,
     };

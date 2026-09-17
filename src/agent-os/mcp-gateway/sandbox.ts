@@ -14,7 +14,9 @@ export class SandboxSecurityError extends Error {
 
 export class ToolExecutionSandbox {
   private static readonly FORBIDDEN_COMMAND_PATTERNS = [
-    /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*\s+|\s+--recursive\s+)(\/|~|\$HOME|\.\.)/i,
+    // Short (-r/-rf/-fr) and long (--recursive) recursive deletion aimed at
+    // absolute/parent/home paths.
+    /\brm\s+(?:-{1,2}[a-zA-Z]*r[a-zA-Z]*\s+)(?:\/|~|\$HOME|\.\.)/i,
     /\b(sudo\s+|runas\s+\/|su\s+-)/i,
     /\bmkfs\b/i,
     /\bdd\s+if=/i,
@@ -24,11 +26,44 @@ export class ToolExecutionSandbox {
     /\bchmod\s+(-[a-zA-Z]*R\s+)?777\s+(\/|~)/i,
   ];
 
+  // Phase 20.82 hardening. The sanctioned runner spawns argv WITHOUT a shell,
+  // so metacharacters are inert per-argument — the bypass is to make the
+  // target binary itself an interpreter that re-parses them. These guards are
+  // structural: block nested shells outright, and block code/encoded-command
+  // entry flags on interpreted runtimes so a chained or base64-encoded
+  // destructive operation cannot slip past the pattern list.
+  private static readonly SHELL_INTERPRETERS = new Set([
+    "sh", "bash", "zsh", "dash", "fish", "csh", "tcsh", "ksh", "ksh93",
+    "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
+    "wscript", "wscript.exe", "cscript", "cscript.exe", "mshta", "mshta.exe",
+    "eval", "exec", "source", "command",
+  ]);
+
+  // Interpreters that are legitimate dev tools but must never receive a
+  // code-carrying flag (arguably "run this string as code"), because that
+  // string is exactly where an encoded/obfuscated destructive operation hides.
+  // Module flags like `python -m pytest` stay allowed — they name a module,
+  // not an inline program.
+  private static readonly INTERPRETED_RUNTIMES = new Set([
+    "python", "python3", "python.exe", "node", "node.exe", "bun", "bun.exe",
+    "deno", "perl", "ruby", "php", "lua", "tclsh", "awk", "gawk", "mawk",
+    "rscript", "osascript", "jshell", "ghci",
+  ]);
+
+  private static readonly INTERPRETED_CODE_FLAGS = new Set([
+    "-c", "--command", "-e", "--eval", "-p",
+    "-enc", "-encodedcommand", "--encoded-command", "-encodedcommand",
+    "-ec", "--exec", "-r",
+  ]);
+
   private static readonly SECRET_PATTERNS = [
     /sk-[a-zA-Z0-9]{20,}/g,
     /ghp_[a-zA-Z0-9]{20,}/g,
     /Bearer\s+[a-zA-Z0-9\-._~+/]+=*/gi,
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
+    /(?:api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*\S+/gi,
+    /AKIA[0-9A-Z]{16}/g,
+    /xox[baprs]-[a-zA-Z0-9\-]+/g,
   ];
 
   /**
@@ -82,6 +117,61 @@ export class ToolExecutionSandbox {
         );
       }
     }
+
+    // Command chaining / shell metacharacters. The runner spawns argv without a
+    // shell, so these are inert in a single argument — but they are the payload
+    // carrier the moment a shell interpreter is reachable, so they are rejected
+    // outright as defense in depth.
+    if (/[\n\r]/.test(command)) {
+      throw new SandboxSecurityError("COMMAND_CHAINING_BLOCKED", "Newlines in commands are not permitted");
+    }
+    if (/`|\$\(|;\s|\s;|&&|\|\||\|\s|\s\|/.test(command)) {
+      throw new SandboxSecurityError(
+        "COMMAND_CHAINING_BLOCKED",
+        `Command chaining / substitution metacharacters are not permitted: ${command}`,
+      );
+    }
+
+    const tokens = command.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) {
+      throw new SandboxSecurityError("INVALID_COMMAND", "Command must contain at least one token");
+    }
+    const binaryName = tokens[0].replace(/^.*[/\\]/, "").toLowerCase().replace(/\.exe$/, "");
+
+    // Nested shells: shell.exec is already the sanctioned shell surface, so a
+    // target that is itself a shell only exists to re-parse unchecked input.
+    if (this.SHELL_INTERPRETERS.has(binaryName)) {
+      throw new SandboxSecurityError(
+        "SHELL_INTERPRETER_BLOCKED",
+        `Nested shell interpreter '${tokens[0]}' is not permitted; use shell.exec argv directly`,
+      );
+    }
+
+    // Code-carrying flags on interpreted runtimes (obfuscated/encoded payloads).
+    if (this.INTERPRETED_RUNTIMES.has(binaryName)) {
+      for (const token of tokens.slice(1)) {
+        const flag = token.toLowerCase();
+        if (this.INTERPRETED_CODE_FLAGS.has(flag) || this.INTERPRETED_CODE_FLAGS.has(flag.replace(/\.exe$/, ""))) {
+          throw new SandboxSecurityError(
+            "ENCODED_EXECUTION_BLOCKED",
+            `Code-carrying flag '${token}' on '${binaryName}' is not permitted; run a script file instead`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Scrubs API keys, passwords, and private tokens from arbitrary text
+   * (error messages, stderr excerpts, audit details) before it is persisted
+   * or returned to a caller.
+   */
+  public static redactSecrets(text: string): string {
+    let redacted = text;
+    for (const pattern of this.SECRET_PATTERNS) {
+      redacted = redacted.replace(pattern, "[REDACTED]");
+    }
+    return redacted;
   }
 
   /**

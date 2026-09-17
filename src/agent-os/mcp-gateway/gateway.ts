@@ -6,6 +6,8 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { openAgentOsDb } from "../db";
 import { ToolExecutionSandbox, SandboxSecurityError } from "./sandbox";
+import { getSensorimotorService } from "../sensorimotor/service";
+import { createSensorimotorMcpTools } from "../sensorimotor/mcp-tools";
 import type {
   McpServerDefinition,
   McpToolDefinition,
@@ -213,6 +215,34 @@ export class McpToolGateway {
       approvalRequired: true, // MANDATORY APPROVAL
       enabled: true,
     });
+
+    // Phase 20.82: register sensorimotor AFT tools
+    this.registerServer({
+      id: "aft_sensorimotor",
+      name: "CortexKit AFT Sensorimotor Runtime",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const service = getSensorimotorService();
+      const aftTools = createSensorimotorMcpTools(service);
+      for (const tool of aftTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "aft_sensorimotor",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Sensorimotor DB may not be initialized in all environments;
+      // tools remain unregistered until the runtime is ready.
+    }
   }
 
   private recordAudit(

@@ -94,6 +94,7 @@ export async function handleSensorimotorRoutes(ctx: ManagementContext): Promise<
         destination: typeof body.destination === "string" ? body.destination : undefined,
         timeoutMs: typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,
         maxAttempts: typeof body.maxAttempts === "number" ? Math.min(body.maxAttempts, 5) : undefined,
+        idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey.slice(0, 128) : undefined,
       });
       return jsonResponse({ ok: outcome.status === "succeeded", outcome }, 200, req, {});
     }
@@ -105,7 +106,61 @@ export async function handleSensorimotorRoutes(ctx: ManagementContext): Promise<
       return jsonResponse({ ok: true, outcome }, 200, req, {});
     }
 
-    // 7. POST /api/agent-os/sensorimotor/sessions/{id}/close
+    // 7. POST /api/agent-os/sensorimotor/perceive — workspace perception
+    if (req.method === "POST" && pathname === "/api/agent-os/sensorimotor/perceive") {
+      const body = await readJson(req);
+      const sessionId = String(body.sessionId ?? "").trim();
+      if (!sessionId) {
+        return jsonResponse({ error: { code: "INVALID_REQUEST", message: "sessionId is required" } }, 400, req, {});
+      }
+      const kind = body.kind === "symbols" ? "symbols" : "tree";
+      const maxFiles = typeof body.maxFiles === "number" ? body.maxFiles : undefined;
+      const perception = service.perceive(sessionId, kind as "tree" | "symbols", maxFiles);
+      return jsonResponse({
+        ok: true,
+        perception: {
+          perceptionId: perception.perceptionId,
+          sessionId: perception.sessionId,
+          kind: perception.kind,
+          fileCount: perception.fileCount,
+          symbolCount: perception.symbolCount,
+          contentHash: perception.contentHash,
+        },
+      }, 200, req, {});
+    }
+
+    // 8. GET /api/agent-os/sensorimotor/perceptions/{id} — retrieve stored perception
+    if (req.method === "GET" && pathname.startsWith("/api/agent-os/sensorimotor/perceptions/")) {
+      const perceptionId = pathname.slice("/api/agent-os/sensorimotor/perceptions/".length);
+      const perception = service.getPerception(perceptionId);
+      return jsonResponse({ ok: true, perception }, 200, req, {});
+    }
+
+    // 9. GET /api/agent-os/sensorimotor/readiness — component readiness matrix.
+    // Core components (runtime, policy engine, checkpoint store, audit) drive
+    // ok; optional external dependencies (OmniRoute, TypeSafe Jev) report
+    // degraded with structured reasons WITHOUT flipping the overall state.
+    if (req.method === "GET" && pathname === "/api/agent-os/sensorimotor/readiness") {
+      const readiness = await service.readiness();
+      // MCP surface check — same registration the MCP gateway exposes, so the
+      // readiness report cannot drift from what tools actually exist.
+      let aftToolCount = -1;
+      try {
+        const { getMcpToolGateway } = await import("../../agent-os/mcp-gateway/gateway");
+        aftToolCount = getMcpToolGateway().listTools().filter((t) => t.name.startsWith("pao.aft.")).length;
+      } catch {
+        aftToolCount = -1; // MCP gateway not initialized in this environment
+      }
+      return jsonResponse({
+        ...readiness,
+        mcp: aftToolCount >= 0
+          ? { status: aftToolCount > 0 ? "ok" : "degraded", detail: `${aftToolCount} AFT tools registered`, toolCount: aftToolCount }
+          : { status: "degraded", detail: "MCP tool gateway not initialized in this process", toolCount: null },
+        managementApi: { status: "ok", detail: "management route handler reached" },
+      }, 200, req, {});
+    }
+
+    // 10. POST /api/agent-os/sensorimotor/sessions/{id}/close
     if (req.method === "POST" && pathname.startsWith("/api/agent-os/sensorimotor/sessions/") && pathname.endsWith("/close")) {
       const sessionId = pathname.slice("/api/agent-os/sensorimotor/sessions/".length, -"/close".length);
       const body = await readJson(req);

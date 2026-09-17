@@ -11,6 +11,7 @@ import { BudgetGovernanceEngine, BudgetPolicyError } from "./budget";
 import { CircuitBreakerEngine } from "./circuits";
 import { DirectGatewayAdapter } from "./adapters/direct";
 import { OmniRouteGatewayAdapter } from "./adapters/omniroute";
+import { validateJevReadiness, type JevReadinessReport } from "../decision/provider-mode";
 import type {
   FailureClass,
   GatewayHealth,
@@ -19,6 +20,27 @@ import type {
   PolicyEnvelope,
   RouteAttempt,
 } from "./types";
+
+export interface OmniRouteDoctorProbe {
+  attempted: boolean;
+  ok: boolean;
+  latencyMs: number | null;
+  adapter: string | null;
+  error: string | null;
+}
+
+export interface GatewayDoctorReport {
+  verdict: "ready" | "degraded" | "unavailable";
+  omniroute: {
+    enabled: boolean;
+    configValid: boolean;
+    connection: Awaited<ReturnType<OmniRouteGatewayAdapter["connectionHealth"]>> | null;
+    liveProbe: OmniRouteDoctorProbe;
+    openCircuits: string[];
+  };
+  jev: JevReadinessReport;
+  directFallback: { available: boolean; detail: string };
+}
 
 export interface GatewayOptions {
   omnirouteEnabled?: boolean;
@@ -290,6 +312,89 @@ export class PaoModelGateway {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Live-validation report for the operator ("ocx gateway doctor"). Diagnoses
+   * the OmniRoute daemon link (config → fresh probe → optional one-shot live
+   * completion round-trip) and the TypeSafe Jev activation stages, with an
+   * honest verdict. Never fabricates success: an unreachable daemon or an
+   * unbound Jev schema is reported as exactly that, with the remediation.
+   * This method never throws for expected degraded states — it throws only on
+   * internal errors.
+   */
+  public async doctor(options?: { probe?: boolean }): Promise<GatewayDoctorReport> {
+    // 1. OmniRoute — fresh probe (bypasses the TTL cache: doctor is the
+    // operator's explicit "check right now" action).
+    const connection = this.omnirouteEnabled ? await this.omnirouteAdapter.connectionHealth(true) : null;
+
+    let liveProbe: OmniRouteDoctorProbe = { attempted: false, ok: false, latencyMs: null, adapter: null, error: null };
+    if (options?.probe && this.omnirouteEnabled && connection?.status === "connected") {
+      const probeRequest: GatewayRequest = {
+        requestId: `doctor_${Date.now().toString(36)}`,
+        actorId: "ocx-doctor",
+        taskType: "chat",
+        prompt: "reply with the single word: pong",
+        runtime: { temperature: 0 },
+        policy: { routeGroup: "coding-cheap" },
+        capabilityRequirements: ["coding"],
+      };
+      const started = performance.now();
+      try {
+        const model = this.registry.listModels().find((m) => !m.isLocal) ?? this.registry.listModels()[0];
+        if (!model) throw new Error("registry has no models to probe");
+        const envelope = this.envelopeBuilder.build(probeRequest);
+        const result = await this.omnirouteAdapter.executeCandidate(model.id, probeRequest, envelope);
+        liveProbe = {
+          attempted: true,
+          ok: true,
+          latencyMs: Math.max(Math.round(performance.now() - started), 1),
+          adapter: `${model.providerId}/${model.modelName}`,
+          error: result.output ? null : "empty completion body",
+        };
+      } catch (err) {
+        liveProbe = {
+          attempted: true,
+          ok: false,
+          latencyMs: Math.max(Math.round(performance.now() - started), 1),
+          adapter: null,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
+
+    const openCircuits = this.circuitBreaker
+      .listCircuits()
+      .filter((c) => c.state === "open")
+      .map((c) => c.provider);
+
+    // 2. TypeSafe Jev — staged activation report (no network I/O).
+    const jev = validateJevReadiness();
+
+    // 3. Verdict: degraded-not-dead semantics. The gateway itself is usable
+    // whenever the direct adapter can serve; OmniRoute/Jev gaps degrade it.
+    const directFallback = { available: true, detail: "in-process DirectGatewayAdapter is always constructible and serves approved local + cloud routes without the daemon" };
+    const omnirouteHealthy = !this.omnirouteEnabled || (connection?.status === "connected" && (!liveProbe.attempted || liveProbe.ok));
+    const jevHealthy = jev.mode === "simulated" || jev.realAvailable || jev.mode === "disabled";
+    const verdict: GatewayDoctorReport["verdict"] =
+      omnirouteHealthy && jevHealthy
+        ? "ready"
+        : directFallback.available
+          ? "degraded"
+          : "unavailable";
+
+    return {
+      verdict,
+      omniroute: {
+        enabled: this.omnirouteEnabled,
+        configValid: true, // constructor throws on invalid config, so a constructed gateway is config-valid
+        connection,
+        liveProbe,
+        openCircuits,
+      },
+      jev,
+      directFallback,
+    };
   }
 
   public async health(): Promise<GatewayHealth> {

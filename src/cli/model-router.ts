@@ -14,15 +14,51 @@ import { getModelGateway } from "../agent-os/model-gateway/gateway";
 
 export const USAGE = `Usage:
   ocx gateway status [--json]
+  ocx gateway doctor [--probe] [--json]
   ocx gateway routes [--json]
   ocx gateway models [--json]
-  ocx gateway circuits [--reset <provider>] [--json]`;
+  ocx gateway circuits [--reset <provider>] [--json]
+
+  doctor performs a live-validation pass of the OmniRoute daemon link
+  (config, fresh connection probe, optional --probe one-shot completion
+  round-trip) and the TypeSafe Jev activation stages. Degraded states are
+  reported honestly (exit 0): "daemon offline" is a valid diagnostic
+  outcome, not an error.`;
 
 async function runModelRouterCommand(argv: string[], deps: RuntimeApiDeps): Promise<void> {
   const args = [...argv];
   const subcommand = args[0] && !args[0].startsWith("-") ? args.shift()! : "status";
   const json = takeFlag(args, "--json");
   const gateway = getModelGateway();
+
+  if (subcommand === "doctor") {
+    const probe = takeFlag(args, "--probe");
+    rejectArgs(args, USAGE);
+    const report = await gateway.doctor({ probe });
+    printData(report, json, [
+      "--- Pao-hubPro Gateway Doctor ---",
+      "Verdict:           " + report.verdict.toUpperCase(),
+      "OmniRoute:         " + (report.omniroute.enabled ? "enabled" : "disabled (direct adapter active)")
+        + (report.omniroute.connection
+          ? " | " + report.omniroute.connection.status
+            + (report.omniroute.connection.latencyMs !== null ? " (" + report.omniroute.connection.latencyMs + "ms)" : "")
+            + (report.omniroute.connection.error ? " | " + report.omniroute.connection.error : "")
+          : ""),
+      "Live Probe:        " + (report.omniroute.liveProbe.attempted
+        ? (report.omniroute.liveProbe.ok
+          ? "ok via " + report.omniroute.liveProbe.adapter + " in " + report.omniroute.liveProbe.latencyMs + "ms"
+          : "FAILED: " + report.omniroute.liveProbe.error)
+        : "not attempted (use --probe; requires a connected daemon)"),
+      "Open Circuits:     " + (report.omniroute.openCircuits.length > 0 ? report.omniroute.openCircuits.join(", ") : "none"),
+      "Direct Fallback:   " + (report.directFallback.available ? "available (gateway keeps serving while degraded)" : "unavailable"),
+      "Jev Mode:          " + report.jev.mode.toUpperCase() + " | realAvailable: " + String(report.jev.realAvailable),
+      ...report.jev.checks.map((c) =>
+        "  [" + c.status.toUpperCase().padEnd(12) + "] " + c.id + ": " + c.detail,
+      ),
+      "Jev Next Action:   " + (report.jev.nextAction ?? "none — configuration complete"),
+    ]);
+    return;
+  }
 
   if (subcommand === "status") {
     rejectArgs(args, USAGE);

@@ -166,6 +166,13 @@ local-only execution; it does not mean the runtime is dead.
 - Connection probe: `GET {base}/healthz`, cached for
   `PAO_OMNIROUTE_HEALTH_TTL_MS` (15 s default); readiness checks never hammer
   the daemon.
+- **Fast-fail:** a fresh cached probe that already said `unreachable`
+  short-circuits the next request into a structured failure — the gateway
+  falls back to the direct adapter immediately instead of paying connect +
+  retry costs against a daemon known to be down. A stale/absent cache always
+  attempts for real (the first request after an outage is the probe), and a
+  successful request marks the cache connected so recovery is immediate.
+  Set `PAO_OMNIROUTE_FAST_FAIL=false` to always attempt.
 - `executeCandidate`: per-request timeout `PAO_OMNIROUTE_TIMEOUT_MS` (30 s
   default), bounded retry `PAO_OMNIROUTE_RETRY_MAX` (2) with exponential
   backoff (200 ms → 2 s cap), honoring `Retry-After` (≤5 s) on 429. Only
@@ -181,6 +188,12 @@ local-only execution; it does not mean the runtime is dead.
   join on one correlation id.
 - Base URL: http/https only; credentials in the URL are rejected at
   construction (the API key travels only via `Authorization`).
+- **Exact live-validation command (run once a daemon is deployed):**
+  `ocx gateway doctor --probe` — performs a fresh connection probe plus a
+  one-shot completion round-trip and prints verdict + structured reasons.
+  Expected output for a healthy deployment: `Verdict: READY`, `Live Probe: ok
+  via <provider/model>`. A `DEGRADED` verdict with the daemon's exact error is
+  an honest diagnostic, not a failure of the command (exit 0 either way).
 
 ### Phase 20.84 TypeSafe Jev (`PAO_JEV_PROVIDER`, `TYPESAFE_API_KEY`)
 
@@ -197,6 +210,17 @@ local-only execution; it does not mean the runtime is dead.
 - Unknown `PAO_JEV_PROVIDER` values fail startup validation loudly. The
   credential is read from the environment only; the only shape that ever
   reaches diagnostics is a last-4 hint (`***x9x9`).
+- **Staged activation report:** `validateJevReadiness()` (exposed via
+  `ocx gateway doctor` and MCP `pao.decision.jev-status`) walks the four
+  stages — mode → credential → schema → transport — reporting each as
+  pass/fail/not-required with the exact remediation for the first blocker.
+- **Exact live-validation command (run once TypeSafe early access is
+  granted):** (1) set `TYPESAFE_API_KEY` in the private environment;
+  (2) call `bindJevSchema({ name, version })` with the official schema at
+  startup; (3) set `PAO_JEV_PROVIDER=real` and restart; (4) run
+  `ocx gateway doctor` — the Jev section must show every stage PASS and
+  `realAvailable: true`. Until then the staged report honestly names the
+  blocking stage; no substitute wire protocol exists or will be fabricated.
 
 ## 9. Configuration contract
 

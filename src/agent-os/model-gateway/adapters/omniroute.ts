@@ -73,6 +73,13 @@ export interface OmniRouteAdapterConfig {
   retryMax?: number;
   /** Health probe cache TTL (ms). */
   healthTtlMs?: number;
+  /**
+   * When true (default), a FRESH cached unreachable probe short-circuits
+   * executeCandidate into a structured failure without a network attempt.
+   * The gateway then falls back to the direct adapter immediately instead of
+   * paying the full connect/retry cost against a daemon known to be down.
+   */
+  fastFailOnUnreachable?: boolean;
 }
 
 function envInt(name: string, fallback: number): number {
@@ -88,6 +95,7 @@ export class OmniRouteGatewayAdapter {
   private timeoutMs: number;
   private retryMax: number;
   private healthTtlMs: number;
+  private fastFailOnUnreachable: boolean;
   private healthCache: { value: OmniRouteConnectionHealth; expiresAt: number } | null = null;
 
   constructor(
@@ -100,6 +108,8 @@ export class OmniRouteGatewayAdapter {
     this.timeoutMs = config?.timeoutMs || envInt("PAO_OMNIROUTE_TIMEOUT_MS", 30000);
     this.retryMax = config?.retryMax ?? envInt("PAO_OMNIROUTE_RETRY_MAX", 2);
     this.healthTtlMs = config?.healthTtlMs ?? envInt("PAO_OMNIROUTE_HEALTH_TTL_MS", 15000);
+    const rawFastFail = process.env.PAO_OMNIROUTE_FAST_FAIL;
+    this.fastFailOnUnreachable = config?.fastFailOnUnreachable ?? rawFastFail !== "false";
     this.assertValidBaseUrl(this.baseUrl);
   }
 
@@ -177,12 +187,42 @@ export class OmniRouteGatewayAdapter {
       (request as unknown as { traceId?: string }).traceId ||
       request.requestId ||
       crypto.randomUUID();
+
+    // Fast-fail: a FRESH cached probe that already said "unreachable" means
+    // the daemon is known-down within this TTL window. Failing structured
+    // here (never throwing raw, never faking success) lets the gateway fall
+    // back to the direct adapter immediately instead of paying connect +
+    // retry costs against a dead endpoint. A stale/absent cache always
+    // attempts for real — the first request after an outage is the probe.
+    if (this.fastFailOnUnreachable) {
+      const cached = this.healthCache && this.healthCache.expiresAt > Date.now()
+        ? this.healthCache.value
+        : null;
+      if (cached?.status === "unreachable") {
+        throw new OmniRouteFailure({
+          message: `OmniRoute daemon known-unreachable (cached probe ${cached.checkedAt}): ${cached.error ?? "no detail"}`,
+          failureClass: "provider_unavailable",
+          providerId: model.providerId,
+          modelName: model.modelName,
+          correlationId,
+          attempt: 0,
+        });
+      }
+    }
+
     const maxAttempts = this.retryMax + 1;
     let lastFailure: OmniRouteFailure | null = null;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.executeOnce(model, request, envelope, correlationId, attempt);
+        const result = await this.executeOnce(model, request, envelope, correlationId, attempt);
+        // Success also refreshes the health cache so a recovered daemon
+        // stops fast-failing before the TTL would have re-probed.
+        this.healthCache = {
+          value: { status: "connected", baseUrl: this.baseUrl, checkedAt: new Date().toISOString(), latencyMs: null, error: null },
+          expiresAt: Date.now() + this.healthTtlMs,
+        };
+        return result;
       } catch (err) {
         lastFailure = err instanceof OmniRouteFailure
           ? err
@@ -196,6 +236,14 @@ export class OmniRouteGatewayAdapter {
             });
         // Structured failure reasons must never carry the API key.
         lastFailure.message = this.redact(lastFailure.message);
+        // Negative-cache connection-level failures so subsequent calls
+        // fast-fail until the TTL re-probes the daemon.
+        if (lastFailure.failureClass === "provider_unavailable" || lastFailure.failureClass === "timeout") {
+          this.healthCache = {
+            value: { status: "unreachable", baseUrl: this.baseUrl, checkedAt: new Date().toISOString(), latencyMs: null, error: lastFailure.message },
+            expiresAt: Date.now() + this.healthTtlMs,
+          };
+        }
         const retryable = lastFailure.retryable && attempt < maxAttempts;
         if (!retryable) break;
         // Bounded exponential backoff; rate_limit honors Retry-After (capped).

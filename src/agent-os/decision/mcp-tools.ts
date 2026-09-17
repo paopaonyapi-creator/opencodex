@@ -6,6 +6,7 @@
 // NOT exposed here — operators use the management API instead).
 
 import { getDecisionEngine } from "./engine";
+import { describeJevIntegration, validateJevReadiness } from "./provider-mode";
 import type { DecisionRequest } from "./types";
 
 export interface DecisionMcpTool {
@@ -86,6 +87,19 @@ export function createDecisionMcpTools(): DecisionMcpTool[] {
           calibration: result.calibration,
         };
       },
+    },
+    {
+      name: "pao.decision.jev-status",
+      description:
+        "Report the TypeSafe Jev integration state (Phase 20.84/20.82): active provider mode, staged activation checks " +
+        "(mode → credential → schema → transport), real availability, and the exact next action to go live. " +
+        "Read-only; never exposes the credential (last-4 hint at most).",
+      riskTier: "R0",
+      parameters: { type: "object", properties: {} },
+      handler: async () => ({
+        ...validateJevReadiness(),
+        describe: describeJevIntegration(),
+      }),
     },
   ];
 }

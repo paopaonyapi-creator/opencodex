@@ -147,6 +147,94 @@ export function describeJevIntegration(env: Record<string, string | undefined> =
   };
 }
 
+export interface JevReadinessCheck {
+  id: "mode" | "credential" | "schema" | "transport";
+  status: "pass" | "fail" | "not_required";
+  detail: string;
+}
+
+export interface JevReadinessReport {
+  mode: JevProviderMode;
+  checks: JevReadinessCheck[];
+  realAvailable: boolean;
+  /** Exact remediation for the first failing check, or null when nothing is pending. */
+  nextAction: string | null;
+}
+
+/**
+ * Staged live-validation report for the TypeSafe Jev integration. This is the
+ * honest operator surface: it names exactly which stage blocks real-Jev
+ * activation (mode → credential → schema → transport) and the exact remedial
+ * action, without ever echoing the credential itself or inventing a wire
+ * protocol. No check here performs network I/O.
+ */
+export function validateJevReadiness(env: Record<string, string | undefined> = process.env): JevReadinessReport {
+  const config = resolveJevConfiguration(env);
+  const checks: JevReadinessCheck[] = [];
+
+  if (config.mode === "disabled") {
+    return {
+      mode: config.mode,
+      checks: [{ id: "mode", status: "pass", detail: "PAO_JEV_PROVIDER=disabled — Jev intentionally not used; deterministic provider answers" }],
+      realAvailable: false,
+      nextAction: null,
+    };
+  }
+
+  checks.push({ id: "mode", status: "pass", detail: `PAO_JEV_PROVIDER=${config.mode} is a valid mode` });
+
+  if (config.mode === "simulated") {
+    checks.push(
+      { id: "credential", status: "not_required", detail: "credential not required for the calibrated simulation backend" },
+      { id: "schema", status: "not_required", detail: "official schema not required for the simulation backend" },
+      { id: "transport", status: "not_required", detail: "simulation runs in-process; no transport involved" },
+    );
+    return {
+      mode: config.mode,
+      checks,
+      realAvailable: false,
+      nextAction: config.realAvailable
+        ? null
+        : "to activate real Jev: set PAO_JEV_PROVIDER=real, provide TYPESAFE_API_KEY in the private environment, and bind the official schema via bindJevSchema()",
+    };
+  }
+
+  // real mode — every stage must pass for realAvailable, and each failure
+  // carries its exact remediation. No stage may be silently skipped.
+  checks.push({
+    id: "credential",
+    status: config.credentialPresent ? "pass" : "fail",
+    detail: config.credentialPresent
+      ? `TYPESAFE_API_KEY present (hint ${config.credentialHint})`
+      : "TYPESAFE_API_KEY missing — credentials resolve from the environment only",
+  });
+  checks.push({
+    id: "schema",
+    status: config.schemaBound ? "pass" : "fail",
+    detail: config.schemaBound
+      ? `official schema bound: ${boundSchema!.name}@${boundSchema!.version}`
+      : "official TypeSafe request/response schema not bound — nothing in this repository fabricates one",
+  });
+  checks.push({
+    id: "transport",
+    status: "fail",
+    detail: "real transport ships with the TypeSafe early-access enablement; refusing to fake a wire protocol",
+  });
+
+  const firstFail = checks.find((c) => c.status === "fail");
+  const nextAction = firstFail?.id === "credential"
+    ? "set TYPESAFE_API_KEY in your private environment (never in source or .env.example) and restart"
+    : firstFail?.id === "schema"
+      ? "obtain the official TypeSafe early-access schema and call bindJevSchema({ name, version }) at startup, then restart"
+      : "await TypeSafe early-access transport enablement; the adapter contract, health, and degraded fallback are already implemented and tested";
+  return {
+    mode: config.mode,
+    checks,
+    realAvailable: false,
+    nextAction,
+  };
+}
+
 /**
  * The real TypeSafe Jev provider. It never invents a wire protocol: with no
  * credential or no bound schema it refuses with a structured

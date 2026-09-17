@@ -738,6 +738,10 @@ const commandRunners: Record<string, CommandRunner> = {
     const { handleStock } = await import("./stock");
     return await handleStock(deps.args.slice(1));
   },
+  gateway: async deps => {
+    const { handleModelRouter } = await import("./model-router");
+    return await handleModelRouter(deps.args.slice(1));
+  },
   help: async () => {
     printUsage();
     return 0;

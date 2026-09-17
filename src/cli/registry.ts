@@ -283,6 +283,17 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
     ],
   },
   {
+    name: "gateway",
+    usage: "ocx gateway <status|routes|models|circuits> [--reset <provider>] [--json]",
+    summary: "Phase 20.85 OmniRoute unified model gateway and inference router. Route groups, model capabilities, and circuits.",
+    details: [
+      "`ocx gateway status` inspects gateway health, active adapter mode, and circuit state.",
+      "`ocx gateway routes` lists active route groups and candidate priority chains.",
+      "`ocx gateway models` displays approved model catalog, pricing, and context limits.",
+      "`ocx gateway circuits [--reset <provider>]` displays or resets provider circuit breakers.",
+    ],
+  },
+  {
     name: "export",
     usage: "ocx export --client <opencode|pi|omp|hermes|openclaw|kimi|gajae|dsh|mcode|zcode|prime> [--json] [--out <path>] [--force]",
     summary: "Print a client config (OpenCode, Pi, OMP, Hermes, OpenClaw, Kimi Code, Gajae Code, DeepSeek Harness, MiniMax Code, ZCode, Prime Agent) wired to the running proxy.",

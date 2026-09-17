@@ -71,7 +71,7 @@ export class FakeOpenPost implements OpenPostTransport {
   readonly calls: string[] = [];
   readonly workspaces = [{ id: "ws-1", name: "Pao Workspace", role: "admin" }];
   accounts: FakeAccount[] = [
-    { id: "acc-1", platform: "mastodon", username: "pao@social.example", is_active: true },
+    { id: "acc-1", platform: "mastodon", username: "pao@social.test", is_active: true },
     { id: "acc-2", platform: "tiktok", username: "paohup", is_active: true },
     { id: "acc-3", platform: "instagram", username: "pao.hub", is_active: false },
   ];

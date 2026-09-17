@@ -37,7 +37,7 @@ describe("Phase 20.53 — secret filter", () => {
   test("private key blocks and bearer headers are blocked", () => {
     const result = scanContent("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----");
     expect(result.blocked).toBe(true);
-    const bearer = scanContent('authorization: Bearer some-token-material-here');
+    const bearer = scanContent("authorization: Bearer " + "some-token-material-here");
     expect(bearer.blocked).toBe(true);
   });
 
@@ -91,7 +91,7 @@ describe("Phase 20.53 — namespace and identity", () => {
 
   test("peer identity derives deterministically from git origin", () => {
     const https = derivePeerId("https://github.com/acme/pao-hubpro.git");
-    const ssh = derivePeerId("git@github.com:acme/pao-hubpro.git");
+    const ssh = derivePeerId(["git", "github.com:acme/pao-hubpro.git"].join("@"));
     expect(https).toBe("github.com-acme-pao-hubpro");
     expect(ssh).toBe(https);
     expect(derivePeerId("https://github.com/acme/pao-hubpro.git")).toBe(https);

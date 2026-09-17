@@ -75,7 +75,7 @@ function fixtureRepo(): string {
   writeFileSync(join(dir, "secrets", "vault.txt"), "internal\n");
   writeFileSync(join(dir, "server.pem"), "-----BEGIN FAKE-----\n");
   execSync("git init -q", { cwd: dir });
-  execSync('git -c user.email=t@e.com -c user.name=t add -A && git -c user.email=t@e.com -c user.name=t commit -q -m init', { cwd: dir });
+  execSync('git -c user.email=tester@example.test -c user.name=t add -A && git -c user.email=tester@example.test -c user.name=t commit -q -m init', { cwd: dir });
   return dir;
 }
 

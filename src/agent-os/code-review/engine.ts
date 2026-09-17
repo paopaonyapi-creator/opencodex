@@ -195,11 +195,20 @@ export function normalizeFindings(sessionId: string, raw: RawFinding[]): ReviewF
  * Deterministic quality gate (§36). Evaluation order is the blueprint's:
  * block → require_fix → human_approval → warn → pass. A failed review can
  * never become PASS because failures never reach this function as findings.
+ *
+ * Consensus rule (§33-34): `needs_context` findings are uncorroborated
+ * delegated claims — they can send the change to HUMAN_APPROVAL but can
+ * never harden the gate to BLOCK or REQUIRE_FIX on their own.
  */
 export function evaluateGate(findings: ReviewFinding[], protectedPathChanged: boolean): GateResult {
   const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  let needsContext = 0;
   for (const finding of findings) {
     if (finding.status === "rejected" || finding.status === "duplicate") continue;
+    if (finding.status === "needs_context") {
+      needsContext += 1;
+      continue;
+    }
     if (finding.severity === "CRITICAL") counts.critical += 1;
     else if (finding.severity === "HIGH") counts.high += 1;
     else if (finding.severity === "MEDIUM") counts.medium += 1;
@@ -214,6 +223,10 @@ export function evaluateGate(findings: ReviewFinding[], protectedPathChanged: bo
   if (counts.high > 0) {
     reasons.push(counts.high + " confirmed high finding(s)");
     return { gate: "REQUIRE_FIX", counts, reasons };
+  }
+  if (needsContext > 0) {
+    reasons.push(needsContext + " uncorroborated delegated finding(s) require human review");
+    return { gate: "HUMAN_APPROVAL", counts, reasons };
   }
   if (protectedPathChanged) {
     reasons.push("protected path changed; human approval required");

@@ -14,6 +14,7 @@ import { runGit } from "../council/git-safety";
 import { captureDiff, assertSafeRef, type CapturedDiff } from "./capture";
 import {
   DETERMINISTIC_ENGINE_ID,
+  activeRuleIds,
   buildReviewUnits,
   collectRawFindings,
   estimateTokenBudget,
@@ -24,7 +25,13 @@ import {
 } from "./engine";
 import { REVIEW_POLICY_VERSION, changeSetRisk } from "./rules";
 import {
+  boundedExcerpts,
+  mergeDelegatedFindings,
+  type ReviewProvider,
+} from "./reviewer";
+import {
   ReviewError,
+  type FindingSource,
   type GateResult,
   type ReviewFinding,
   type ReviewPreview,
@@ -54,6 +61,9 @@ interface SessionRow {
   requested_by: string;
   created_at: string;
   completed_at: string | null;
+  parent_session_id: string | null;
+  revision: number;
+  delegated_findings: number;
 }
 
 function rowToSession(row: SessionRow): ReviewSessionRecord {
@@ -78,6 +88,9 @@ function rowToSession(row: SessionRow): ReviewSessionRecord {
     requestedBy: row.requested_by,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+    parentSessionId: row.parent_session_id,
+    revision: row.revision,
+    delegatedFindings: row.delegated_findings,
   };
 }
 
@@ -98,6 +111,13 @@ function findGateRow(rows: unknown[]): GateRow | undefined {
 }
 
 export class CodeReviewService {
+  private provider: ReviewProvider | null = null;
+
+  /** Register the delegated reviewer used when a request opts into delegation. */
+  registerReviewProvider(provider: ReviewProvider): void {
+    this.provider = provider;
+  }
+
   private db() {
     return openAgentOsDb();
   }
@@ -160,17 +180,58 @@ export class CodeReviewService {
       const owner = units.find((unit) => unit.files.includes(finding.location.path));
       finding.unitId = owner?.unitId ?? units[0]?.unitId ?? "ru_000";
     }
+
+    // Delegated review (opt-in): a bounded LLM pass over the same units.
+    // Skipped fail-closed when no provider is registered/available; a
+    // provider error degrades to deterministic-only and is never faked.
+    let delegatedCount = 0;
+    if (request.delegate && this.provider) {
+      try {
+        if (await this.provider.available()) {
+          const excerpts = boundedExcerpts(selected.map((f) => ({ path: f.path, diff: f.diff })));
+          const output = await this.provider.review({
+            sessionId,
+            units,
+            excerpts,
+            rules: activeRuleIds(),
+            deterministicFindings: findings,
+          });
+          const knownPaths = new Set(selected.map((f) => f.path));
+          const delegated = mergeDelegatedFindings(sessionId, output, knownPaths);
+          for (const finding of delegated) {
+            const owner = units.find((unit) => unit.files.includes(finding.location.path));
+            finding.unitId = owner?.unitId ?? units[0]?.unitId ?? "ru_000";
+          }
+          findings.push(...delegated);
+          delegatedCount = delegated.length;
+        }
+      } catch {
+        // Deterministic gate stands on its own; delegation is additive.
+      }
+    }
+
     const protectedPathChanged = captured.files.some((f) => f.protectedPath);
     const gate = evaluateGate(findings, protectedPathChanged);
 
+    // Revision lineage: a re-review of the same change target with a new
+    // diff chains to the previous session (§46 — rev_001:r1 → r2 → …).
+    const priorForTarget = findRow(
+      this.db()
+        .query("SELECT * FROM cr_sessions WHERE repository_path = ? AND mode = ? AND status = 'completed' AND diff_hash <> ? ORDER BY created_at DESC LIMIT 1")
+        .all(captured.repositoryPath, request.mode, captured.diffHash),
+    );
+    const parentSessionId = priorForTarget?.id ?? null;
+    const revision = (priorForTarget?.revision ?? 0) + 1;
+
     const insertSession = this.db().query(
-      "INSERT INTO cr_sessions (id, repository_path, mode, from_ref, to_ref, commit_sha, head_sha, diff_hash, status, gate, critical_count, high_count, medium_count, protected_path_changed, policy_version, rule_hash, error_code, requested_by, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",
+      "INSERT INTO cr_sessions (id, repository_path, mode, from_ref, to_ref, commit_sha, head_sha, diff_hash, status, gate, critical_count, high_count, medium_count, protected_path_changed, policy_version, rule_hash, error_code, requested_by, created_at, completed_at, parent_session_id, revision, delegated_findings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)",
     );
     insertSession.run(
       sessionId, captured.repositoryPath, request.mode, request.from ?? null, request.to ?? null,
       request.commit ?? null, captured.headSha, captured.diffHash, gate.gate,
       gate.counts.critical, gate.counts.high, gate.counts.medium, protectedPathChanged ? 1 : 0,
       REVIEW_POLICY_VERSION, ruleRegistryHash(), request.requestedBy, now, now,
+      parentSessionId, revision, delegatedCount,
     );
     const insertFinding = this.db().query(
       "INSERT INTO cr_findings (id, session_id, unit_id, path, start_line, end_line, category, subcategory, severity, confidence, title, description, evidence, suggestion, status, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -209,7 +270,7 @@ export class CodeReviewService {
         findingId: String(row.id).split("_").slice(0, 2).join("_"),
         sessionId: String(row.session_id),
         unitId: String(row.unit_id ?? ""),
-        source: "deterministic" as const,
+        source: String(row.source) as FindingSource,
         location: { path: String(row.path), startLine: Number(row.start_line), endLine: Number(row.end_line) },
         category: String(row.category),
         subcategory: row.subcategory === null ? undefined : String(row.subcategory),

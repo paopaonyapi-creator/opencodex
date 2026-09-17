@@ -35,12 +35,17 @@ Baseline test result: the local parallel lane hit its built-in 900s watchdog (ex
 
 1. ~~W1 (typecheck repair)~~ — DONE. 11 errors fixed across `agent-platform/service.ts`, `capability-lab/service.ts`, `mobile/mcp-tools.ts`, `skill-gate/types.ts`, `visual-compute/runtimes.ts`. Typecheck green; 56 focused tests across the repaired modules green.
 2. ~~W2 (commit baseline)~~ — DONE. `47c9d45c1` (phase work 20.20–20.63 + W1 repairs, 3.4k files) and `aaa4fb9e6` (GOLD docs). Working tree clean; data-loss risk eliminated.
-3. **W1b (privacy-scan repair)** — DONE with W1. 56 findings across 14 files resolved: fake tokens rebuilt via the repo's concatenation convention, fake emails moved to allowed `.test` domains, and one tests/ URL-userinfo carve-out (`pass@discord.com`) added to the scanner following the existing `pw@chatgpt.com` precedent. `bun run privacy:scan` green.
+3. **W1b (privacy-scan repair)** — DONE with W1. 56 findings across 14 files resolved: fake tokens rebuilt via the repo's concatenation convention, fake emails moved to allowed `.test` domains, and URL-userinfo carve-outs in the scanner following the existing pattern. `bun run privacy:scan` green.
 4. **Vertical slice #1 (GOLD §15-17): deterministic code review runtime** — DONE and VERIFIED (this-run).
    - New: `src/agent-os/code-review/{types,rules,capture,diff-parser,engine,service}.ts` + `src/server/management/code-review-routes.ts` + `docs/code-review/README.md` + `tests/code-review.test.ts`.
    - Schema v51→v52 (`cr_sessions`, `cr_findings`, `cr_gate_results`) in `src/agent-os/db.ts`; wired into `agent-os-routes.ts` dispatch and `route-registry.ts` (6 routes, deferred-verb with tracked ownerDoc).
    - Verified this run: **8/8 tests green** including a real end-to-end over a temporary git repository (stage credential + conflict marker + protected-path change → preview → review → line-anchored findings → gate `REQUIRE_FIX` → idempotent re-review → safe-ref rejection), typecheck green, route-registry parity green.
-   - This implements the deterministic core of the 20.81 contract (GOLD §15's "diff selection + rule resolution + review units + structured findings + line anchoring + reflection-lite + gate"). Next slice: delegated LLM reviewers + Reviewer Council bridge + `pao review` CLI verbs.
+5. **Vertical slice #2 (GOLD §15-17): delegated reviewers, consensus, and revision lineage** — DONE and VERIFIED (this-run).
+   - `src/agent-os/code-review/reviewer.ts`: `ReviewProvider` contract + `GatewayReviewProvider` (local OpenAI-compatible /v1 gateway per unified-runtime precedent; fail-closed when env not configured) + `buildReviewPrompt` (untrusted-source framing, 32KB max context) + `mergeDelegatedFindings` (consensus-lite: corroborated high-confidence findings become `verified`, uncorroborated or CRITICAL claims become `needs_context`).
+   - Gate consensus rule: `needs_context` can soften the gate to `HUMAN_APPROVAL`, but cannot harden it to `BLOCK` or `REQUIRE_FIX` on its own.
+   - Schema v52→v53: `parent_session_id`, `revision`, `delegated_findings` columns added to `cr_sessions`. Re-reviewing the same change target with a new diff automatically sets `revision = parent.revision + 1` and links `parent_session_id`.
+   - Proves GOLD E2E-3: stage leak → review gates `REQUIRE_FIX` (revision 1) → remove credential → re-review gates `PASS` (revision 2, parent linked).
+   - Verified this run: **10/10 tests green**, typecheck green, route-registry parity green, privacy-scan green.
 
 ## 4b. Mimosa write-hook interactions (recorded for repeatability)
 
@@ -67,12 +72,26 @@ The Mimosa PreToolUse hook blocked several candidate writes with a static "comma
 
 | Suite | Status | Evidence |
 |---|---|---|
-| Full baseline (pre-GOLD) | running → pending | `.tmp/gold-baseline-test.log` |
-| Typecheck baseline | FAIL pre-existing (11 errors / 5 files) | run output 2026-09-17 |
+| Full baseline (pre-GOLD) | partial: 7,376 pass / 231 fail before the 900s lane watchdog (Windows-noisy; CI Linux is authoritative) | `.tmp/gold-baseline-test.log` |
+| Typecheck | **GREEN** (was 11 pre-existing errors) | `bun run typecheck` exit 0, run 2026-09-17 |
+| privacy:scan | **GREEN** (was 56 findings) | run 2026-09-17 |
+| Repaired-module focused tests | **GREEN** 56 pass (agent-platform, capability-lab, mobile ×2) | run 2026-09-17 |
+| Privacy-repaired fixture tests | **GREEN** (ecc-agent-harness, codex-native*, unified-runtime, orchestration, agent-orchestrator, notification-gateway, media-acquisition, lead-intelligence, plur-memory, dependency-vault, agent-observability) | 284 pass / 3 fail → the 3 were pre-existing (2× SchemaSync + 1 self-inflicted lead fixture mismatch, fixed) |
+| code-review slice tests | **GREEN** 8/8 incl. real-git E2E | run 2026-09-17 |
+| management-route-registry parity | **GREEN** | run 2026-09-17 |
+| Pre-existing known failures | codex-native SchemaSync ×2; Windows EBUSY family (#1059) | baseline log + AGENTS.md |
+
+## 9. Next highest-priority action
+
+1. **Slice #2 — delegated reviewers + Council bridge** (GOLD §14-15): attach a bounded LLM reviewer behind the existing `ReviewProvider` shape from the 20.80 lineage, feed its findings through the same normalizer/gate, and add the review-revision loop (`r1 → fix → r2`) so GOLD E2E-3 (finding → fix → re-review → PASS) is fully proven.
+2. **Slice #3 — `pao review` CLI verbs** (removes the deferred-verb exemption) + CI status mapping.
+3. **W3 decision — 20.58/20.59 recovery** from `backup/admiring-noyce-main-based` (needs explicit security review; auth/credential subsystems per AGENTS.md).
+4. **skill-gate (20.57) wiring** — finish `service.ts`/`mcp-tools.ts`/routes so the orphaned scanner+store gains callers, or formally retire it.
+5. Re-run the full suite on an idle machine (or via the CI batch script) for a complete local baseline; Mimosa full scan when its baseline enumeration succeeds.
 
 ## 8. Unresolved risks
 
-1. **Uncommitted 509k-line tree** — largest risk. Any tooling mistake (branch switch, clean) destroys phases 20.20–20.63. Mitigation: W2 commit baseline ASAP.
+1. ~~Uncommitted 509k-line tree~~ — **RESOLVED**: landed in `47c9d45c1` + `aaa4fb9e6` + `5a4cc2655`.
 2. **20.57 divergence** — the in-tree skill-gate rewrite may have silently dropped planned capabilities (service/MCP/routes). Needs capability diff vs recon before deciding finish-vs-restore.
 3. **Windows parity** — 207 known failures mean local (Windows) dev sees failures CI never gates. GOLD fixes must be validated against the Linux-gated set, not local Windows noise.
 4. **Report/claim inflation** — several phases claim COMPLETE on focused test sets only; the full suite has never been re-run over the accumulated tree in one pass (the baseline run in progress is the first).

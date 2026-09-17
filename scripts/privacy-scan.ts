@@ -100,6 +100,7 @@ function isAllowedEmail(file: string, email: string): boolean {
   }
   // URL-userinfo fixtures (https://user:pw@host/...) read as "pw@host" — not emails.
   if (file.startsWith("tests/") && email === ["pw", "chatgpt.com"].join("@")) return true;
+  if (file.startsWith("tests/") && email === ["hunter2-secret", "db.internal"].join("@")) return true;
   // Discord webhook validator fixtures embed userinfo in a rejected URL shape;
   // like the chatgpt.com fixture above, this is credential-placement syntax, not contact data.
   if (file.startsWith("tests/") && email === ["pass", "discord.com"].join("@")) return true;

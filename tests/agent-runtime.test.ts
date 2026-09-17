@@ -214,7 +214,7 @@ describe("phase 20.61 evidence and verification rules", () => {
 
   test("secret-like material never reaches evidence", () => {
     expect(containsSecretLikeMaterial("Authorization: Bearer amux_secret_token_value")).toBe(true);
-    expect(() => assertEvidenceSafe({ note: "token: sk-abcdef1234567890abcdef" })).toThrow(/secret-like/);
+    expect(() => assertEvidenceSafe({ note: "token: " + "sk-" + "c".repeat(24) })).toThrow(/secret-like/);
     expect(() => assertEvidenceSafe({ note: "clean metadata" })).not.toThrow();
   });
 

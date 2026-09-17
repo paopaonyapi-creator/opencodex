@@ -13,7 +13,8 @@ import { addedLinesWithAnchors, parseUnifiedDiff } from "../src/agent-os/code-re
 import { evaluateGate } from "../src/agent-os/code-review/engine";
 import { assertSafeRef } from "../src/agent-os/code-review/capture";
 import { getCodeReviewService } from "../src/agent-os/code-review/service";
-import type { ReviewFinding } from "../src/agent-os/code-review/types";
+import type { ReviewFinding, ReviewSessionRecord } from "../src/agent-os/code-review/types";
+import type { DelegatedReviewInput, ReviewProvider } from "../src/agent-os/code-review/reviewer";
 
 function git(repo: string, args: string[]): string {
   const result = spawnSync("git", ["-C", repo].concat(args), {
@@ -177,6 +178,99 @@ describe("end-to-end review over a real git repository", () => {
       to: "main",
       requestedBy: "test",
     })).rejects.toThrow("safe-ref shape");
+  });
+
+  test("E2E-3: finding → fix → re-review → PASS with revision lineage", async () => {
+    const loopRepo = makeRepo();
+    try {
+      const fakeToken = "sk-" + "b".repeat(24);
+      writeFileSync(join(loopRepo, "leak.ts"), "export const K = " + JSON.stringify(fakeToken) + ";\n");
+      git(loopRepo, ["add", "."]);
+
+      const r1 = await service.runReview({ repositoryPath: loopRepo, mode: "workspace", requestedBy: "test" });
+      expect(r1.reused).toBe(false);
+      expect(r1.session.revision).toBe(1);
+      expect(r1.session.parentSessionId).toBeNull();
+      expect(r1.gate.gate).toBe("REQUIRE_FIX");
+
+      // The fix: remove the leaked credential entirely.
+      writeFileSync(join(loopRepo, "leak.ts"), "export const K = readFromSecretBroker();\n");
+      git(loopRepo, ["add", "."]);
+
+      const r2 = await service.runReview({ repositoryPath: loopRepo, mode: "workspace", requestedBy: "test" });
+      expect(r2.reused).toBe(false);
+      expect(r2.session.revision).toBe(2);
+      expect(r2.session.parentSessionId).toBe(r1.session.sessionId);
+      expect(r2.gate.gate).toBe("PASS");
+      expect(r2.findings).toHaveLength(0);
+    } finally {
+      rmSync(loopRepo, { recursive: true, force: true });
+    }
+  });
+
+  test("delegation merges provider findings; weak CRITICAL claims stay needs_context", async () => {
+    const fakeToken = "sk-" + "c".repeat(24);
+    writeFileSync(join(repo, "src", "extra.ts"), "export const T = " + JSON.stringify(fakeToken) + ";\n");
+    git(repo, ["add", "."]);
+    const seen: DelegatedReviewInput[] = [];
+    const provider: ReviewProvider = {
+      id: "stub",
+      available: async () => true,
+      review: async (input) => {
+        seen.push(input);
+        return {
+          reviewer: "stub-model",
+          findings: [
+            {
+              path: "src/extra.ts",
+              startLine: 1,
+              endLine: 1,
+              severity: "HIGH",
+              confidence: 0.9,
+              title: "Hardcoded client token",
+              description: "Token literal assigned to an export.",
+              evidence: "const T = ...",
+              category: "security",
+            },
+            {
+              path: "src/extra.ts",
+              startLine: 1,
+              endLine: 1,
+              severity: "CRITICAL",
+              confidence: 0.5,
+              title: "Uncorroborated critical claim",
+              description: "Low-confidence claim must not harden the gate.",
+              category: "security",
+            },
+          ],
+          notes: "stub",
+        };
+      },
+    };
+    service.registerReviewProvider(provider);
+
+    const result = await service.runReview({ repositoryPath: repo, mode: "workspace", requestedBy: "test", delegate: true });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.units.length).toBeGreaterThan(0);
+    expect(seen[0]!.excerpts.every((e) => e.diff.length <= 8_000)).toBe(true);
+    expect(result.session.delegatedFindings).toBe(2);
+    const delegated = result.findings.filter((f) => f.source === "delegated");
+    expect(delegated).toHaveLength(2);
+    expect(delegated.find((f) => f.severity === "HIGH")!.status).toBe("verified");
+    expect(delegated.find((f) => f.severity === "CRITICAL")!.status).toBe("needs_context");
+    // The corroborated HIGH already forces REQUIRE_FIX; the weak CRITICAL
+    // claim must not harden the gate to BLOCK on its own.
+    expect(result.gate.gate).toBe("REQUIRE_FIX");
+    expect(result.gate.counts.critical).toBe(0);
+
+    // Delegation without an available provider degrades to deterministic-only.
+    // Changing the diff bypasses the idempotency cache so a fresh review runs.
+    const fakeToken2 = "sk-" + "d".repeat(24);
+    writeFileSync(join(repo, "src", "extra2.ts"), "export const T2 = " + JSON.stringify(fakeToken2) + ";\n");
+    git(repo, ["add", "."]);
+    service.registerReviewProvider({ id: "off", available: async () => false, review: async () => ({ reviewer: "off", findings: [] }) });
+    const deterministicOnly = await service.runReview({ repositoryPath: repo, mode: "workspace", requestedBy: "test", delegate: true });
+    expect(deterministicOnly.session.delegatedFindings).toBe(0);
   });
 
   afterAll(() => {

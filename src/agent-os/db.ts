@@ -150,7 +150,7 @@ import { join } from "node:path";
 // v45: mobile leases/approvals/traces (Phase 20.55).
 // v46: cap_* Micro-App Capability Lab (Phase 20.56).
 // v47: sg_* Skill Gate control plane (Phase 20.57).
-export const AGENT_OS_SCHEMA_VERSION = 52;
+export const AGENT_OS_SCHEMA_VERSION = 53;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6068,6 +6068,12 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_cr_findings_session ON cr_findings(session_id);
       CREATE TABLE IF NOT EXISTS cr_gate_results (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, gate TEXT NOT NULL, reasons_json TEXT NOT NULL DEFAULT '[]', decided_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_cr_gate_session ON cr_gate_results(session_id);
+
+      -- v53: review revision lineage (GOLD slice #2 — the fix/re-review loop)
+      ALTER TABLE cr_sessions ADD COLUMN parent_session_id TEXT;
+      ALTER TABLE cr_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE cr_sessions ADD COLUMN delegated_findings INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_cr_sessions_parent ON cr_sessions(parent_session_id);
     `);
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

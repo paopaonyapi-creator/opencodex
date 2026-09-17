@@ -100,18 +100,6 @@ const ECC_VERB_DEFERRAL = {
 } as const;
 
 /**
- * Shared deferral for the GOLD deterministic code review slice (Phase 20.81
- * contract): the engine, gate, and REST surface ship first; CLI verbs belong
- * to the follow-up recorded in the owner doc.
- */
-const REVIEW_VERB_DEFERRAL = {
-  reason: "deferred-verb",
-  why: "The deterministic review runtime ships the engine, gate, and REST surface first; `pao review` CLI verbs belong to the follow-up recorded in the owner doc.",
-  owner: "Phase 20.81 code-review CLI follow-up",
-  ownerDoc: "docs/code-review/README.md",
-} as const;
-
-/**
  * Shared deferral for the Phase 20.21 Codex Native Runtime routes: the native runtime
  * adapter, policy engine, approval broker, and REST surface shipped first; CLI verbs
  * belong to the dashboard/CLI follow-up recorded in the owner doc.
@@ -614,11 +602,6 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/social/mcp-tools", module: "server/management/social-routes", mutates: false, exempt: SOCIAL_VERB_DEFERRAL },
   // Phase 20.20 ECC Agent Harness OS. Full-literal pathname guards, no mechanism.
   { method: "GET", path: "/api/agent-os/ecc/status", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
-  { method: "GET", path: "/api/agent-os/code-review", module: "server/management/code-review-routes", mutates: false, exempt: REVIEW_VERB_DEFERRAL },
-  { method: "POST", path: "/api/agent-os/code-review/preview", module: "server/management/code-review-routes", mutates: false, exempt: REVIEW_VERB_DEFERRAL },
-  { method: "POST", path: "/api/agent-os/code-review/run", module: "server/management/code-review-routes", mutates: true, exempt: REVIEW_VERB_DEFERRAL },
-  { method: "GET", path: "/api/agent-os/code-review/sessions", module: "server/management/code-review-routes", mutates: false, exempt: REVIEW_VERB_DEFERRAL },
-  { method: "GET", path: "/api/agent-os/code-review/sessions/:id", module: "server/management/code-review-routes", mutates: false, exempt: REVIEW_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/skills", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/agents", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/memory", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },

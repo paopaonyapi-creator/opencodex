@@ -110,6 +110,7 @@ export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Re
         to: fields.to,
         commit: fields.commit,
         requestedBy: String(body.actorId ?? "operator"),
+        delegate: body.delegate === true,
       });
       return jsonResponse({
         ok: true,

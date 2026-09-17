@@ -13,7 +13,9 @@ export type Severity = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type GateDecision = "PASS" | "WARN" | "REQUIRE_FIX" | "HUMAN_APPROVAL" | "BLOCK";
 
-export type FindingStatus = "open" | "verified" | "rejected" | "duplicate" | "accepted";
+export type FindingStatus = "open" | "verified" | "rejected" | "duplicate" | "accepted" | "needs_context";
+
+export type FindingSource = "deterministic" | "delegated";
 
 export interface ReviewRequest {
   /** Absolute or workspace-relative path to the git repository to review. */
@@ -26,6 +28,8 @@ export interface ReviewRequest {
   /** Commit mode: the commit sha to review. */
   commit?: string;
   requestedBy: string;
+  /** Opt-in delegated (LLM) review; skipped fail-closed when no provider is available. */
+  delegate?: boolean;
 }
 
 export interface DiffFile {
@@ -68,7 +72,7 @@ export interface ReviewFinding {
   findingId: string;
   sessionId: string;
   unitId: string;
-  source: "deterministic";
+  source: FindingSource;
   location: { path: string; startLine: number; endLine: number };
   category: string;
   subcategory?: string;
@@ -108,6 +112,11 @@ export interface ReviewSessionRecord {
   requestedBy: string;
   createdAt: string;
   completedAt: string | null;
+  /** Previous session for the same change target with a different diff. */
+  parentSessionId: string | null;
+  /** 1 for the first review of a change target, +1 per re-review after fixes. */
+  revision: number;
+  delegatedFindings: number;
 }
 
 export class ReviewError extends Error {

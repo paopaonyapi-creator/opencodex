@@ -547,8 +547,34 @@ JSON mode: `payload`.
 
 - A bare invocation reads and never writes.
 
+### `ocx review`
+
+Deterministic AI code review runtime (Phase 20.81). Inspect diffs, preview units, and gate changes.
+
+| Method | Route |
+|---|---|
+| GET | `/api/agent-os/code-review` |
+| POST | `/api/agent-os/code-review/preview` |
+| POST | `/api/agent-os/code-review/run` |
+| GET | `/api/agent-os/code-review/sessions` |
+| GET | `/api/agent-os/code-review/sessions/{id}` |
+
+| Flag | Value | Meaning |
+|---|---|---|
+| `--repo` | string | Target repository path; defaults to '.' |
+| `--preview` | boolean | Deterministic file selection and units without model calls |
+| `--commit` | string | Review a single commit sha |
+| `--from` | string | Base ref for range review (paired with --to) |
+| `--to` | string | Head ref for range review (paired with --from) |
+| `--json` | boolean | Emit the review or preview result as JSON |
+
+JSON mode: `payload`.
+
+- Subcommands: `ocx review status` (engine health), `ocx review sessions` (list runs), `ocx review session <id>` (show findings).
+- The gate decision (PASS/WARN/REQUIRE_FIX/HUMAN_APPROVAL/BLOCK) sets exit code 2 on blocking findings.
+
 ## Counts
 
-- declared capabilities: 30
-- of those, state-changing: 12
+- declared capabilities: 31
+- of those, state-changing: 13
 - head-resolved invocations: 2

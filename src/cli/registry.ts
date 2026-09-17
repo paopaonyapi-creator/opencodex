@@ -262,6 +262,17 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
   },
   { name: "api-key", usage: "ocx api-key <list|create|remove> ...", summary: "Alias of ocx access key." },
   {
+    name: "review",
+    usage: "ocx review [--repo <path>] [--preview] [--commit <sha>] [--from <base> --to <head>] [--json]",
+    summary: "Deterministic AI code review runtime (Phase 20.81). Inspect diffs, preview review units, and gate changes before merge.",
+    details: [
+      "A bare `ocx review` reviews uncommitted workspace changes against HEAD.",
+      "`--preview` runs deterministic file selection and rule matching without model invocation.",
+      "`--commit <sha>` reviews a single commit; `--from <base> --to <head>` reviews a range.",
+      "Subcommands: `ocx review status` (engine health), `ocx review sessions` (list runs), `ocx review session <id>` (show findings).",
+    ],
+  },
+  {
     name: "export",
     usage: "ocx export --client <opencode|pi|omp|hermes|openclaw|kimi|gajae|dsh|mcode|zcode|prime> [--json] [--out <path>] [--force]",
     summary: "Print a client config (OpenCode, Pi, OMP, Hermes, OpenClaw, Kimi Code, Gajae Code, DeepSeek Harness, MiniMax Code, ZCode, Prime Agent) wired to the running proxy.",

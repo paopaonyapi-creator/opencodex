@@ -490,6 +490,31 @@ export const CAPABILITIES: readonly Capability[] = [
     json: "payload",
     details: ["A bare invocation reads and never writes."],
   },
+  {
+    command: ["review"],
+    summary: "Deterministic AI code review runtime (Phase 20.81). Inspect diffs, preview units, and gate changes.",
+    routes: [
+      { method: "GET", path: "/api/agent-os/code-review" },
+      { method: "POST", path: "/api/agent-os/code-review/preview" },
+      { method: "POST", path: "/api/agent-os/code-review/run" },
+      { method: "GET", path: "/api/agent-os/code-review/sessions" },
+      { method: "GET", path: "/api/agent-os/code-review/sessions/{id}" },
+    ],
+    flags: [
+      { name: "--repo", value: "string", summary: "Target repository path; defaults to '.'" },
+      { name: "--preview", value: "boolean", summary: "Deterministic file selection and units without model calls" },
+      { name: "--commit", value: "string", summary: "Review a single commit sha" },
+      { name: "--from", value: "string", summary: "Base ref for range review (paired with --to)" },
+      { name: "--to", value: "string", summary: "Head ref for range review (paired with --from)" },
+      { name: "--json", value: "boolean", summary: "Emit the review or preview result as JSON" },
+    ],
+    mutates: true,
+    json: "payload",
+    details: [
+      "Subcommands: `ocx review status` (engine health), `ocx review sessions` (list runs), `ocx review session <id>` (show findings).",
+      "The gate decision (PASS/WARN/REQUIRE_FIX/HUMAN_APPROVAL/BLOCK) sets exit code 2 on blocking findings.",
+    ],
+  },
 ];
 
 /** Capabilities that drive `route`, for `ocx capabilities --route`. */

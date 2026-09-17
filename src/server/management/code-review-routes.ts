@@ -1,9 +1,9 @@
-// GOLD slice #1 — Deterministic code review runtime management routes.
+// GOLD slice #1 & #3 — Deterministic code review runtime management routes.
 //
-// Prefix-decode dispatcher (external-apis precedent). All review operations
-// are read-only over the target repository: capture, units, findings, and
-// the gate. Nothing here can authorize a merge — the gate decision is an
-// input to the human/policy workflow, never the authority.
+// Equality-guard dispatcher matching the management surface pattern
+// (ecc-routes / social-routes precedent). Reconciled against route-registry
+// and driven by the `ocx review` CLI capability. All review operations are
+// read-only over the target repository.
 
 import { jsonResponse } from "../auth-cors";
 import type { ManagementContext } from "./context";
@@ -55,19 +55,12 @@ function readRequestFields(body: Record<string, unknown>): {
 
 export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { url, req } = ctx;
-  let subPath = "";
-  if (url.pathname.startsWith("/api/agent-os/code-review/")) {
-    subPath = url.pathname.slice("/api/agent-os/code-review/".length);
-  } else if (url.pathname === "/api/agent-os/code-review") {
-    subPath = "";
-  } else {
-    return null;
-  }
-
+  const pathname = url.pathname;
   const service = getCodeReviewService();
 
   try {
-    if (req.method === "GET" && (subPath === "" || subPath === "status")) {
+    // 1. GET /api/agent-os/code-review
+    if (req.method === "GET" && pathname === "/api/agent-os/code-review") {
       const sessions = service.listSessions(50);
       return jsonResponse({
         ok: true,
@@ -86,7 +79,8 @@ export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Re
       }, 200, req, {});
     }
 
-    if (subPath === "preview" && req.method === "POST") {
+    // 2. POST /api/agent-os/code-review/preview
+    if (req.method === "POST" && pathname === "/api/agent-os/code-review/preview") {
       const body = await readJson(req);
       const fields = readRequestFields(body);
       const preview = await service.preview({
@@ -100,7 +94,8 @@ export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Re
       return jsonResponse({ ok: true, preview }, 200, req, {});
     }
 
-    if (subPath === "run" && req.method === "POST") {
+    // 3. POST /api/agent-os/code-review/run
+    if (req.method === "POST" && pathname === "/api/agent-os/code-review/run") {
       const body = await readJson(req);
       const fields = readRequestFields(body);
       const result = await service.runReview({
@@ -121,13 +116,16 @@ export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Re
       }, 200, req, {});
     }
 
-    if (subPath === "sessions" && req.method === "GET") {
+    // 4. GET /api/agent-os/code-review/sessions
+    if (req.method === "GET" && pathname === "/api/agent-os/code-review/sessions") {
       const limit = Number(url.searchParams.get("limit") ?? 20);
       return jsonResponse({ ok: true, sessions: service.listSessions(Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20) }, 200, req, {});
     }
 
-    if (subPath.startsWith("sessions/") && req.method === "GET") {
-      const sessionId = subPath.slice("sessions/".length);
+    // 5. GET /api/agent-os/code-review/sessions/{id} (slice decode)
+    if (req.method === "GET" && pathname.startsWith("/api/agent-os/code-review/sessions/")) {
+      const sessionId = pathname.slice("/api/agent-os/code-review/sessions/".length);
+      if (!sessionId) return null;
       const session = service.getSession(sessionId);
       if (!session) {
         return jsonResponse({ error: { code: "REVIEW_SESSION_NOT_FOUND", message: "no such review session" } }, 404, req, {});
@@ -140,7 +138,7 @@ export async function handleCodeReviewRoutes(ctx: ManagementContext): Promise<Re
       }, 200, req, {});
     }
 
-    return jsonResponse({ error: { code: "not_found", message: "unknown code-review route" } }, 404, req, {});
+    return null;
   } catch (error) {
     return fail(req, error);
   }

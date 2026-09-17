@@ -602,6 +602,11 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/social/mcp-tools", module: "server/management/social-routes", mutates: false, exempt: SOCIAL_VERB_DEFERRAL },
   // Phase 20.20 ECC Agent Harness OS. Full-literal pathname guards, no mechanism.
   { method: "GET", path: "/api/agent-os/ecc/status", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/code-review", module: "server/management/code-review-routes", mutates: false },
+  { method: "POST", path: "/api/agent-os/code-review/preview", module: "server/management/code-review-routes", mutates: false },
+  { method: "POST", path: "/api/agent-os/code-review/run", module: "server/management/code-review-routes", mutates: true },
+  { method: "GET", path: "/api/agent-os/code-review/sessions", module: "server/management/code-review-routes", mutates: false },
+  { method: "GET", path: "/api/agent-os/code-review/sessions/{id}", module: "server/management/code-review-routes", mutates: false, mechanism: "slice" },
   { method: "GET", path: "/api/agent-os/ecc/skills", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/agents", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/memory", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },

@@ -730,6 +730,10 @@ const commandRunners: Record<string, CommandRunner> = {
     const { handleZcodeCommand } = await import("./integrations");
     return await handleZcodeCommand(deps.args.slice(1));
   },
+  review: async deps => {
+    const { handleReview } = await import("./review");
+    return await handleReview(deps.args.slice(1));
+  },
   help: async () => {
     printUsage();
     return 0;

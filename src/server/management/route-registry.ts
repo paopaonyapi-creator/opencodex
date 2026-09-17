@@ -373,6 +373,13 @@ const MODEL_GATEWAY_VERB_DEFERRAL = {
   ownerDoc: "docs/Phase 20.85 — Pao-hubPro × OmniRoute.md",
 } as const;
 
+const SENSORIMOTOR_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.82 ships the sensorimotor runtime (sessions, perception, transactional actions with checkpoint/rollback, health) and its REST surface first; CLI verbs belong to the dashboard/CLI follow-up recorded in the phase doc.",
+  owner: "Phase 20.82 CortexKit AFT",
+  ownerDoc: "Blueprint/Phase 20.82 — Pao-hubPro × CortexKit AFT — Agent-Native IDE & Sensorimotor Runtime.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -710,6 +717,14 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/code-review/run", module: "server/management/code-review-routes", mutates: true },
   { method: "GET", path: "/api/agent-os/code-review/sessions", module: "server/management/code-review-routes", mutates: false },
   { method: "GET", path: "/api/agent-os/code-review/sessions/{id}", module: "server/management/code-review-routes", mutates: false, mechanism: "slice" },
+  // Phase 20.82 CortexKit AFT sensorimotor runtime (sensorimotor-routes)
+  { method: "GET", path: "/api/agent-os/sensorimotor/health", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/sensorimotor/sessions", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/sensorimotor/sessions", module: "server/management/sensorimotor-routes", mutates: true, exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/sensorimotor/actions", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/sensorimotor/actions", module: "server/management/sensorimotor-routes", mutates: true, exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/sensorimotor/actions/{id}", module: "server/management/sensorimotor-routes", mutates: false, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/sensorimotor/sessions/{id}/close", module: "server/management/sensorimotor-routes", mutates: true, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
   // Phase 20.85 OmniRoute Unified Model Gateway (agent-os-routes)
   { method: "GET", path: "/api/agent-os/model-gateway/health", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/model-gateway/routes", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },

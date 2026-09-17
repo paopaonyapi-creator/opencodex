@@ -153,7 +153,8 @@ import { join } from "node:path";
 // v52: cr_* Deterministic Code Review (Phase 20.81).
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
-export const AGENT_OS_SCHEMA_VERSION = 54;
+// v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
+export const AGENT_OS_SCHEMA_VERSION = 55;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6112,6 +6113,19 @@ function migrate(db: Database): void {
       CREATE TABLE IF NOT EXISTS core_reviewer_votes (id TEXT PRIMARY KEY, reviewer_run_id TEXT NOT NULL, reviewer_id TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, model_family TEXT NOT NULL, verdict TEXT NOT NULL, findings_count INTEGER NOT NULL, confidence REAL NOT NULL, vote_weight REAL NOT NULL, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS core_artifacts (id TEXT PRIMARY KEY, session_id TEXT, task_id TEXT, name TEXT NOT NULL, path TEXT NOT NULL, sha256 TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS core_jobs (id TEXT PRIMARY KEY, job_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', priority INTEGER NOT NULL DEFAULT 50, attempts INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 3, run_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+
+      -- v55: Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception → plan → act → observe loop
+      CREATE TABLE IF NOT EXISTS sm_sessions (id TEXT PRIMARY KEY, workspace_root TEXT NOT NULL, actor_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', goal TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS sm_perceptions (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, kind TEXT NOT NULL, workspace_root TEXT NOT NULL, files_json TEXT NOT NULL, symbol_count INTEGER NOT NULL DEFAULT 0, content_hash TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sm_perceptions_session ON sm_perceptions(session_id, created_at);
+      CREATE TABLE IF NOT EXISTS sm_actions (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, perception_id TEXT, kind TEXT NOT NULL, target TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempt INTEGER NOT NULL DEFAULT 1, max_attempts INTEGER NOT NULL DEFAULT 3, checkpoint_json TEXT NOT NULL DEFAULT '{}', error_code TEXT, error_message TEXT, timeout_ms INTEGER NOT NULL DEFAULT 30000, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sm_actions_session ON sm_actions(session_id, created_at);
+      CREATE TABLE IF NOT EXISTS sm_observations (id TEXT PRIMARY KEY, action_id TEXT NOT NULL, session_id TEXT NOT NULL, outcome TEXT NOT NULL, health_delta_json TEXT NOT NULL DEFAULT '{}', content_hash TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sm_observations_action ON sm_observations(action_id);
+      CREATE TABLE IF NOT EXISTS sm_checkpoints (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, action_id TEXT, snapshot_json TEXT NOT NULL, content_hash TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sm_checkpoints_session ON sm_checkpoints(session_id, created_at);
+      CREATE TABLE IF NOT EXISTS sm_audit (id TEXT PRIMARY KEY, session_id TEXT, action_id TEXT, actor_id TEXT NOT NULL, event TEXT NOT NULL, decision TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_sm_audit_created ON sm_audit(created_at);
     `);
 
     // Incremental column upgrades for pre-v53 databases

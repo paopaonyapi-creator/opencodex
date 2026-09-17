@@ -163,7 +163,9 @@ export class SafeImplementationRunner {
         stdout,
         stderr,
         durationMs: Date.now() - startTime,
-        timedOut: false,
+        // `timedOut` is set by the abort timer; if the kill landed, proc.exited
+        // resolves on the happy path, so report the flag instead of a literal false.
+        timedOut,
       };
     } catch (err) {
       clearTimeout(timer);

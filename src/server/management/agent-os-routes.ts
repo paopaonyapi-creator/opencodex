@@ -296,6 +296,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleCodeReviewRoutes(ctx);
   }
 
+  // Phase 20.82: CortexKit AFT sensorimotor runtime.
+  if (url.pathname.startsWith("/api/agent-os/sensorimotor") || url.pathname === "/api/agent-os/sensorimotor") {
+    const { handleSensorimotorRoutes } = await import("./sensorimotor-routes");
+    return handleSensorimotorRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

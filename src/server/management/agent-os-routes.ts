@@ -296,6 +296,27 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleCodeReviewRoutes(ctx);
   }
 
+  // Phase 20.85: OmniRoute Unified Model Gateway
+  if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
+    const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");
+    const gw = getModelGateway();
+    if (req.method === "GET" && url.pathname === "/api/agent-os/model-gateway/health") {
+      return jsonResponse(await gw.health(), 200, req, {});
+    }
+    if (req.method === "GET" && url.pathname === "/api/agent-os/model-gateway/routes") {
+      return jsonResponse({ ok: true, routes: gw.registry.listRouteGroups() }, 200, req, {});
+    }
+    if (req.method === "GET" && url.pathname === "/api/agent-os/model-gateway/providers") {
+      return jsonResponse({ ok: true, providers: gw.registry.listProviders() }, 200, req, {});
+    }
+    if (req.method === "GET" && url.pathname === "/api/agent-os/model-gateway/models") {
+      return jsonResponse({ ok: true, models: gw.registry.listModels() }, 200, req, {});
+    }
+    if (req.method === "GET" && url.pathname === "/api/agent-os/model-gateway/circuits") {
+      return jsonResponse({ ok: true, circuits: gw.circuitBreaker.listCircuits() }, 200, req, {});
+    }
+  }
+
   // Phase 21.1: End-to-End Autonomous Stock Production & Submission Pipeline
   if (url.pathname.startsWith("/api/agent-os/stock/pipeline") || url.pathname === "/api/agent-os/stock/pipeline") {
     const { handleStockPipelineRoutes } = await import("./stock-pipeline-routes");

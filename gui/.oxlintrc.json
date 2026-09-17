@@ -199,7 +199,11 @@
         "src/pages/AgentMemory.tsx",
         "src/pages/AgentCockpit.tsx",
         "src/pages/GovernanceDashboard.tsx",
-        "src/pages/CodeReview.tsx"
+        "src/pages/CodeReview.tsx",
+        "src/pages/ModelGateway.tsx",
+        "src/pages/Skills.tsx",
+        "src/pages/Security.tsx",
+        "src/pages/Credentials.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

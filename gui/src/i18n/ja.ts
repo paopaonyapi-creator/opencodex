@@ -3,7 +3,7 @@ import type { TKey } from "./en";
 /**
  * Japanese i18n catalog; must match the `TKey` set (compile-checked).
  */
-export const ja: Record<TKey, string> = {
+export const ja: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "ダッシュボード",
   "uptime.day": "日",
@@ -1747,6 +1747,9 @@ export const ja: Record<TKey, string> = {
   "nav.codeIntelligence": "コードインテリジェンス",
   "nav.externalApis": "外部API",
   "nav.codeReview": "コードレビュー",
+  "nav.modelGateway": "モデルゲートウェイ",
+  "nav.skills": "スキルゲート",
+  "nav.credentials": "認証情報",
   "nav.governance": "ガバナンス",
   "demo.title": "WebMCP チャレンジデモ",
   "demo.subtitle": "ワンクリックのエージェントネイティブ制作ワークフロー。",

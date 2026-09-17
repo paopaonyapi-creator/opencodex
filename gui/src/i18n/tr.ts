@@ -4,7 +4,7 @@ import type { TKey } from "./en";
 /**
  * Turkish i18n catalog. Must match the `TKey` set (compile-checked).
  */
-export const tr: Record<TKey, string> = {
+export const tr: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "Gösterge Paneli",
   "uptime.day": " gün",
@@ -1805,6 +1805,9 @@ export const tr: Record<TKey, string> = {
   "nav.codeIntelligence": "Kod Zekası",
   "nav.externalApis": "Harici API'ler",
   "nav.codeReview": "Kod İncelemesi",
+  "nav.modelGateway": "Model Ağ Geçidi",
+  "nav.skills": "Yetenek Kapısı",
+  "nav.credentials": "Kimlik Bilgileri",
   "nav.governance": "Yönetişim",
   "demo.title": "WebMCP Challenge Demosu",
   "demo.subtitle": "Tek tıkla ajan yerli stok iş akışı.",

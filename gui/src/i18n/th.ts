@@ -3,7 +3,7 @@ import type { TKey } from "./en";
 /**
  * Thai i18n catalog; must match the `TKey` set (compile-checked).
  */
-export const th: Record<TKey, string> = {
+export const th: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "แดชบอร์ด",
   "uptime.day": "ว",
@@ -1661,6 +1661,9 @@ export const th: Record<TKey, string> = {
   "nav.codeIntelligence": "เอนจินวิเคราะห์โค้ด",
   "nav.externalApis": "API ภายนอก",
   "nav.codeReview": "ตรวจสอบโค้ด",
+  "nav.modelGateway": "เกตเวย์โมเดล",
+  "nav.skills": "เกตเวย์สกิล",
+  "nav.credentials": "ข้อมูลประจำตัว",
   "nav.governance": "การกำกับดูแล",
   "demo.title": "เว็บเอ็มซีพีชาเลนจ์เดโม",
   "demo.subtitle": "เวิร์กโฟลว์สต็อกแบบเอเจนต์เนทีฟในคลิกเดียว",

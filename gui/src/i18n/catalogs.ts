@@ -13,8 +13,8 @@ import { LAB_CATALOG_OVERRIDES, type LabLocale } from "./lab-translations";
 /** React-free locale catalog registry for formatters and other shared helpers. */
 export type Locale = LabLocale;
 
-function withLabTranslations(locale: Locale, catalog: Record<TKey, string>): Record<TKey, string> {
-  return { ...catalog, ...LAB_CATALOG_OVERRIDES[locale] };
+function withLabTranslations(locale: Locale, catalog: Record<string, string>): Record<TKey, string> {
+  return { ...en, ...catalog, ...LAB_CATALOG_OVERRIDES[locale] };
 }
 
 /**

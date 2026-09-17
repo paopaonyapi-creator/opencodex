@@ -1,0 +1,261 @@
+/**
+ * Phase 20.74 — Federated MCP Tool Gateway
+ * Manages tool registration, trust scoring, sandboxed execution, and audit logs.
+ */
+
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { openAgentOsDb } from "../db";
+import { ToolExecutionSandbox, SandboxSecurityError } from "./sandbox";
+import type {
+  McpServerDefinition,
+  McpToolDefinition,
+  ToolExecutionRequest,
+  ToolExecutionResult,
+} from "./types";
+
+export class McpToolGateway {
+  private servers = new Map<string, McpServerDefinition>();
+  private tools = new Map<string, McpToolDefinition>();
+
+  constructor() {
+    this.seedDefaultTools();
+  }
+
+  public registerServer(server: McpServerDefinition): void {
+    this.servers.set(server.id, { ...server });
+  }
+
+  public registerTool(tool: McpToolDefinition): void {
+    this.tools.set(tool.name, { ...tool });
+  }
+
+  public getTool(name: string): McpToolDefinition | undefined {
+    return this.tools.get(name);
+  }
+
+  public listTools(): McpToolDefinition[] {
+    return Array.from(this.tools.values());
+  }
+
+  public listServers(): McpServerDefinition[] {
+    return Array.from(this.servers.values());
+  }
+
+  public calculateTrustScore(toolName: string): number {
+    const tool = this.tools.get(toolName);
+    if (!tool) return 0;
+    const server = this.servers.get(tool.serverId);
+    let baseScore = server?.trustScore ?? 70;
+
+    if (tool.riskTier === "R0") baseScore = Math.min(baseScore + 10, 100);
+    if (tool.riskTier === "R4") baseScore = Math.max(baseScore - 40, 10);
+    if (tool.mutability === "destructive") baseScore = Math.max(baseScore - 20, 10);
+
+    return baseScore;
+  }
+
+  public async execute(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
+    const start = performance.now();
+    const tool = this.tools.get(request.toolName);
+
+    if (!tool) {
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "denied",
+        error: `Tool '${request.toolName}' is not registered in the MCP gateway`,
+        executionTimeMs: 1,
+        policyDecision: "deny",
+        trustScore: 0,
+      };
+    }
+
+    if (!tool.enabled) {
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "denied",
+        error: `Tool '${request.toolName}' is currently disabled by policy`,
+        executionTimeMs: 1,
+        policyDecision: "deny",
+        trustScore: this.calculateTrustScore(tool.name),
+      };
+    }
+
+    // R4 / Approval check
+    if (tool.approvalRequired && !request.humanApproved) {
+      return {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        status: "denied",
+        error: `Tool '${request.toolName}' requires mandatory human approval before execution`,
+        executionTimeMs: 1,
+        policyDecision: "require_approval",
+        trustScore: this.calculateTrustScore(tool.name),
+      };
+    }
+
+    // Sanitize arguments to prevent secret leakage
+    const sanitizedArgs = ToolExecutionSandbox.sanitizeArguments(request.arguments);
+
+    let output: unknown;
+    let status: "success" | "denied" | "failed" = "success";
+    let errorMsg: string | undefined;
+
+    try {
+      if (tool.name === "pao.fs.read") {
+        const filePath = String(sanitizedArgs.path || "");
+        const safePath = ToolExecutionSandbox.assertSafeWorkspacePath(filePath, request.workspacePath);
+        if (!existsSync(safePath)) {
+          throw new Error(`File not found: ${filePath}`);
+        }
+        output = readFileSync(safePath, "utf8");
+      } else if (tool.name === "pao.fs.write") {
+        const filePath = String(sanitizedArgs.path || "");
+        const safePath = ToolExecutionSandbox.assertSafeWorkspacePath(filePath, request.workspacePath);
+        const content = String(sanitizedArgs.content || "");
+        writeFileSync(safePath, content, "utf8");
+        output = { written: true, path: filePath, bytes: content.length };
+      } else if (tool.name === "pao.fs.list") {
+        const dirPath = String(sanitizedArgs.path || ".");
+        const safePath = ToolExecutionSandbox.assertSafeWorkspacePath(dirPath, request.workspacePath);
+        output = readdirSync(safePath);
+      } else if (tool.name === "pao.exec.safe") {
+        const cmd = String(sanitizedArgs.command || "");
+        ToolExecutionSandbox.assertSafeCommand(cmd);
+        output = { command: cmd, status: "simulated_safe_execution" };
+      } else {
+        output = { executed: true, tool: tool.name };
+      }
+    } catch (err: unknown) {
+      if (err instanceof SandboxSecurityError) {
+        status = "denied";
+        errorMsg = err.message;
+      } else {
+        status = "failed";
+        errorMsg = (err as Error).message;
+      }
+    }
+
+    const executionTimeMs = Math.max(Math.round(performance.now() - start), 1);
+    const trustScore = this.calculateTrustScore(tool.name);
+
+    // Record audit into core_tool_executions
+    this.recordAudit(request, tool, status, executionTimeMs, errorMsg);
+
+    return {
+      requestId: request.requestId,
+      toolName: tool.name,
+      status,
+      output: status === "success" ? output : undefined,
+      error: errorMsg,
+      executionTimeMs,
+      policyDecision: status === "denied" ? "deny" : "allow",
+      trustScore,
+    };
+  }
+
+  private seedDefaultTools(): void {
+    this.registerServer({
+      id: "local_system",
+      name: "Pao Safe Local System",
+      transport: "stdio",
+      trustScore: 95,
+      status: "active",
+    });
+
+    this.registerTool({
+      name: "pao.fs.read",
+      serverId: "local_system",
+      description: "Safely reads a file within the workspace boundary",
+      riskTier: "R0",
+      mutability: "read_only",
+      approvalRequired: false,
+      enabled: true,
+    });
+
+    this.registerTool({
+      name: "pao.fs.write",
+      serverId: "local_system",
+      description: "Safely writes a file within the workspace boundary",
+      riskTier: "R2",
+      mutability: "idempotent_write",
+      approvalRequired: false,
+      enabled: true,
+    });
+
+    this.registerTool({
+      name: "pao.fs.list",
+      serverId: "local_system",
+      description: "Lists directory contents within the workspace boundary",
+      riskTier: "R0",
+      mutability: "read_only",
+      approvalRequired: false,
+      enabled: true,
+    });
+
+    this.registerTool({
+      name: "pao.exec.safe",
+      serverId: "local_system",
+      description: "Executes a command screened against destructive patterns",
+      riskTier: "R2",
+      mutability: "idempotent_write",
+      approvalRequired: false,
+      enabled: true,
+    });
+
+    this.registerTool({
+      name: "pao.admin.destroy",
+      serverId: "local_system",
+      description: "Privileged destructive system operation",
+      riskTier: "R4",
+      mutability: "destructive",
+      approvalRequired: true, // MANDATORY APPROVAL
+      enabled: true,
+    });
+  }
+
+  private recordAudit(
+    request: ToolExecutionRequest,
+    tool: McpToolDefinition,
+    status: string,
+    executionTimeMs: number,
+    error?: string,
+  ): void {
+    try {
+      const db = openAgentOsDb();
+      const executionId = `texec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      db.query(`
+        INSERT INTO core_tool_executions (
+          id, tool_name, server_id, actor_id, task_id,
+          arguments_hash, arguments_json, status, result_json,
+          execution_time_ms, approved_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        executionId,
+        tool.name,
+        tool.serverId,
+        request.actorId,
+        request.requestId,
+        "hash_" + request.requestId,
+        JSON.stringify(ToolExecutionSandbox.sanitizeArguments(request.arguments)),
+        status,
+        JSON.stringify(error ? { error } : { success: true }),
+        executionTimeMs,
+        request.humanApproved ? request.actorId : null,
+        new Date().toISOString(),
+      );
+    } catch {
+      // Graceful fallback during tests
+    }
+  }
+}
+
+let defaultMcpGateway: McpToolGateway | null = null;
+
+export function getMcpToolGateway(): McpToolGateway {
+  if (!defaultMcpGateway) {
+    defaultMcpGateway = new McpToolGateway();
+  }
+  return defaultMcpGateway;
+}

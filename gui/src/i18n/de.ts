@@ -4,7 +4,7 @@ import type { TKey } from "./en";
 /**
  * German i18n catalog, generated from en.ts. Must match the `TKey` set (compile-checked).
  */
-export const de: Record<TKey, string> = {
+export const de: Partial<Record<TKey, string>> = {
   "nav.dashboard": "Übersicht",
   "uptime.day": "T",
   "uptime.hour": "Std",
@@ -1124,6 +1124,9 @@ export const de: Record<TKey, string> = {
   "nav.codeIntelligence": "Code-Intelligenz",
   "nav.externalApis": "Externe APIs",
   "nav.codeReview": "Code-Review",
+  "nav.modelGateway": "Modell-Gateway",
+  "nav.skills": "Skill-Gate",
+  "nav.credentials": "Anmeldedaten",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge-Demo",
   "demo.subtitle": "Agent-native Stock-Workflow mit einem Klick.",

@@ -734,6 +734,10 @@ const commandRunners: Record<string, CommandRunner> = {
     const { handleReview } = await import("./review");
     return await handleReview(deps.args.slice(1));
   },
+  stock: async deps => {
+    const { handleStock } = await import("./stock");
+    return await handleStock(deps.args.slice(1));
+  },
   help: async () => {
     printUsage();
     return 0;

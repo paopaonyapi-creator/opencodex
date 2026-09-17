@@ -366,6 +366,13 @@ const BOT_WORKSPACE_VERB_DEFERRAL = {
   ownerDoc: "docs/bot-workspace/README.md",
 } as const;
 
+const MODEL_GATEWAY_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.85 ships the OmniRoute unified model gateway, capability registry, cumulative retry budget, circuit monitor, and local-only enforcement first; CLI verbs belong to the dashboard/CLI follow-up.",
+  owner: "Phase 20.85 Model Gateway",
+  ownerDoc: "docs/Phase 20.85 — Pao-hubPro × OmniRoute.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -703,6 +710,12 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/code-review/run", module: "server/management/code-review-routes", mutates: true },
   { method: "GET", path: "/api/agent-os/code-review/sessions", module: "server/management/code-review-routes", mutates: false },
   { method: "GET", path: "/api/agent-os/code-review/sessions/{id}", module: "server/management/code-review-routes", mutates: false, mechanism: "slice" },
+  // Phase 20.85 OmniRoute Unified Model Gateway (agent-os-routes)
+  { method: "GET", path: "/api/agent-os/model-gateway/health", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/model-gateway/routes", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/model-gateway/providers", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/model-gateway/models", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/model-gateway/circuits", module: "server/management/agent-os-routes", mutates: false, exempt: MODEL_GATEWAY_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/skills", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/agents", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/ecc/memory", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },

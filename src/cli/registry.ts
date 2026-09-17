@@ -273,6 +273,16 @@ export const CLI_COMMANDS: CliCommandEntry[] = [
     ],
   },
   {
+    name: "stock",
+    usage: "ocx stock <run|status|list> [--query <topic>] [--market <code>] [--count <n>] [--json]",
+    summary: "Adobe Stock autonomous pipeline runtime (Phase 20.10 / Phase 20.31; GOLD §25). Trend discovery, campaign planning, QC, and CSV manifests.",
+    details: [
+      "`ocx stock run --query <topic>` executes the full 7-stage autonomous production pipeline.",
+      "`ocx stock status [<id>]` inspects active or recent pipeline run status and asset QC records.",
+      "`ocx stock list` enumerates historical pipeline runs.",
+    ],
+  },
+  {
     name: "export",
     usage: "ocx export --client <opencode|pi|omp|hermes|openclaw|kimi|gajae|dsh|mcode|zcode|prime> [--json] [--out <path>] [--force]",
     summary: "Print a client config (OpenCode, Pi, OMP, Hermes, OpenClaw, Kimi Code, Gajae Code, DeepSeek Harness, MiniMax Code, ZCode, Prime Agent) wired to the running proxy.",

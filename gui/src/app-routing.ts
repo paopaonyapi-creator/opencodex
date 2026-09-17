@@ -58,7 +58,10 @@ export type Page =
   | "agent-runtime"
   | "code-intelligence"
   | "external-apis"
-  | "code-review";
+  | "code-review"
+  | "model-gateway"
+  | "skills"
+  | "credentials";
 
 export const VALID_PAGES = new Set<Page>([
   "dashboard",
@@ -117,6 +120,9 @@ export const VALID_PAGES = new Set<Page>([
   "code-intelligence",
   "external-apis",
   "code-review",
+  "model-gateway",
+  "skills",
+  "credentials",
 ]);
 
 export function readPageFromHash(hash?: string): Page {
@@ -193,11 +199,31 @@ export const INTEGRATION_TAB_HASHES = [
   "integrations/prime",
 ] as const;
 
+export const SKILLS_TAB_HASHES = [
+  "skills/marketplace", "skills/registry", "skills/editor", "skills/matrix",
+  "skills/agents", "skills/nodes", "skills/drift", "skills/reviews", "skills/audit",
+] as const;
+
+export const SECURITY_TAB_HASHES = [
+  "security/authorizations", "security/scopes", "security/campaigns", "security/approvals",
+  "security/findings", "security/evidence", "security/skills", "security/tools",
+  "security/mcp", "security/policies", "security/audit",
+] as const;
+
+export const CREDENTIALS_TAB_HASHES = [
+  "credentials/list", "credentials/providers", "credentials/oauth", "credentials/pool",
+  "credentials/health", "credentials/quota", "credentials/policies",
+  "credentials/approvals", "credentials/audit",
+] as const;
+
 export function hashBelongsToPage(rawHash: string, page: Page): boolean {
   return rawHash === page
     || (page === "logs" && rawHash === "logs/debug")
     || (page === "codex-set" && rawHash === "codex-set/prompt")
     || (page === "models" && (MODELS_TAB_HASHES as readonly string[]).includes(rawHash))
+    || (page === "skills" && (SKILLS_TAB_HASHES as readonly string[]).includes(rawHash))
+    || (page === "security" && (SECURITY_TAB_HASHES as readonly string[]).includes(rawHash))
+    || (page === "credentials" && (CREDENTIALS_TAB_HASHES as readonly string[]).includes(rawHash))
     || (page === "dashboard"
       && (rawHash === DASHBOARD_UPDATE_HASH || (DASHBOARD_TAB_HASHES as readonly string[]).includes(rawHash)))
     || (page === "integrations"

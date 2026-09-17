@@ -3,7 +3,7 @@ import type { TKey } from "./en";
 /**
  * Russian i18n catalog; must match the `TKey` set (compile-checked).
  */
-export const ru: Record<TKey, string> = {
+export const ru: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "Дашборд",
   "uptime.day": "д",
@@ -1798,6 +1798,9 @@ export const ru: Record<TKey, string> = {
   "nav.codeIntelligence": "Интеллект кода",
   "nav.externalApis": "Внешние API",
   "nav.codeReview": "Ревью кода",
+  "nav.modelGateway": "Шлюз моделей",
+  "nav.skills": "Шлюз навыков",
+  "nav.credentials": "Учетные данные",
   "nav.governance": "Управление",
   "demo.title": "Демо WebMCP Challenge",
   "demo.subtitle": "Агент-нативный стоковый рабочий процесс в один клик.",

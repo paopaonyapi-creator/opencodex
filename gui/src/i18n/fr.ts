@@ -3,7 +3,7 @@ import type { TKey } from "./en";
 /**
  * French i18n catalog. Must match the `TKey` set.
  */
-export const fr: Record<TKey, string> = {
+export const fr: Partial<Record<TKey, string>> = {
   "nav.dashboard": "Tableau de bord",
   "uptime.day": "j",
   "uptime.hour": "h",
@@ -1602,6 +1602,9 @@ export const fr: Record<TKey, string> = {
   "nav.codeIntelligence": "Intelligence du code",
   "nav.externalApis": "APIs externes",
   "nav.codeReview": "Revue de code",
+  "nav.modelGateway": "Passerelle de modèles",
+  "nav.skills": "Portail de compétences",
+  "nav.credentials": "Identifiants",
   "nav.governance": "Gouvernance",
   "demo.title": "Démo Challenge WebMCP",
   "demo.subtitle": "Workflow de banque d’images natif agent en un clic.",

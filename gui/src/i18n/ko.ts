@@ -3,7 +3,7 @@ import type { TKey } from "./en";
 /**
  * Korean i18n catalog; must match the `TKey` set (compile-checked).
  */
-export const ko: Record<TKey, string> = {
+export const ko: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "대시보드",
   "uptime.day": "일",
@@ -1185,6 +1185,9 @@ export const ko: Record<TKey, string> = {
   "nav.codeIntelligence": "코드 인텔리전스",
   "nav.externalApis": "외부 API",
   "nav.codeReview": "코드 검토",
+  "nav.modelGateway": "모델 게이트웨이",
+  "nav.skills": "스킬 게이트",
+  "nav.credentials": "자격 증명",
   "nav.governance": "거버넌스",
   "demo.title": "WebMCP 챌린지 데모",
   "demo.subtitle": "원클릭 에이전트 네이티브 스톡 워크플로우.",

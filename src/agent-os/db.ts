@@ -150,7 +150,10 @@ import { join } from "node:path";
 // v45: mobile leases/approvals/traces (Phase 20.55).
 // v46: cap_* Micro-App Capability Lab (Phase 20.56).
 // v47: sg_* Skill Gate control plane (Phase 20.57).
-export const AGENT_OS_SCHEMA_VERSION = 53;
+// v52: cr_* Deterministic Code Review (Phase 20.81).
+// v53: cr_sessions parent/revision lineage.
+// v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
+export const AGENT_OS_SCHEMA_VERSION = 54;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6061,20 +6064,64 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_eap_audit_created ON eap_audit(created_at DESC);
 
       -- v52: Deterministic code review runtime (GOLD slice on the Phase 20.81 contract)
-      CREATE TABLE IF NOT EXISTS cr_sessions (id TEXT PRIMARY KEY, repository_path TEXT NOT NULL, mode TEXT NOT NULL, from_ref TEXT, to_ref TEXT, commit_sha TEXT, head_sha TEXT, diff_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'completed', gate TEXT, critical_count INTEGER NOT NULL DEFAULT 0, high_count INTEGER NOT NULL DEFAULT 0, medium_count INTEGER NOT NULL DEFAULT 0, protected_path_changed INTEGER NOT NULL DEFAULT 0, policy_version TEXT NOT NULL, rule_hash TEXT NOT NULL, error_code TEXT, requested_by TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT);
+      CREATE TABLE IF NOT EXISTS cr_sessions (id TEXT PRIMARY KEY, repository_path TEXT NOT NULL, mode TEXT NOT NULL, from_ref TEXT, to_ref TEXT, commit_sha TEXT, head_sha TEXT, diff_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'completed', gate TEXT, critical_count INTEGER NOT NULL DEFAULT 0, high_count INTEGER NOT NULL DEFAULT 0, medium_count INTEGER NOT NULL DEFAULT 0, protected_path_changed INTEGER NOT NULL DEFAULT 0, policy_version TEXT NOT NULL, rule_hash TEXT NOT NULL, error_code TEXT, requested_by TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT, parent_session_id TEXT, revision INTEGER NOT NULL DEFAULT 1, delegated_findings INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS idx_cr_sessions_diff ON cr_sessions(repository_path, mode, diff_hash);
       CREATE INDEX IF NOT EXISTS idx_cr_sessions_created ON cr_sessions(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_cr_sessions_parent ON cr_sessions(parent_session_id);
       CREATE TABLE IF NOT EXISTS cr_findings (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, unit_id TEXT, path TEXT NOT NULL, start_line INTEGER, end_line INTEGER, category TEXT NOT NULL, subcategory TEXT, severity TEXT NOT NULL, confidence REAL NOT NULL, title TEXT NOT NULL, description TEXT, evidence TEXT, suggestion TEXT, status TEXT NOT NULL DEFAULT 'open', source TEXT NOT NULL DEFAULT 'deterministic', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_cr_findings_session ON cr_findings(session_id);
       CREATE TABLE IF NOT EXISTS cr_gate_results (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, gate TEXT NOT NULL, reasons_json TEXT NOT NULL DEFAULT '[]', decided_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_cr_gate_session ON cr_gate_results(session_id);
 
-      -- v53: review revision lineage (GOLD slice #2 — the fix/re-review loop)
-      ALTER TABLE cr_sessions ADD COLUMN parent_session_id TEXT;
-      ALTER TABLE cr_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE cr_sessions ADD COLUMN delegated_findings INTEGER NOT NULL DEFAULT 0;
-      CREATE INDEX IF NOT EXISTS idx_cr_sessions_parent ON cr_sessions(parent_session_id);
+      -- v54: Model Gateway (Phase 20.85 OmniRoute), Decision Runtime (Phase 20.84 TypeSafe Jev) & Core Persistence Layer
+      CREATE TABLE IF NOT EXISTS gw_providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, family TEXT NOT NULL, endpoint_url TEXT NOT NULL, auth_type TEXT NOT NULL, is_local INTEGER NOT NULL DEFAULT 0, health_status TEXT NOT NULL DEFAULT 'healthy', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS gw_models (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, model_id TEXT NOT NULL, model_family TEXT NOT NULL, is_local INTEGER NOT NULL DEFAULT 0, context_window INTEGER NOT NULL, input_price_per_m REAL, output_price_per_m REAL, pricing_status TEXT NOT NULL DEFAULT 'known', status TEXT NOT NULL DEFAULT 'approved', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS gw_model_capabilities (model_id TEXT NOT NULL, capability TEXT NOT NULL, PRIMARY KEY(model_id, capability));
+      CREATE TABLE IF NOT EXISTS gw_routes (route_group TEXT PRIMARY KEY, policy_type TEXT NOT NULL, candidates_json TEXT NOT NULL, required_capabilities TEXT NOT NULL, max_budget_usd REAL, local_only INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS gw_routing_decisions (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, actor_id TEXT NOT NULL, task_type TEXT NOT NULL, route_group TEXT NOT NULL, resolved_provider TEXT NOT NULL, resolved_model TEXT NOT NULL, model_family TEXT NOT NULL, data_class TEXT NOT NULL, local_only INTEGER NOT NULL DEFAULT 0, candidate_scores_json TEXT, decision_reasons_json TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_gw_routing_req ON gw_routing_decisions(request_id);
+      CREATE TABLE IF NOT EXISTS gw_usage (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, actor_id TEXT NOT NULL, workspace_id TEXT, provider_id TEXT NOT NULL, model_id TEXT NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, total_tokens INTEGER NOT NULL, duration_ms INTEGER NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_gw_usage_req ON gw_usage(request_id);
+      CREATE TABLE IF NOT EXISTS gw_costs (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, task_id TEXT, actor_id TEXT NOT NULL, provider_id TEXT NOT NULL, model_id TEXT NOT NULL, cost_usd REAL NOT NULL, is_retry INTEGER NOT NULL DEFAULT 0, is_fallback INTEGER NOT NULL DEFAULT 0, pricing_status TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_gw_costs_task ON gw_costs(task_id);
+      CREATE TABLE IF NOT EXISTS gw_quotas (provider_id TEXT PRIMARY KEY, quota_type TEXT NOT NULL, remaining REAL, reset_at TEXT, last_synced_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS gw_circuits (provider TEXT PRIMARY KEY, state TEXT NOT NULL, failure_count INTEGER NOT NULL DEFAULT 0, opened_at TEXT, cooldown_until TEXT, last_reason TEXT, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS gw_task_attempts (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, task_id TEXT NOT NULL, attempt_number INTEGER NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, status TEXT NOT NULL, error_class TEXT, error_message TEXT, latency_ms INTEGER NOT NULL, cost_usd REAL NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_gw_task_attempts_task ON gw_task_attempts(task_id);
+      CREATE TABLE IF NOT EXISTS gw_audit_records (request_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, workspace_id TEXT, task_type TEXT NOT NULL, route_group TEXT NOT NULL, resolved_provider TEXT NOT NULL, resolved_model TEXT NOT NULL, model_family TEXT, data_class TEXT NOT NULL, local_only INTEGER NOT NULL DEFAULT 0, attempts_count INTEGER NOT NULL DEFAULT 1, attempts_json TEXT NOT NULL, input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL NOT NULL DEFAULT 0.0, pricing_status TEXT NOT NULL, latency_ms INTEGER NOT NULL, status TEXT NOT NULL, policy_decision_id TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_gw_audit_created ON gw_audit_records(created_at DESC);
+
+      -- Decision Intelligence Runtime (Phase 20.84 TypeSafe Jev)
+      CREATE TABLE IF NOT EXISTS dec_contracts (contract_id TEXT PRIMARY KEY, version TEXT NOT NULL, category TEXT NOT NULL, risk_tier TEXT NOT NULL, threshold_profile TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'shadow', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS dec_audit_records (request_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, contract_id TEXT NOT NULL, contract_version TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, state_hash TEXT NOT NULL, state_json TEXT NOT NULL, selected_choice TEXT NOT NULL, confidence REAL NOT NULL, candidates_json TEXT NOT NULL, disposition TEXT NOT NULL, hard_policy_denied INTEGER NOT NULL DEFAULT 0, hard_policy_reasons TEXT, latency_ms INTEGER NOT NULL, cost_usd REAL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_dec_audit_contract ON dec_audit_records(contract_id);
+      CREATE TABLE IF NOT EXISTS dec_calibration_stats (contract_id TEXT NOT NULL, profile TEXT NOT NULL, sample_count INTEGER NOT NULL, brier_score REAL NOT NULL, ece REAL NOT NULL, accuracy REAL NOT NULL, false_allow_rate REAL NOT NULL, false_deny_rate REAL NOT NULL, last_evaluated_at TEXT NOT NULL, PRIMARY KEY(contract_id, profile));
+
+      -- Core Durable Persistence Layer
+      CREATE TABLE IF NOT EXISTS core_users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'developer', display_name TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_workspaces (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_id TEXT NOT NULL, policy_profile TEXT NOT NULL DEFAULT 'standard', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_projects (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, name TEXT NOT NULL, root_path TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_sessions (id TEXT PRIMARY KEY, workspace_id TEXT, project_id TEXT, actor_id TEXT NOT NULL, session_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_agent_runs (id TEXT PRIMARY KEY, session_id TEXT, agent_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'running', prompt TEXT, result_json TEXT, started_at TEXT NOT NULL, finished_at TEXT);
+      CREATE TABLE IF NOT EXISTS core_task_attempts (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, attempt_number INTEGER NOT NULL, worker_id TEXT, status TEXT NOT NULL, error_details TEXT, started_at TEXT NOT NULL, completed_at TEXT);
+      CREATE TABLE IF NOT EXISTS core_tools (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT, capability TEXT NOT NULL, risk_level TEXT NOT NULL, mutability TEXT NOT NULL, approval_required INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_mcp_servers (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, transport TEXT NOT NULL DEFAULT 'stdio', command TEXT, url TEXT, trust_score INTEGER NOT NULL DEFAULT 100, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_tool_executions (id TEXT PRIMARY KEY, tool_name TEXT NOT NULL, server_id TEXT, actor_id TEXT NOT NULL, task_id TEXT, arguments_hash TEXT, arguments_json TEXT, status TEXT NOT NULL, result_json TEXT, execution_time_ms INTEGER NOT NULL, approved_by TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_secrets_metadata (id TEXT PRIMARY KEY, key_name TEXT NOT NULL UNIQUE, provider TEXT NOT NULL, vault_ref TEXT NOT NULL, algorithm TEXT NOT NULL DEFAULT 'AES-256-GCM', owner_id TEXT, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL, rotated_at TEXT);
+      CREATE TABLE IF NOT EXISTS core_reviewer_runs (id TEXT PRIMARY KEY, diff_hash TEXT NOT NULL, request_source TEXT NOT NULL, reviewer_identities_json TEXT NOT NULL, distinct_families_count INTEGER NOT NULL, correlated INTEGER NOT NULL DEFAULT 0, consensus_verdict TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_reviewer_votes (id TEXT PRIMARY KEY, reviewer_run_id TEXT NOT NULL, reviewer_id TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, model_family TEXT NOT NULL, verdict TEXT NOT NULL, findings_count INTEGER NOT NULL, confidence REAL NOT NULL, vote_weight REAL NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_artifacts (id TEXT PRIMARY KEY, session_id TEXT, task_id TEXT, name TEXT NOT NULL, path TEXT NOT NULL, sha256 TEXT NOT NULL, mime_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS core_jobs (id TEXT PRIMARY KEY, job_type TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', priority INTEGER NOT NULL DEFAULT 50, attempts INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL DEFAULT 3, run_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     `);
+
+    // Incremental column upgrades for pre-v53 databases
+    if (storedVersion > 0 && storedVersion < 53) {
+      try { db.exec("ALTER TABLE cr_sessions ADD COLUMN parent_session_id TEXT;"); } catch {}
+      try { db.exec("ALTER TABLE cr_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;"); } catch {}
+      try { db.exec("ALTER TABLE cr_sessions ADD COLUMN delegated_findings INTEGER NOT NULL DEFAULT 0;"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_cr_sessions_parent ON cr_sessions(parent_session_id);"); } catch {}
+    }
+
     db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     ).run(String(AGENT_OS_SCHEMA_VERSION));

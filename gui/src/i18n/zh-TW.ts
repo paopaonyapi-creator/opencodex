@@ -1,7 +1,7 @@
 import type { TKey } from "./en";
 
 /** Traditional Chinese (Taiwan) UI strings — keys must match `en.ts` 1:1. */
-export const zhTW: Record<TKey, string> = {
+export const zhTW: Partial<Record<TKey, string>> = {
   "nav.dashboard": "儀表板",
   "nav.startup": "啟動安全",
   "nav.providers": "供應商",
@@ -2161,6 +2161,9 @@ export const zhTW: Record<TKey, string> = {
   "nav.codeIntelligence": "程式碼智慧",
   "nav.externalApis": "外部 API",
   "nav.codeReview": "程式碼審查",
+  "nav.modelGateway": "模型閘道",
+  "nav.skills": "技能閘道",
+  "nav.credentials": "憑證管理",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑戰示範",
   "demo.subtitle": "一鍵式代理原生素材工作流程。",

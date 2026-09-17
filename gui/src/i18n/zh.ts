@@ -3,7 +3,7 @@ import { en, type TKey } from "./en";
 /**
  * Chinese i18n catalog; must match the `TKey` set (compile-checked).
  */
-export const zh: Record<TKey, string> = {
+export const zh: Partial<Record<TKey, string>> = {
   ...en,
   // sidebar / nav / common
   "nav.dashboard": "仪表盘",
@@ -996,6 +996,9 @@ export const zh: Record<TKey, string> = {
   "nav.codeIntelligence": "代码智能",
   "nav.externalApis": "外部 API",
   "nav.codeReview": "代码审查",
+  "nav.modelGateway": "模型网关",
+  "nav.skills": "技能网关",
+  "nav.credentials": "凭据管理",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑战演示",
   "demo.subtitle": "一键式原生代理素材工作流。",

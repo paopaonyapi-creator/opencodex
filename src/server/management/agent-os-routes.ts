@@ -284,6 +284,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleExternalApiRoutes(ctx);
   }
 
+  // Phase 20.57: SkillsGate Skill Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/skill-gate") || url.pathname === "/api/agent-os/skill-gate") {
+    const { handleSkillGateRoutes } = await import("./skill-gate-routes");
+    return handleSkillGateRoutes(ctx);
+  }
+
   // GOLD slice #1: Deterministic code review runtime (Phase 20.81 contract).
   if (url.pathname.startsWith("/api/agent-os/code-review") || url.pathname === "/api/agent-os/code-review") {
     const { handleCodeReviewRoutes } = await import("./code-review-routes");

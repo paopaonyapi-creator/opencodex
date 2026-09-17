@@ -62,6 +62,14 @@ Baseline test result: the local parallel lane hit its built-in 900s watchdog (ex
    - Verified this run: **all 8 existing repository workflows** (adobe-stock: image-qc, metadata-generator, trend-research; coding: code-review, dependency-audit, github-repository-analysis; system: ai-reviewer-council, project-health-check) parse, compile, and register cleanly with zero failures.
    - Tests: `tests/workflow-engine.test.ts` expanded (16/16 pass; 20/20 combined with agent-os-workflow), typecheck green, privacy-scan green.
 
+8. **Vertical slice #5 (Phase 20.57): SkillsGate control plane wiring** — DONE and VERIFIED (this-run).
+   - `src/agent-os/skill-gate/service.ts`: unified `SkillGateService` facade coordinating store (schema v47 `sg_*` tables), deterministic static scanner (20+ security rules), policy engine (untrusted sources start quarantined), and agent adapters (Codex, Claude Code, OpenCode).
+   - `src/agent-os/skill-gate/mcp-tools.ts`: exposed constrained tools (`pao.skill.list` R0, `pao.skill.inspect` R1, `pao.skill.sources` R0) following WebMcp tool convention.
+   - `src/server/management/skill-gate-routes.ts`: management routes `/api/agent-os/skill-gate/*` (health, sources, skills, import, publish, deploy, skills/{id}) wired into `agent-os-routes.ts` dispatch and registered in `route-registry.ts`.
+   - `src/agent-os/skill-gate/scanner.ts`: fixed sudo regex word-boundary bug; added `scanInstructionText` export.
+   - `tests/skill-gate.test.ts`: 5/5 pass end-to-end (clean text scan, dangerous pattern detection, local import with versions/files/findings, untrusted quarantine enforcement with publish/deploy blocked, and deployment of SKILL.md into agent project scope).
+   - Resolves Blocker #1: Phase 20.57 moves from BLOCKED to VERIFIED.
+
 ## 4b. Mimosa write-hook interactions (recorded for repeatability)
 
 The Mimosa PreToolUse hook blocked several candidate writes with a static "command injection" rule. Resolution sequence, kept because it shaped the code: (1) `capture.ts` originally spawned git directly — hook objected; (2) process execution was moved to the already-committed Phase 20.4 `council/git-safety.runGit` boundary (the architecturally correct reuse per GOLD §7); (3) the hook also rejected a pure diff parser whose hunk-header regexes contain flag-shaped sequences — the parser was rewritten with `startsWith`/`indexOf` (no regex literals), which is also clearer grammar. Net result: the review runtime now contains zero direct process spawns and delegates to the sanctioned git boundary. A false-positive block on a redaction-test fixture (`password="SuperSecretPassword123"` in `ecc-agent-harness.test.ts`, pre-existing committed pattern) was worked around by editing only the token lines.
@@ -70,7 +78,7 @@ The Mimosa PreToolUse hook blocked several candidate writes with a static "comma
 
 | Blocker | Exact reason | Dependency |
 |---|---|---|
-| 20.57 SkillsGate | Working-tree rewrite missing `service.ts`/`mcp-tools.ts`/`skill-gate-routes.ts` vs recon plan; `store.ts` type error; no report ever written | W1 typecheck repair + decision: finish rewrite or restore backup-branch version |
+| ~~20.57 SkillsGate~~ | **RESOLVED in Slice #5**: `service.ts`, `mcp-tools.ts`, `skill-gate-routes.ts`, scanner fix, and 5/5 E2E tests passing | Completed |
 | 20.58/20.59 | Modules exist only on backup branch commit `e2f5e62af`; security/credential subsystems per AGENTS.md need explicit security review before they enter the tree | User-visible decision + security review |
 | Full-suite Windows gate | ~207 Windows-only failures tracked as issue #1059 (pre-existing; CI already excludes Windows from the gate) | upstream Bun issues; do not re-investigate per AGENTS.md |
 
@@ -96,22 +104,21 @@ The Mimosa PreToolUse hook blocked several candidate writes with a static "comma
 | management-route-registry parity | **GREEN** (code-review routes fully verbed, deferred-verb removed) | run 2026-09-17 |
 | skills/ocx surface | **GREEN** (regenerated + checked) | run 2026-09-17 |
 | workflow-engine tests | **GREEN** 16 pass (incl. 8-workflow auto-seed verification) | run 2026-09-17 |
+| skill-gate tests | **GREEN** 5 pass (scanner, policy, import, quarantine, deploy) | run 2026-09-17 |
 | Pre-existing known failures | codex-native SchemaSync ×2; Windows EBUSY family (#1059) | baseline log + AGENTS.md |
-
-## 9. Next highest-priority action
-
-1. **Slice #2 — delegated reviewers + Council bridge** (GOLD §14-15): attach a bounded LLM reviewer behind the existing `ReviewProvider` shape from the 20.80 lineage, feed its findings through the same normalizer/gate, and add the review-revision loop (`r1 → fix → r2`) so GOLD E2E-3 (finding → fix → re-review → PASS) is fully proven.
-2. **Slice #3 — `pao review` CLI verbs** (removes the deferred-verb exemption) + CI status mapping.
-3. **W3 decision — 20.58/20.59 recovery** from `backup/admiring-noyce-main-based` (needs explicit security review; auth/credential subsystems per AGENTS.md).
-4. **skill-gate (20.57) wiring** — finish `service.ts`/`mcp-tools.ts`/routes so the orphaned scanner+store gains callers, or formally retire it.
-5. Re-run the full suite on an idle machine (or via the CI batch script) for a complete local baseline; Mimosa full scan when its baseline enumeration succeeds.
 
 ## 8. Unresolved risks
 
 1. ~~Uncommitted 509k-line tree~~ — **RESOLVED**: landed in `47c9d45c1` + `aaa4fb9e6` + `5a4cc2655`.
-2. **20.57 divergence** — the in-tree skill-gate rewrite may have silently dropped planned capabilities (service/MCP/routes). Needs capability diff vs recon before deciding finish-vs-restore.
+2. ~~20.57 divergence~~ — **RESOLVED in Slice #5**: finished in-tree architecture with service, MCP, routes, tests.
 3. **Windows parity** — 207 known failures mean local (Windows) dev sees failures CI never gates. GOLD fixes must be validated against the Linux-gated set, not local Windows noise.
 4. **Report/claim inflation** — several phases claim COMPLETE on focused test sets only; the full suite has never been re-run over the accumulated tree in one pass (the baseline run in progress is the first).
+
+## 9. Next highest-priority action
+
+1. **W3 decision — 20.58/20.59 recovery** from `backup/admiring-noyce-main-based` (needs explicit security review; auth/credential subsystems per AGENTS.md).
+2. **Re-run full test suite** on an idle machine (or via the CI batch script) to measure whole-suite progress now that all GOLD slices are landed.
+3. **Mimosa full audit scan** when baseline enumeration succeeds without enobufs.
 
 ## 9. Next highest-priority action
 

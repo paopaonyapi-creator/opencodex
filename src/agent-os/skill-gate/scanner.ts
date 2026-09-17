@@ -28,7 +28,7 @@ export const SCANNER_RULES: ScannerRule[] = [
   { ruleId: "skill.shell.curl-pipe-sh", severity: "critical", weight: 35, message: "Remote content is piped directly into a shell", pattern: /\b(curl|wget)\b[^|\n]{0,120}\|\s*(sudo\s+)?(ba|z|da|k)?sh\b/i },
   { ruleId: "skill.shell.pipe-to-bash", severity: "high", weight: 20, message: "Content is piped into bash or a script interpreter", pattern: /\|\s*(sudo\s+)?(bash|zsh|python3?|node|pwsh|powershell)\b/i },
   { ruleId: "skill.shell.download-execute", severity: "high", weight: 30, message: "Download-and-execute pattern", pattern: /\b(Invoke-Expression|iex|Invoke-WebRequest\s+.*-UseBasicParsing.*;\s*iex|certutil\s+-urlcache|mshta\s+http|bitsadmin\s+\/transfer)\b/i },
-  { ruleId: "skill.elevation.sudo", severity: "high", weight: 30, message: "Privilege elevation via sudo or runas", pattern: /\b(sudo\s+[a-z]|runas\s+\/)\b/i },
+  { ruleId: "skill.elevation.sudo", severity: "high", weight: 30, message: "Privilege elevation via sudo or runas", pattern: /\b(sudo\s+[a-z]+|runas\s+\/)/i },
   { ruleId: "skill.fs.destructive", severity: "high", weight: 30, message: "Destructive filesystem command", pattern: /(^|\s)(rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)|del\s+\/[sq]|rmdir\s+\/s|format\s+[a-z]:|mkfs|shred\s)/i },
   { ruleId: "skill.git.destructive", severity: "medium", weight: 20, message: "Force push or destructive git operation", pattern: /\bgit\s+(reset\s+--hard|clean\s+-[a-z]*f|push\s+(-f|--force)|checkout\s+--\s+\.)/i },
   { ruleId: "skill.credential.access", severity: "high", weight: 20, message: "Reads credential or secret material", pattern: /(~\/?\.ssh|id_rsa|\.aws\/?credentials|\.netrc|\.npmrc|\.dockercfg|config\/?gcloud|credentials\.json|\.env\b|api[_-]?key\s*=|secret[_-]?key\s*=)/i },
@@ -137,4 +137,10 @@ export function scanSkillSnapshot(snapshotDir: string, relativePaths: string[]):
 
 export function evidenceHashFor(line: string): string {
   return `sha256:${createHash("sha256").update(line.trim().slice(0, 200)).digest("hex")}`;
+}
+
+export function scanInstructionText(text: string, filePath = "SKILL.md"): ScanFinding[] {
+  const findings: ScanFinding[] = [];
+  scanText(filePath, text, findings);
+  return findings;
 }

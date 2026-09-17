@@ -100,6 +100,18 @@ const ECC_VERB_DEFERRAL = {
 } as const;
 
 /**
+ * Shared deferral for the Phase 20.57 SkillsGate routes: the store, scanner,
+ * policy engine, and REST surface shipped first; CLI verbs belong to the
+ * follow-up recorded in the owner doc.
+ */
+const SKILL_GATE_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.57 ships the Skill Gate store, scanner, policy, and REST surface first; CLI verbs belong to the follow-up recorded in the owner doc.",
+  owner: "Phase 20.57 CLI follow-up",
+  ownerDoc: "PHASE_20_57_RECON.md",
+} as const;
+
+/**
  * Shared deferral for the Phase 20.21 Codex Native Runtime routes: the native runtime
  * adapter, policy engine, approval broker, and REST surface shipped first; CLI verbs
  * belong to the dashboard/CLI follow-up recorded in the owner doc.
@@ -600,6 +612,14 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/social/audit", module: "server/management/social-routes", mutates: false, exempt: SOCIAL_VERB_DEFERRAL },
   { method: "POST", path: "/api/social/tools/toggle", module: "server/management/social-routes", mutates: true, exempt: SOCIAL_VERB_DEFERRAL },
   { method: "GET", path: "/api/social/mcp-tools", module: "server/management/social-routes", mutates: false, exempt: SOCIAL_VERB_DEFERRAL },
+  // Phase 20.57 SkillsGate Skill Control Plane.
+  { method: "GET", path: "/api/agent-os/skill-gate/health", module: "server/management/skill-gate-routes", mutates: false, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/skill-gate/sources", module: "server/management/skill-gate-routes", mutates: false, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/skill-gate/skills", module: "server/management/skill-gate-routes", mutates: false, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/skill-gate/import", module: "server/management/skill-gate-routes", mutates: true, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/skill-gate/publish", module: "server/management/skill-gate-routes", mutates: true, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/skill-gate/deploy", module: "server/management/skill-gate-routes", mutates: true, exempt: SKILL_GATE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/skill-gate/skills/{id}", module: "server/management/skill-gate-routes", mutates: false, mechanism: "slice", exempt: SKILL_GATE_VERB_DEFERRAL },
   // Phase 20.20 ECC Agent Harness OS. Full-literal pathname guards, no mechanism.
   { method: "GET", path: "/api/agent-os/ecc/status", module: "server/management/ecc-routes", mutates: false, exempt: ECC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/code-review", module: "server/management/code-review-routes", mutates: false },
@@ -772,6 +792,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/automation/runs/cancel", module: "server/management/automation-routes", mutates: true, exempt: AUTOMATION_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/automation/approvals/resolve", module: "server/management/automation-routes", mutates: true, exempt: AUTOMATION_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/automation/runs/replay", module: "server/management/automation-routes", mutates: true, exempt: AUTOMATION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/automation/seed", module: "server/management/automation-routes", mutates: true, exempt: AUTOMATION_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/automation/audit", module: "server/management/automation-routes", mutates: false, exempt: AUTOMATION_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/automation/scheduler/tick", module: "server/management/automation-routes", mutates: true, exempt: AUTOMATION_VERB_DEFERRAL },
   // Phase 20.30 Universal AI Gateway control plane (over the existing proxy router). Full-literal pathname guards, no mechanism.

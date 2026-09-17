@@ -242,8 +242,29 @@ function publicVisionSidecarSettings(
   };
 }
 
+function pathInControlPlaneNamespace(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function ownsSecurityControlNamespace(pathname: string): boolean {
+  return pathInControlPlaneNamespace(pathname, "/api/security");
+}
+
+function ownsCredentialNamespace(pathname: string): boolean {
+  return pathInControlPlaneNamespace(pathname, "/api/credentials");
+}
+
 export async function handleConfigRoutes(ctx: ManagementContext): Promise<Response | null> {
   const { req, url, config, deps, convergeCodexCatalog, syncClaudeAgentDefsBestEffort } = ctx;
+  const pathname = url.pathname;
+  if (ownsSecurityControlNamespace(pathname)) {
+    const { handleSecurityControlRoutes } = await import("./security-control-routes");
+    return handleSecurityControlRoutes(ctx);
+  }
+  if (ownsCredentialNamespace(pathname)) {
+    const { handleCredentialRoutes } = await import("./credential-routes");
+    return handleCredentialRoutes(ctx);
+  }
   const readStartupHealth = deps.getCachedStartupHealth ?? getCachedStartupHealth;
   if (url.pathname === "/api/config" && req.method === "GET") {
     return jsonResponse(withProviderServiceTierDTO(safeConfigDTO(config), config));

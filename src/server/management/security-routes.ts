@@ -31,10 +31,6 @@ export async function handleSecurityRoutes(ctx: ManagementContext): Promise<Resp
     path = url.pathname.slice("/api/agent-os/security/".length);
   } else if (url.pathname === "/api/agent-os/security") {
     path = "";
-  } else if (url.pathname.startsWith("/api/security/")) {
-    path = url.pathname.slice("/api/security/".length);
-  } else if (url.pathname === "/api/security") {
-    path = "";
   } else {
     return null;
   }

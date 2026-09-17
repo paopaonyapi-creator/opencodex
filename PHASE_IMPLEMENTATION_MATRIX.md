@@ -73,7 +73,7 @@
 | 20.26 | Douyin media intelligence | 20.24 | implemented (MVP) | `src/agent-os/douyin/`, 32/32 | — | — | test-report | IMPLEMENTED |
 | 20.27 | VibeRaven cockpit + readiness gate | 20.16 | implemented (A–C + D slice) | `src/agent-os/control-plane/cockpit`, 22/22 | remaining gate milestones | — | test-report | IMPLEMENTED |
 | 20.28 | Governed agent computer (fabric) | 20.9b | implemented | `src/agent-os/governance-gateway/` + `gov_*` tables, 15/15 | — | — | root report | IMPLEMENTED |
-| 20.29 | ClawFlows workflow registry | 20.28 | implemented (A–C) | `src/agent-os/workflows/` + automation routes | **no auto-load of repo `workflows/` dir; no GUI page** | — | owner-doc | PARTIAL |
+| 20.29 | ClawFlows workflow registry | 20.28 | **implemented & verified (auto-seeding wired)** | `src/agent-os/workflows/` (compiler, parser, runtime, store, types) + `automation-routes.ts`; auto-seeds all 8 repo `WORKFLOW.md` files on startup/inspection | GUI page deferred | — | **this-run: 16/16 pass incl. 8-workflow seed** | VERIFIED |
 | 20.30 | Universal AI coding gateway (FCC) | 20.17 | implemented (control-plane slice) | alias/policy routing over `src/router.ts` | execution reuses proxy (by design) | — | owner-doc | IMPLEMENTED |
 | 20.31 | MoneyPrinterTurbo + Adobe Stock automation | 20.7 | implemented (delta) | IP guard + versioned policy over video | — | — | owner-doc | IMPLEMENTED |
 | 20.32 | VoiceStudio speech runtime | 20.9a | implemented (delta) | `src/agent-os/speech/`, validated 2026-09-13 | — | — | owner-doc | IMPLEMENTED |

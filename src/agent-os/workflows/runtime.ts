@@ -6,7 +6,8 @@
 // performer is registered — side effects dispatch through the Phase 20.28
 // Governance Gateway, never directly.
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { parseWorkflowMarkdown, scanDangerousPatterns, WorkflowParseError } from "./parser";
 import { compileWorkflow } from "./compiler";
 import { WorkflowStore } from "./store";
@@ -116,6 +117,48 @@ export class WorkflowEngine {
 
   setEnabled(id: string, enabled: boolean): boolean {
     return this.store.setEnabled(id, enabled);
+  }
+
+  /**
+   * Auto-seed workflows from a directory tree (e.g. repo-root `workflows/`).
+   * Discovers all `WORKFLOW.md` files recursively and imports them with
+   * source "local" (enabled by default per doc §19).
+   */
+  seedFromDirectory(dirPath: string): { imported: string[]; failed: Array<{ path: string; error: string }> } {
+    const imported: string[] = [];
+    const failed: Array<{ path: string; error: string }> = [];
+    if (!existsSync(dirPath)) return { imported, failed };
+
+    const walk = (current: string) => {
+      const entries = readdirSync(current);
+      for (const entry of entries) {
+        const full = join(current, entry);
+        let stat;
+        try {
+          stat = statSync(full);
+        } catch {
+          continue;
+        }
+        if (stat.isDirectory()) {
+          walk(full);
+        } else if (entry.toLowerCase() === "workflow.md") {
+          try {
+            const raw = readFileSync(full, "utf8");
+            const res = this.importWorkflow(raw, "local");
+            if (res.registered && res.workflowId) {
+              imported.push(res.workflowId);
+            } else if (res.blocked) {
+              failed.push({ path: full, error: "blocked: " + res.blocked });
+            }
+          } catch (err) {
+            failed.push({ path: full, error: err instanceof Error ? err.message : String(err) });
+          }
+        }
+      }
+    };
+
+    walk(dirPath);
+    return { imported, failed };
   }
 
   // --- Dry run (doc §11) — never side-effects ---------------------------------------

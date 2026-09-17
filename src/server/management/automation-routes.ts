@@ -48,8 +48,29 @@ export async function handleAutomationRoutes(ctx: ManagementContext): Promise<Re
   const engine = getEngine();
 
   // 1. GET /api/agent-os/automation — registry list + flags
+  // Auto-seeds repo workflows on first inspect if registry is empty.
   if (req.method === "GET" && pathname === "/api/agent-os/automation") {
-    return jsonResponse({ workflows: engine.listWorkflows(), flags: workflowFlags() }, 200, req, {});
+    let list = engine.listWorkflows();
+    if (list.length === 0 && existsSync("workflows")) {
+      engine.seedFromDirectory("workflows");
+      list = engine.listWorkflows();
+    }
+    return jsonResponse({ workflows: list, flags: workflowFlags() }, 200, req, {});
+  }
+
+  // POST /api/agent-os/automation/seed — seed or refresh from workflows/ directory
+  if (req.method === "POST" && pathname === "/api/agent-os/automation/seed") {
+    const body = await readJsonBody(req);
+    const dir = typeof body.dir === "string" && body.dir ? body.dir : "workflows";
+    const result = engine.seedFromDirectory(dir);
+    return jsonResponse({
+      ok: true,
+      directory: dir,
+      imported: result.imported,
+      importedCount: result.imported.length,
+      failed: result.failed,
+      workflows: engine.listWorkflows(),
+    }, 200, req, {});
   }
 
   // 2. POST /api/agent-os/automation/import

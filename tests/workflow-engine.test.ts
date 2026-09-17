@@ -236,4 +236,27 @@ describe("Phase 20.29 runtime", () => {
     expect(dispatched.length).toBe(1);
     expect(dispatched[0].skipped).toContain("active run exists");
   });
+
+  test("seedFromDirectory imports all 8 existing repo workflows cleanly", () => {
+    const engine = new WorkflowEngine();
+    const result = engine.seedFromDirectory("workflows");
+    expect(result.failed).toHaveLength(0);
+    expect(result.imported.length).toBeGreaterThanOrEqual(8);
+    expect(result.imported).toContain("adobe-stock-image-qc");
+    expect(result.imported).toContain("adobe-stock-metadata-generator");
+    expect(result.imported).toContain("adobe-stock-trend-research");
+    expect(result.imported).toContain("code-review");
+    expect(result.imported).toContain("dependency-audit");
+    expect(result.imported).toContain("github-repository-analysis");
+    expect(result.imported).toContain("ai-reviewer-council");
+    expect(result.imported).toContain("project-health-check");
+
+    // All local-seeded workflows start enabled per doc §19.
+    const list = engine.listWorkflows();
+    const seeded = list.filter((w) => result.imported.includes(String(w.id)));
+    expect(seeded.every((w) => w.enabled === 1)).toBe(true);
+
+    // Nonexistent directory returns clean empty result without throwing.
+    expect(engine.seedFromDirectory("nonexistent-dir").imported).toHaveLength(0);
+  });
 });

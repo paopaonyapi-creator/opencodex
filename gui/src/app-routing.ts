@@ -57,7 +57,8 @@ export type Page =
   | "social-publishing"
   | "agent-runtime"
   | "code-intelligence"
-  | "external-apis";
+  | "external-apis"
+  | "code-review";
 
 export const VALID_PAGES = new Set<Page>([
   "dashboard",
@@ -115,6 +116,7 @@ export const VALID_PAGES = new Set<Page>([
   "agent-runtime",
   "code-intelligence",
   "external-apis",
+  "code-review",
 ]);
 
 export function readPageFromHash(hash?: string): Page {

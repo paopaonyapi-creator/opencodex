@@ -1660,6 +1660,7 @@ export const th: Record<TKey, string> = {
   "nav.agentRuntime": "รันไทม์เอเจนต์",
   "nav.codeIntelligence": "เอนจินวิเคราะห์โค้ด",
   "nav.externalApis": "API ภายนอก",
+  "nav.codeReview": "ตรวจสอบโค้ด",
   "nav.governance": "การกำกับดูแล",
   "demo.title": "เว็บเอ็มซีพีชาเลนจ์เดโม",
   "demo.subtitle": "เวิร์กโฟลว์สต็อกแบบเอเจนต์เนทีฟในคลิกเดียว",

@@ -995,6 +995,7 @@ export const zh: Record<TKey, string> = {
   "nav.agentRuntime": "智能体运行时",
   "nav.codeIntelligence": "代码智能",
   "nav.externalApis": "外部 API",
+  "nav.codeReview": "代码审查",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑战演示",
   "demo.subtitle": "一键式原生代理素材工作流。",

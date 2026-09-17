@@ -1828,6 +1828,7 @@ export const en = {
   "nav.agentRuntime": "Agent Runtime",
   "nav.codeIntelligence": "Code Intelligence",
   "nav.externalApis": "External APIs",
+  "nav.codeReview": "Code Review",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge Demo",
   "demo.subtitle": "One-click agent-native stock workflow.",

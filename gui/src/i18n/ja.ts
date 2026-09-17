@@ -1746,6 +1746,7 @@ export const ja: Record<TKey, string> = {
   "nav.agentRuntime": "エージェントランタイム",
   "nav.codeIntelligence": "コードインテリジェンス",
   "nav.externalApis": "外部API",
+  "nav.codeReview": "コードレビュー",
   "nav.governance": "ガバナンス",
   "demo.title": "WebMCP チャレンジデモ",
   "demo.subtitle": "ワンクリックのエージェントネイティブ制作ワークフロー。",

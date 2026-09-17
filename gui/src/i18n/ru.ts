@@ -1797,6 +1797,7 @@ export const ru: Record<TKey, string> = {
   "nav.agentRuntime": "Рантайм агентов",
   "nav.codeIntelligence": "Интеллект кода",
   "nav.externalApis": "Внешние API",
+  "nav.codeReview": "Ревью кода",
   "nav.governance": "Управление",
   "demo.title": "Демо WebMCP Challenge",
   "demo.subtitle": "Агент-нативный стоковый рабочий процесс в один клик.",

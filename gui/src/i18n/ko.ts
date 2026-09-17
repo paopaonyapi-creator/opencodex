@@ -1184,6 +1184,7 @@ export const ko: Record<TKey, string> = {
   "nav.agentRuntime": "에이전트 런타임",
   "nav.codeIntelligence": "코드 인텔리전스",
   "nav.externalApis": "외부 API",
+  "nav.codeReview": "코드 검토",
   "nav.governance": "거버넌스",
   "demo.title": "WebMCP 챌린지 데모",
   "demo.subtitle": "원클릭 에이전트 네이티브 스톡 워크플로우.",

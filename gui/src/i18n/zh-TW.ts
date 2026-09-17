@@ -2160,6 +2160,7 @@ export const zhTW: Record<TKey, string> = {
   "nav.agentRuntime": "智慧代理執行時",
   "nav.codeIntelligence": "程式碼智慧",
   "nav.externalApis": "外部 API",
+  "nav.codeReview": "程式碼審查",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑戰示範",
   "demo.subtitle": "一鍵式代理原生素材工作流程。",

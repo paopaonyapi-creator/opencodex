@@ -1804,6 +1804,7 @@ export const tr: Record<TKey, string> = {
   "nav.agentRuntime": "Ajan Çalışma Zamanı",
   "nav.codeIntelligence": "Kod Zekası",
   "nav.externalApis": "Harici API'ler",
+  "nav.codeReview": "Kod İncelemesi",
   "nav.governance": "Yönetişim",
   "demo.title": "WebMCP Challenge Demosu",
   "demo.subtitle": "Tek tıkla ajan yerli stok iş akışı.",

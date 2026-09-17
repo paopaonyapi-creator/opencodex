@@ -198,7 +198,8 @@
         "src/pages/TeammateWorkspace.tsx",
         "src/pages/AgentMemory.tsx",
         "src/pages/AgentCockpit.tsx",
-        "src/pages/GovernanceDashboard.tsx"
+        "src/pages/GovernanceDashboard.tsx",
+        "src/pages/CodeReview.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

@@ -55,6 +55,7 @@ import SocialPublishingPage from "./pages/SocialPublishing";
 import AgentRuntimePage from "./pages/AgentRuntime";
 import CodeIntelligencePage from "./pages/CodeIntelligence";
 import ExternalApisPage from "./pages/ExternalApis";
+import CodeReviewPage from "./pages/CodeReview";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
 import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconLock, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield, IconBell, IconDownload } from "./icons";
@@ -127,6 +128,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "agent-runtime": "nav.agentRuntime",
   "code-intelligence": "nav.codeIntelligence",
   "external-apis": "nav.externalApis",
+  "code-review": "nav.codeReview",
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -521,9 +523,10 @@ export default function App() {
             {page === "capability-lab" && <CapabilityLabPage apiBase={API_BASE} />}
             {page === "social-publishing" && <SocialPublishingPage apiBase={API_BASE} />}
             {page === "agent-runtime" && <AgentRuntimePage apiBase={API_BASE} />}
-            {page === "code-intelligence" && <CodeIntelligencePage apiBase={API_BASE} />}
-            {page === "external-apis" && <ExternalApisPage apiBase={API_BASE} />}
-            {page === "governance" && <GovernanceDashboard apiBase={API_BASE} />}
+	            {page === "code-intelligence" && <CodeIntelligencePage apiBase={API_BASE} />}
+	            {page === "external-apis" && <ExternalApisPage apiBase={API_BASE} />}
+	            {page === "code-review" && <CodeReviewPage apiBase={API_BASE} />}
+	            {page === "governance" && <GovernanceDashboard apiBase={API_BASE} />}
           </ErrorBoundary>
         </div>
       </main>

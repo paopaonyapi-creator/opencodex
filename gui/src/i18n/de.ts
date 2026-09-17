@@ -1123,6 +1123,7 @@ export const de: Record<TKey, string> = {
   "nav.agentRuntime": "Agent-Runtime",
   "nav.codeIntelligence": "Code-Intelligenz",
   "nav.externalApis": "Externe APIs",
+  "nav.codeReview": "Code-Review",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge-Demo",
   "demo.subtitle": "Agent-native Stock-Workflow mit einem Klick.",

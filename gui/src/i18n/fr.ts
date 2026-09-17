@@ -1601,6 +1601,7 @@ export const fr: Record<TKey, string> = {
   "nav.agentRuntime": "Runtime d'agents",
   "nav.codeIntelligence": "Intelligence du code",
   "nav.externalApis": "APIs externes",
+  "nav.codeReview": "Revue de code",
   "nav.governance": "Gouvernance",
   "demo.title": "Démo Challenge WebMCP",
   "demo.subtitle": "Workflow de banque d’images natif agent en un clic.",

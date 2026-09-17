@@ -152,3 +152,12 @@ The Mimosa PreToolUse hook blocked several candidate writes with a static "comma
 ## 9. Next highest-priority action
 
 After baseline test completes: execute W1 (typecheck repair, 5 files), re-run `bun run typecheck` to green, then W2 (commit baseline in coherent batches), then select vertical slice #1 per GOLD §6 (candidate: make the 20.29 automation engine auto-load the repo `workflows/` directory — closes a real integration gap with an existing tested engine; alternatives ranked in next journal update).
+
+## 10. Phase 20.82 CortexKit AFT — CLOSED (2026-09-18)
+
+**Final verdict (user-accepted): PRODUCTION-READY / CLOSED.** OmniRoute READY · REST PASS · MCP PASS · Rollback PASS · Workspace Locking PASS · Audit PASS.
+
+- Commits: `91d23add4` (productionization: schema v56, transaction safety, shell/git hardening, readiness matrix, 4-lane test topology) + `5c20da251` (live-validation layer: `ocx gateway doctor`, OmniRoute fast-fail, Jev staged readiness).
+- Evidence: 162/162 focused backend tests, 12/12 gateway-doctor tests, 4/4 GUI contract tests; definitive full suite 18,838 pass / 282 fail / 64 skip with every failure in the pre-existing Windows EBUSY temp-dir class (stash-verified on clean HEAD) and zero in Phase 20.82 subsystems.
+- Authoritative docs: `docs/PHASE_20.82_AFT_SENSORIMOTOR_RUNTIME.md` (runbook + live-validation commands), `docs/REMAINING_GAPS.md` (DONE / ENVIRONMENTAL-EXTERNAL / REQUIRES-LIVE-PROVIDER / DEFERRED ledger), `PHASE_IMPLEMENTATION_MATRIX.md` (20.82/20.84/20.85 rows).
+- External prerequisites carried forward, honestly documented: OmniRoute daemon deployment (validate: `ocx gateway doctor --probe`) and TypeSafe Jev early-access schema + credentials (validate: staged readiness report).

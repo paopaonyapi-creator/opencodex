@@ -387,6 +387,13 @@ const MARKETPLACE_VERB_DEFERRAL = {
   ownerDoc: "Blueprint/Phase_20.89_Pao-hubPro_x_Bubble.md",
 } as const;
 
+const ENGINEERING_SKILLS_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.91b ships the Engineering Skill Runtime registry, router, workflow state machine, evidence gates, reviewer council and REST surface first; CLI verbs and eval-runner UX belong to the adapter/eval wave recorded in the phase doc.",
+  owner: "Phase 20.91b Engineering Skill Runtime",
+  ownerDoc: "Blueprint/Phase_20.91_Pao-hubPro_x_Addy_Osmani_Agent_Skills.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -745,6 +752,31 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/marketplace/install-plans/{id}/execute", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/marketplace/install-plans/{id}", module: "server/management/marketplace-routes", mutates: false, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/marketplace/installations/{id}/rollback", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  // Phase 20.91b: Engineering Skill Runtime (Addy Osmani Agent Skills; proposed 20.93).
+  { method: "GET", path: "/api/agent-os/engineering-skills/health", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/packs", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/packs/{id}", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/skills", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/workflows", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/workflows/{id}", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/workflows/{id}/evidence", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/workflows/{id}/reviews", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/policy-decisions", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/engineering-skills/audit", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/import", module: "server/management/engineering-skills-routes", mutates: true, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/{id}/validate", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/{id}/promote", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/{id}/rollback", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/{id}/enable", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/packs/{id}/disable", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/routes/explain", module: "server/management/engineering-skills-routes", mutates: false, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows", module: "server/management/engineering-skills-routes", mutates: true, exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/advance", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/evidence", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/reviews", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/approve", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/cancel", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/skip-request", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/sensorimotor/perceive", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/perceptions/{id}", module: "server/management/sensorimotor-routes", mutates: false, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/readiness", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },

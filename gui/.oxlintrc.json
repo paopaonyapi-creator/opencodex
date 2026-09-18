@@ -205,7 +205,8 @@
         "src/pages/Security.tsx",
         "src/pages/Credentials.tsx",
         "src/pages/Sensorimotor.tsx",
-        "src/pages/Marketplace.tsx"
+        "src/pages/Marketplace.tsx",
+        "src/pages/EngineeringSkills.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

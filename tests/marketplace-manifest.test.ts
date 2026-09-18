@@ -134,7 +134,7 @@ describe("pao-capability.yaml manifest parser", () => {
   });
 
   it("quarantines manifests containing secret material", () => {
-    const withSecret = VALID_MANIFEST.replace("  license: unknown", "  license: unknown\ntoken_check: sk-abcdefghijklmnopqrstuvwxyz123456");
+    const withSecret = VALID_MANIFEST.replace("  license: unknown", "  license: unknown\ntoken_check: sk-rawsentinel0123456789abcdef");
     expect(containsSecretMaterial(withSecret)).toBe(true);
     const result = parseCapabilityManifest(withSecret);
     expect(result.ok).toBe(false);

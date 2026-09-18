@@ -1834,6 +1834,7 @@ export const en = {
   "nav.credentials": "Credentials",
   "nav.sensorimotor": "Sensorimotor",
   "nav.marketplace": "Capability Hub",
+  "nav.engineeringSkills": "Engineering Skills",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge Demo",
   "demo.subtitle": "One-click agent-native stock workflow.",

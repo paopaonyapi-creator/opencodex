@@ -272,6 +272,35 @@ export class McpToolGateway {
       // Marketplace DB may not be initialized in all environments;
       // tools remain unregistered until the runtime is ready.
     }
+
+    // Phase 20.91b: register Engineering Skill Runtime tools (Addy Osmani Agent Skills)
+    this.registerServer({
+      id: "engineering_skills",
+      name: "Pao-hubPro Engineering Skill Runtime (Phase 20.91b)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { getEngineeringSkillsService } = require("../engineering-skills/service") as typeof import("../engineering-skills/service");
+      const { createEngineeringSkillsMcpTools } = require("../engineering-skills/mcp-tools") as typeof import("../engineering-skills/mcp-tools");
+      const esTools = createEngineeringSkillsMcpTools(getEngineeringSkillsService());
+      for (const tool of esTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "engineering_skills",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Engineering-skills DB may not be initialized in all environments;
+      // tools remain unregistered until the runtime is ready.
+    }
   }
 
   private recordAudit(

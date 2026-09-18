@@ -308,6 +308,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleMarketplaceRoutes(ctx);
   }
 
+  // Phase 20.91b: Engineering Skill Runtime (Addy Osmani Agent Skills).
+  if (url.pathname.startsWith("/api/agent-os/engineering-skills") || url.pathname === "/api/agent-os/engineering-skills") {
+    const { handleEngineeringSkillsRoutes } = await import("./engineering-skills-routes");
+    return handleEngineeringSkillsRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

@@ -1190,6 +1190,7 @@ export const ko: Partial<Record<TKey, string>> = {
   "nav.credentials": "자격 증명",
   "nav.sensorimotor": "센서리모터",
   "nav.marketplace": "기능 허브",
+  "nav.engineeringSkills": "엔지니어링 스킬",
   "nav.governance": "거버넌스",
   "demo.title": "WebMCP 챌린지 데모",
   "demo.subtitle": "원클릭 에이전트 네이티브 스톡 워크플로우.",

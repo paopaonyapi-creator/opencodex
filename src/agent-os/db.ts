@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 57;
+export const AGENT_OS_SCHEMA_VERSION = 58;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6157,6 +6157,25 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_mk_capabilities_status ON mk_capabilities(status);
       CREATE INDEX IF NOT EXISTS idx_mk_audits_created ON mk_capability_audits(created_at);
       CREATE INDEX IF NOT EXISTS idx_mk_health_capability ON mk_capability_health(capability_id, created_at);
+
+      -- v58: Phase 20.91b Engineering Skill Runtime (Addy Osmani Agent Skills; proposed
+      -- renumber 20.93 — collision with 20.91a Apra Fleet pending user decision).
+      -- Prefix esk_* (engineering skills): additive to the Phase 08 Skill Store (sk_*
+      -- owned by SkillsGate) and the marketplace mk_* namespace — no reuse, no collision.
+      CREATE TABLE IF NOT EXISTS esk_packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, source_url TEXT, source_type TEXT NOT NULL, version TEXT, resolved_commit TEXT NOT NULL, license TEXT, trust_status TEXT NOT NULL DEFAULT 'quarantined', lifecycle_status TEXT NOT NULL DEFAULT 'QUARANTINED', manifest_hash TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS esk_pack_versions (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL, version TEXT NOT NULL, resolved_commit TEXT NOT NULL, manifest_hash TEXT NOT NULL, lifecycle_status TEXT NOT NULL, skills_json TEXT NOT NULL DEFAULT '[]', note TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS esk_skills (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL, slug TEXT NOT NULL, name TEXT NOT NULL, description TEXT, entrypoint TEXT NOT NULL, lifecycle_stage_json TEXT NOT NULL, triggers_json TEXT NOT NULL, capabilities_json TEXT NOT NULL, permissions_json TEXT NOT NULL, meta_json TEXT NOT NULL DEFAULT '{}', risk_level TEXT NOT NULL, source_hash TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(pack_id, slug));
+      CREATE TABLE IF NOT EXISTS esk_workflows (id TEXT PRIMARY KEY, task_id TEXT, title TEXT NOT NULL, task_text TEXT NOT NULL, status TEXT NOT NULL, current_stage TEXT NOT NULL, provider TEXT, model TEXT, route_json TEXT NOT NULL, risk_level TEXT NOT NULL, stop_reason TEXT, rollback_target TEXT, started_at TEXT NOT NULL, completed_at TEXT, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS esk_workflow_steps (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, skill_id TEXT, stage TEXT NOT NULL, status TEXT NOT NULL, input_hash TEXT, output_hash TEXT, started_at TEXT, completed_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_esk_steps_workflow ON esk_workflow_steps(workflow_id, started_at);
+      CREATE TABLE IF NOT EXISTS esk_evidence (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, step_id TEXT, type TEXT NOT NULL, producer TEXT NOT NULL, command TEXT, exit_code INTEGER, artifact_uri TEXT, sha256 TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', verified INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_esk_evidence_workflow ON esk_evidence(workflow_id, created_at);
+      CREATE TABLE IF NOT EXISTS esk_review_findings (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, reviewer_type TEXT NOT NULL, reviewer_identity TEXT NOT NULL, severity TEXT NOT NULL, category TEXT NOT NULL, blocking INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL, detail TEXT, location_json TEXT, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL, resolved_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_esk_findings_workflow ON esk_review_findings(workflow_id, created_at);
+      CREATE TABLE IF NOT EXISTS esk_policy_decisions (id TEXT PRIMARY KEY, workflow_id TEXT, policy_id TEXT NOT NULL, action TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT, input_hash TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_esk_decisions_workflow ON esk_policy_decisions(workflow_id, created_at);
+      CREATE TABLE IF NOT EXISTS esk_audit (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor TEXT NOT NULL, pack_id TEXT, skill_id TEXT, workflow_id TEXT, operation TEXT NOT NULL, result TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_esk_audit_created ON esk_audit(created_at);
     `);
 
     // Incremental column upgrades for pre-v53 databases

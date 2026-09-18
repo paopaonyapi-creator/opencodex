@@ -1001,6 +1001,7 @@ export const zh: Partial<Record<TKey, string>> = {
   "nav.credentials": "凭据管理",
   "nav.sensorimotor": "感知行动",
   "nav.marketplace": "能力中心",
+  "nav.engineeringSkills": "工程技能",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑战演示",
   "demo.subtitle": "一键式原生代理素材工作流。",

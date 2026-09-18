@@ -29,7 +29,7 @@ export function createVideoStudioMcpTools(service: VideoStudioService): VideoStu
       parameters: { type: "object", properties: { title: { type: "string" }, script: { type: "string" }, aspectRatio: { type: "string" }, language: { type: "string" }, quality: { type: "string" } }, required: ["title"] },
       handler: async (args) => {
         try {
-          const project = service.createProject({ title: String(args.title), sourceType: "script", rawInput: typeof args.script === "string" ? args.script : "", aspectRatio: (args.aspectRatio as never) ?? "16:9", fps: 30, language: typeof args.language === "string" ? args.language : "en", quality: (args.quality as never) ?? "BALANCED" }, "mcp");
+          const project = service.createProject({ title: String(args.title), sourceType: "script", rawInput: typeof args.script === "string" ? args.script : "", aspectRatio: (args.aspectRatio as never) ?? "16:9", fps: 30, language: typeof args.language === "string" ? args.language : "en", quality: (args.quality as never) ?? "BALANCED", visualProvider: (args.visualProvider as never) ?? "auto", voiceProvider: (args.voiceProvider as never) ?? "auto" }, "mcp");
           return { ok: true, project };
         } catch (err) { return errToPayload(err); }
       },

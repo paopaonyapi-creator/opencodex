@@ -44,7 +44,7 @@
 
 - **REST** `/api/agent-os/video-studio/*` — 20 routes declared in `route-registry.ts` (literal + slice) with `VIDEO_STUDIO_VERB_DEFERRAL`: health, projects CRUD, script, plan, resolve-assets, voice, timeline, qa, render, approve, auto-build + step machine, scene lock/regenerate/narration/reorder.
 - **MCP** `video.*` tools (15) registered under the `video_studio` server with R0–R4 risk tiers: project create/get, script.segment, scene.plan/update/lock, asset.search/resolve, motion.plan, timeline.build, voice.generate, qa.run, render.preview, render.final (R3, budget-gated), project.approve (R3), project.export (R3, requires DRAFT_VIDEO_APPROVAL).
-- **GUI** `video-studio` page: New Project (title/script/aspect), project table, **AUTO BUILD** button driving the step machine to the human-review boundary, pipeline progress cards, storyboard inspector (intent/template/visual/seconds/locks), QA failures.
+- **GUI** `video-studio` page: New Project (**target duration, preferred motion template, visual provider, voice provider** selectors wired into `VideoProjectInput.prefs` — template honoured when it supports the scene intent; provider prefs can pin the deterministic card / offline voice with honest labelling), Routing/Storyboard inspector (intent/template/visual generation-class/seconds/locks), scene inspector actions (regenerate visual, regenerate voice, disable/enable), Workflow Runs (status pills, advance/cancel), **AUTO BUILD** driving the step machine to the human-review boundary, Batch CSV panel (bounded concurrency), ops view (provider executions + failures), Skill Packs/audit views. Nav key `nav.videoStudio` localized in all 10 locales.
 - **i18n** `nav.videoStudio` in all 10 locales.
 
 ## Acceptance test (GOLD §56)
@@ -106,7 +106,7 @@ Phase 20.92 was upgraded from the accepted MVP to a production-ready pipeline (G
 
 ## 24. BATCH PRODUCTION
 
-`service.createBatch` → N independent projects + child jobs (`parent_id`); `service.runBatch(batchId, concurrency)` drives them with bounded concurrency (default 2, max 8), failure isolation (a failing child never stops others), disk-space guard (500 MB minimum on the studio root), resumability (DONE steps skipped), and aggregate status (`batchStatus`). 50+ jobs are representable; children only advance one step per pass so external providers are never flooded.
+`service.createBatch` → N independent projects + child jobs (`parent_id`); `service.runBatch(batchId, concurrency)` drives them with bounded concurrency (default 2, max 8), **provider rate-limit-aware spacing** (external providers — comfyui/voicestudio — are spaced by `PAO_VIDEO_STUDIO_PROVIDER_SPACING_MS` or a per-call `providerSpacingMs`; the deterministic gate helper `providerRateLimitDelayMs` is unit-tested), failure isolation (a failing child never stops others), disk-space guard (500 MB minimum on the studio root), resumability (DONE steps skipped), and aggregate status (`batchStatus`). 50+ jobs are representable; children only advance one step per pass so external providers are never flooded.
 
 ## 25. ADOBE STOCK MODE
 

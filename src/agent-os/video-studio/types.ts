@@ -387,8 +387,23 @@ export const VideoProjectInputSchema = z.object({
   brandKitId: z.string().optional(),
   budget: ProjectBudgetSchema.optional(),
   quality: QualityPresetSchema.default("BALANCED"),
+  /** Target total duration in seconds — drives scene-count budgeting (source §6). */
+  targetDurationSec: z.number().positive().max(3600).optional(),
+  /** Preferred motion template id (honoured when it supports the scene intent). */
+  templateId: z.string().optional(),
+  /** Visual/voice provider preferences — "auto" routes by capability matrix. */
+  visualProvider: z.enum(["auto", "comfyui", "deterministic-card"]).default("auto"),
+  voiceProvider: z.enum(["auto", "voicestudio", "mock-speech"]).default("auto"),
 });
 export type VideoProjectInput = z.infer<typeof VideoProjectInputSchema>;
+
+/** Persisted operator preferences from the INPUT section (GOLD P1 UI). */
+export const ProjectPrefsSchema = z.object({
+  templateId: z.string().nullable().default(null),
+  visualProvider: z.enum(["auto", "comfyui", "deterministic-card"]).default("auto"),
+  voiceProvider: z.enum(["auto", "voicestudio", "mock-speech"]).default("auto"),
+});
+export type ProjectPrefs = z.infer<typeof ProjectPrefsSchema>;
 
 export const VideoProjectSchema = z.object({
   id: z.string(),
@@ -406,6 +421,7 @@ export const VideoProjectSchema = z.object({
   quality: QualityPresetSchema,
   brandKitId: z.string().nullable(),
   budget: ProjectBudgetSchema.nullable(),
+  prefs: ProjectPrefsSchema.nullable(),
   scriptHash: z.string().nullable(),
   plansHash: z.string().nullable(),
   createdAt: z.string(),

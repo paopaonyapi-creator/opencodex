@@ -109,6 +109,8 @@ export async function synthesizeSceneVoice(input: {
   voiceProfileId?: string;
   registry: AssetRegistry;
   retryLimit?: number;
+  /** INPUT-section preference: "mock-speech" skips the real provider rung. */
+  providerPreference?: "auto" | "voicestudio" | "mock-speech";
 }): Promise<VoiceOutcome> {
   const persist = (bytes: Uint8Array, provider: string, model: string | null, generationClass: VoiceOutcome["generationClass"]): { asset: MediaAsset; durationMs: number } => {
     const dir = join(input.studioRoot, "projects", input.projectId, "assets", "audio");
@@ -128,8 +130,10 @@ export async function synthesizeSceneVoice(input: {
     return { asset, durationMs };
   };
 
-  // Rung 1: real VoiceStudio TTS when the endpoint is configured.
-  if (isVoiceStudioConfigured()) {
+  // Rung 1: real VoiceStudio TTS when the endpoint is configured and not
+  // overridden by the operator's voice-provider preference.
+  const wantRealTts = input.providerPreference !== "mock-speech";
+  if (wantRealTts && isVoiceStudioConfigured()) {
     const provider = new VoiceStudioProvider();
     const retryLimit = input.retryLimit ?? 2;
     let lastError = "";
@@ -180,12 +184,13 @@ export async function synthesizeSceneVoice(input: {
     };
   }
 
-  // No TTS endpoint configured — MISSING_CREDENTIAL path with the owned
-  // deterministic adapter (real WAV bytes, honestly classified).
+  // No real-TTS run taken — the deterministic adapter covers it, honestly
+  // classified. Reason distinguishes operator choice from missing credentials.
   const mock = new MockSpeechProvider();
   const result = await mock.synthesize({ text: input.narrationText, voiceProfileId: "default", format: "wav", language: input.language });
   const { asset, durationMs } = persist(result.bytes, "mock-speech", "tone-16k", "deterministic-fallback");
   const alignment = estimateAlignment(input.narrationText, 0, durationMs, input.language);
+  const missingCredential = input.providerPreference !== "mock-speech";
   return {
     asset, alignment, provider: "mock-speech", model: "tone-16k",
     alignmentMethod: "estimated", generationClass: "deterministic-fallback",
@@ -193,9 +198,11 @@ export async function synthesizeSceneVoice(input: {
       sceneId: input.sceneId, assetId: asset.id, uri: asset.uri, checksum: asset.checksum,
       durationMs, provider: "mock-speech", model: "tone-16k",
       alignmentMethod: "estimated", generationClass: "deterministic-fallback",
-      unavailableReason: "VOICESTUDIO_BASE_URL is not configured", errorCode: "MISSING_CREDENTIAL",
+      unavailableReason: missingCredential ? "VOICESTUDIO_BASE_URL is not configured" : "user selected mock-speech",
+      errorCode: missingCredential ? "MISSING_CREDENTIAL" : "PROVIDER_UNAVAILABLE",
     },
-    unavailableReason: "VOICESTUDIO_BASE_URL is not configured", errorCode: "MISSING_CREDENTIAL",
+    unavailableReason: missingCredential ? "VOICESTUDIO_BASE_URL is not configured" : "user selected mock-speech",
+    errorCode: missingCredential ? "MISSING_CREDENTIAL" : "PROVIDER_UNAVAILABLE",
   };
 }
 

@@ -67,6 +67,10 @@ export async function handleVideoStudioRoutes(ctx: ManagementContext): Promise<R
         fps: typeof body.fps === "number" ? body.fps : 30,
         language: str(body.language) ?? "en",
         quality: (str(body.quality) as never) ?? "BALANCED",
+        targetDurationSec: typeof body.targetDurationSec === "number" ? body.targetDurationSec : undefined,
+        templateId: str(body.templateId),
+        visualProvider: (str(body.visualProvider) as never) ?? "auto",
+        voiceProvider: (str(body.voiceProvider) as never) ?? "auto",
       }, actor(ctx, body));
       return jsonResponse({ ok: true, project }, 201, req, {});
     }
@@ -257,7 +261,8 @@ export async function handleVideoStudioRoutes(ctx: ManagementContext): Promise<R
       const batchId = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/batch/".length, -"/run".length));
       const body = await readJson(req);
       const concurrency = typeof body.concurrency === "number" ? Math.min(Math.max(body.concurrency, 1), 8) : 2;
-      return jsonResponse({ ok: true, ...(await service.runBatch(batchId, concurrency, actor(ctx, body))) }, 200, req, {});
+      const providerSpacingMs = typeof body.providerSpacingMs === "number" ? Math.max(0, body.providerSpacingMs) : undefined;
+      return jsonResponse({ ok: true, ...(await service.runBatch(batchId, concurrency, actor(ctx, body), { providerSpacingMs })) }, 200, req, {});
     }
 
     // 30. GET /api/agent-os/video-studio/batch/{batchId}

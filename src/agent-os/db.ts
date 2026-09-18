@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 60;
+export const AGENT_OS_SCHEMA_VERSION = 61;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6180,7 +6180,7 @@ function migrate(db: Database): void {
       -- v59: Phase 20.92 AI Script-to-Video Studio — semantic director layer on top of
       -- the Phase 20.7 video factory. Prefix vs_* (video studio): video_production_* /
       -- gen_* namespaces are owned by live subsystems — no reuse, no collision.
-      CREATE TABLE IF NOT EXISTS vs_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', aspect_ratio TEXT NOT NULL DEFAULT '16:9', fps INTEGER NOT NULL DEFAULT 30, language TEXT NOT NULL DEFAULT 'en', quality TEXT NOT NULL DEFAULT 'BALANCED', source_type TEXT NOT NULL DEFAULT 'script', raw_input TEXT NOT NULL DEFAULT '', brand_kit_id TEXT, budget_json TEXT, script_hash TEXT, plans_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', aspect_ratio TEXT NOT NULL DEFAULT '16:9', fps INTEGER NOT NULL DEFAULT 30, language TEXT NOT NULL DEFAULT 'en', quality TEXT NOT NULL DEFAULT 'BALANCED', source_type TEXT NOT NULL DEFAULT 'script', raw_input TEXT NOT NULL DEFAULT '', brand_kit_id TEXT, budget_json TEXT, target_duration_sec REAL, prefs_json TEXT, script_hash TEXT, plans_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS vs_project_versions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, revision INTEGER NOT NULL, reason TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_vs_versions_project ON vs_project_versions(project_id, revision);
       CREATE TABLE IF NOT EXISTS vs_scenes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, scene_order INTEGER NOT NULL, scene_json TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(project_id, scene_order));
@@ -6225,6 +6225,12 @@ function migrate(db: Database): void {
     if (storedVersion > 0 && storedVersion < 60) {
       try { db.exec("ALTER TABLE vs_jobs ADD COLUMN parent_id TEXT;"); } catch {}
       try { db.exec("CREATE INDEX IF NOT EXISTS idx_vs_jobs_parent ON vs_jobs(parent_id, created_at);"); } catch {}
+    }
+
+    // v61: Video Studio INPUT preferences (target duration, template, provider prefs)
+    if (storedVersion > 0 && storedVersion < 61) {
+      try { db.exec("ALTER TABLE vs_projects ADD COLUMN target_duration_sec REAL;"); } catch {}
+      try { db.exec("ALTER TABLE vs_projects ADD COLUMN prefs_json TEXT;"); } catch {}
     }
 
     db.query(

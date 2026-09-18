@@ -16,6 +16,7 @@ import { getProviderMatrix, verifyProviderHealth, type ProviderStatus } from "./
 import {
   ASPECT_DIMENSIONS,
   VideoProjectInputSchema,
+  ProjectPrefsSchema,
   VideoStudioError,
   parseOrThrow,
   type ApprovalKind,
@@ -23,6 +24,7 @@ import {
   type BrandKit,
   type MediaAsset,
   type ProjectBudget,
+  type ProjectPrefs,
   type QAReport,
   type Scene,
   type ScriptDocument,
@@ -93,17 +95,22 @@ export class VideoStudioService {
     const id = `vsprj_${randomUUID().slice(0, 12)}`;
     const now = new Date().toISOString();
     const dims = ASPECT_DIMENSIONS[input.aspectRatio].preview;
+    const prefs: ProjectPrefs = {
+      templateId: input.templateId ?? null,
+      visualProvider: input.visualProvider,
+      voiceProvider: input.voiceProvider,
+    };
     const project: VideoProject = {
       id, title: input.title, status: "DRAFT",
-      format: { aspectRatio: input.aspectRatio, width: dims[0], height: dims[1], fps: input.fps },
+      format: { aspectRatio: input.aspectRatio, width: dims[0], height: dims[1], fps: input.fps, targetDurationSec: input.targetDurationSec },
       source: { type: input.sourceType, rawInput: input.rawInput },
       language: input.language, quality: input.quality,
       brandKitId: input.brandKitId ?? null, budget: input.budget ?? null,
-      scriptHash: null, plansHash: null, createdAt: now, updatedAt: now,
+      prefs, scriptHash: null, plansHash: null, createdAt: now, updatedAt: now,
     };
     db.run(
-      "INSERT INTO vs_projects (id, title, status, aspect_ratio, fps, language, quality, source_type, raw_input, brand_kit_id, budget_json, script_hash, plans_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [id, project.title, project.status, project.format.aspectRatio, project.format.fps, project.language, project.quality, project.source.type, project.source.rawInput, project.brandKitId, project.budget ? JSON.stringify(project.budget) : null, null, null, now, now],
+      "INSERT INTO vs_projects (id, title, status, aspect_ratio, fps, language, quality, source_type, raw_input, brand_kit_id, budget_json, target_duration_sec, prefs_json, script_hash, plans_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [id, project.title, project.status, project.format.aspectRatio, project.format.fps, project.language, project.quality, project.source.type, project.source.rawInput, project.brandKitId, project.budget ? JSON.stringify(project.budget) : null, input.targetDurationSec ?? null, JSON.stringify(prefs), null, null, now, now],
     );
     this.ensureBrandKit(input.brandKitId);
     this.audit("video.project.created", actor, id, null, "createProject", "ok", { title: project.title, quality: project.quality });
@@ -140,7 +147,11 @@ export class VideoStudioService {
   /** Paste/import script: segment → persist blocks (hash = invalidation identity). */
   setScript(projectId: string, rawScript: string, opts?: { targetScenes?: number; actor?: string }): { script: ScriptDocument; scenes: Scene[] } {
     const project = this.requireProject(projectId);
-    const script = segmentScript(rawScript, { language: project.language, targetScenes: opts?.targetScenes });
+    // Target duration budgets the scene count (~5s per scene) when set (source §6).
+    const fromDuration = project.format.targetDurationSec
+      ? Math.max(2, Math.min(12, Math.round(project.format.targetDurationSec / 5)))
+      : undefined;
+    const script = segmentScript(rawScript, { language: project.language, targetScenes: opts?.targetScenes ?? fromDuration });
     const hash = hashScript(script);
     const db = openAgentOsDb();
     db.run("UPDATE vs_projects SET raw_input = ?, script_hash = ?, status = ?, updated_at = ? WHERE id = ?", [rawScript, hash, "SCRIPTED", new Date().toISOString(), projectId]);
@@ -167,6 +178,23 @@ export class VideoStudioService {
     if (!script) throw new VideoStudioError("PROJECT_NOT_FOUND", 422, "project has no script — set the script before planning");
     const brand = this.getBrandKit(project.brandKitId);
     const scenes = planScenesFromBlocks({ projectId, blocks: script.blocks, energy: brand.motionProfile.energy });
+    // Preferred template from the INPUT section: honoured when it supports the scene's intent.
+    const preferred = project.prefs?.templateId
+      ? MOTION_TEMPLATES.find((t) => t.id === project.prefs!.templateId)
+      : undefined;
+    if (preferred) {
+      for (const scene of scenes) {
+        if (preferred.supportsIntents.includes(scene.intent)) {
+          scene.motionPlan = {
+            templateId: preferred.id,
+            entrance: preferred.motion.entrance,
+            emphasis: preferred.motion.emphasis,
+            exit: preferred.motion.exit,
+            cues: scene.motionPlan.cues,
+          };
+        }
+      }
+    }
     const db = openAgentOsDb();
     db.run("DELETE FROM vs_scenes WHERE project_id = ?", [projectId]);
     const insert = db.prepare("INSERT INTO vs_scenes (id, project_id, scene_order, scene_json, updated_at) VALUES (?, ?, ?, ?, ?)");
@@ -265,8 +293,11 @@ export class VideoStudioService {
 
     // GOLD P0: real ComfyUI image generation when configured, healthy, and
     // policy-allowed (PAO_VIDEO_STUDIO_AI_IMAGE is opt-in for paid/external gen).
+    // The INPUT-section visual provider preference can force the deterministic
+    // card or pin ComfyUI.
     let aiImage: LadderContext["aiImage"] | undefined;
-    const aiAllowed = process.env.PAO_VIDEO_STUDIO_AI_IMAGE !== "false";
+    const aiAllowed = process.env.PAO_VIDEO_STUDIO_AI_IMAGE !== "false" && project.prefs?.visualProvider !== "deterministic-card";
+    const visualPrefReason = project.prefs?.visualProvider === "deterministic-card" ? "user selected deterministic-card" : undefined;
     if (isComfyuiConfigured() && aiAllowed) {
       const health = await verifyProviderHealth("IMAGE", "comfyui");
       if (health.availability === "available") {
@@ -296,10 +327,10 @@ export class VideoStudioService {
           },
         };
       } else {
-        aiImage = { available: false, unavailableReason: `comfyui health: ${health.notes ?? health.availability}` };
+        aiImage = { available: false, unavailableReason: health.notes ? `comfyui health: ${health.notes}` : `comfyui health: ${health.availability}` };
       }
     } else if (!aiAllowed) {
-      aiImage = { available: false, unavailableReason: "policy: PAO_VIDEO_STUDIO_AI_IMAGE=false" };
+      aiImage = { available: false, unavailableReason: visualPrefReason ?? "policy: PAO_VIDEO_STUDIO_AI_IMAGE=false" };
     }
 
     const ladder: Record<string, LadderOutcome["attempted"]> = {};
@@ -369,6 +400,7 @@ export class VideoStudioService {
       const voice = await synthesizeSceneVoice({
         projectId, sceneId: scene.id, narrationText: scene.narrationText,
         language: project.language, durationMs: scene.durationMs, studioRoot: this.studioRoot, registry: this.registry,
+        providerPreference: project.prefs?.voiceProvider ?? "auto",
       });
       if (voice.asset) {
         if (!scene.visualPlan.resolvedAssetIds.includes(voice.asset.id)) {
@@ -710,6 +742,30 @@ export class VideoStudioService {
   // -------------------------------------------------------------------------
 
   /**
+   * Provider rate-limit gate (GOLD P2): returns the delay still owed before a
+   * step touching `providers` may launch, given the last-use timestamps.
+   * Pure and deterministic so the scheduler behaviour is unit-testable.
+   */
+  providerRateLimitDelayMs(providers: readonly string[], lastUse: ReadonlyMap<string, number>, now: number, spacingMs: number): number {
+    let owed = 0;
+    for (const provider of providers) {
+      const last = lastUse.get(provider);
+      if (last === undefined) continue;
+      owed = Math.max(owed, spacingMs - (now - last));
+    }
+    return Math.max(0, Math.ceil(owed));
+  }
+
+  /** Which external providers a pipeline step depends on (rate-limit aware). */
+  private providersForStep(step: string): string[] {
+    switch (step) {
+      case "RESOLVE_ASSETS": return ["comfyui"];
+      case "VOICE": return ["voicestudio"];
+      default: return [];
+    }
+  }
+
+  /**
    * Create a batch of auto-build jobs. Each item becomes an independent
    * project + job (failure isolation); nothing is launched here — runBatch
    * drives them with bounded concurrency.
@@ -722,6 +778,7 @@ export class VideoStudioService {
         title: item.title, sourceType: "batch", rawInput: item.script,
         aspectRatio: (item.aspectRatio as VideoProject["format"]["aspectRatio"]) ?? "16:9",
         fps: 30, language: item.language ?? "en", quality: "BALANCED",
+        visualProvider: "auto", voiceProvider: "auto",
       }, actor);
       const { jobId } = this.startAutoBuild(project.id, actor);
       openAgentOsDb().run("UPDATE vs_jobs SET parent_id = ? WHERE id = ?", [batchId, jobId]);
@@ -747,15 +804,21 @@ export class VideoStudioService {
 
   /**
    * Drive a batch with BOUNDED concurrency (default 2 — never 50 simultaneous
-   * GPU generations). Each child job advances one step per pass; failures are
-   * isolated (a failing child never stops the others) and resumable.
+   * GPU generations) and PROVIDER RATE-LIMIT AWARE SPACING: before launching a
+   * child step that touches an external provider (comfyui / voicestudio), the
+   * scheduler waits until that provider's minimum spacing interval has elapsed
+   * since its last use across the whole batch. Failures stay isolated and the
+   * run is resumable.
    */
-  async runBatch(batchId: string, concurrency = 2, actor = "operator"): Promise<{ batchId: string; progressed: number; done: number; failed: number; waiting: number }> {
+  async runBatch(batchId: string, concurrency = 2, actor = "operator", opts?: { providerSpacingMs?: number }): Promise<{ batchId: string; progressed: number; done: number; failed: number; waiting: number; spacingMs: number }> {
     const guard = this.diskGuardOk();
     if (!guard.ok) {
       this.audit("video.project.created", actor, null, null, `runBatch:${batchId}`, "blocked", { reason: guard.reason });
-      return { batchId, progressed: 0, done: 0, failed: 0, waiting: 0 };
+      return { batchId, progressed: 0, done: 0, failed: 0, waiting: 0, spacingMs: 0 };
     }
+    const spacingMs = Math.max(0, opts?.providerSpacingMs ?? Number(process.env.PAO_VIDEO_STUDIO_PROVIDER_SPACING_MS || 0));
+    const stepOrder = ["SEGMENT", "PLAN", "RESOLVE_ASSETS", "VOICE", "TIMELINE", "QA", "PREVIEW_RENDER", "APPROVAL_GATE"];
+    const lastUse = new Map<string, number>();
     const children = openAgentOsDb().query("SELECT id FROM vs_jobs WHERE parent_id = ? AND status NOT IN ('CANCELLED') ORDER BY created_at").all(batchId) as Array<{ id: string }>;
     let progressed = 0;
     const queue = [...children.map((c) => c.id)];
@@ -764,7 +827,6 @@ export class VideoStudioService {
     let failed = 0;
     let waiting = 0;
 
-    const statuses = () => new Map(queue.map((id) => [id, this.jobStatus(id).status] as const));
     while (queue.length > 0 || active.size > 0) {
       while (queue.length > 0 && active.size < Math.max(1, concurrency)) {
         const jobId = queue.shift()!;
@@ -779,6 +841,16 @@ export class VideoStudioService {
           continue;
         }
         if (status.status === "COMPLETED") { done++; continue; }
+        // Rate-limit-aware spacing: delay launches that would hit an external
+        // provider sooner than the configured interval after its last use.
+        const doneSteps = new Set(status.steps.filter((s) => s.status === "DONE").map((s) => s.step));
+        const nextStep = stepOrder.find((s) => !doneSteps.has(s));
+        const touched = nextStep ? this.providersForStep(nextStep) : [];
+        if (touched.length > 0 && spacingMs > 0) {
+          const delay = this.providerRateLimitDelayMs(touched, lastUse, Date.now(), spacingMs);
+          if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+        }
+        for (const provider of touched) lastUse.set(provider, Date.now());
         const task = this.runNextStep(jobId, actor)
           .then((result) => {
             progressed++;
@@ -807,9 +879,8 @@ export class VideoStudioService {
         queue.length = 0;
       }
     }
-    void statuses;
-    this.audit("video.project.created", actor, null, null, `runBatch:${batchId}`, "ok", { progressed, done, failed, waiting });
-    return { batchId, progressed, done, failed, waiting };
+    this.audit("video.project.created", actor, null, null, `runBatch:${batchId}`, "ok", { progressed, done, failed, waiting, spacingMs });
+    return { batchId, progressed, done, failed, waiting, spacingMs };
   }
 
   batchStatus(batchId: string): { batchId: string; total: number; byStatus: Record<string, number>; jobs: Array<{ id: string; projectId: string; status: string; currentStep: string | null }> } {
@@ -1066,13 +1137,21 @@ export class VideoStudioService {
   }
 
   private rowToProject(row: Record<string, unknown>): VideoProject {
+    const aspect = String(row.aspect_ratio) as VideoProject["format"]["aspectRatio"];
+    const dims = ASPECT_DIMENSIONS[aspect] ?? ASPECT_DIMENSIONS["16:9"]!;
+    const targetDurationSec = row.target_duration_sec === null || row.target_duration_sec === undefined ? undefined : Number(row.target_duration_sec);
+    let prefs: VideoProject["prefs"] = null;
+    if (row.prefs_json) {
+      try { prefs = ProjectPrefsSchema.parse(JSON.parse(String(row.prefs_json))); } catch { prefs = null; }
+    }
     return {
       id: String(row.id), title: String(row.title), status: String(row.status) as VideoProject["status"],
-      format: { aspectRatio: String(row.aspect_ratio) as VideoProject["format"]["aspectRatio"], width: ASPECT_DIMENSIONS[String(row.aspect_ratio) as keyof typeof ASPECT_DIMENSIONS]?.preview[0] ?? 1280, height: ASPECT_DIMENSIONS[String(row.aspect_ratio) as keyof typeof ASPECT_DIMENSIONS]?.preview[1] ?? 720, fps: Number(row.fps) },
+      format: { aspectRatio: aspect, width: dims.preview[0], height: dims.preview[1], fps: Number(row.fps), targetDurationSec },
       source: { type: String(row.source_type) as VideoProject["source"]["type"], rawInput: String(row.raw_input ?? "") },
       language: String(row.language ?? "en"), quality: String(row.quality ?? "BALANCED") as VideoProject["quality"],
       brandKitId: row.brand_kit_id === null ? null : String(row.brand_kit_id),
       budget: row.budget_json ? (JSON.parse(String(row.budget_json)) as ProjectBudget) : null,
+      prefs,
       scriptHash: row.script_hash === null ? null : String(row.script_hash),
       plansHash: row.plans_hash === null ? null : String(row.plans_hash),
       createdAt: String(row.created_at), updatedAt: String(row.updated_at),

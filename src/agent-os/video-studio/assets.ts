@@ -302,11 +302,13 @@ export async function resolveSceneVisual(scene: Scene, ctx: LadderContext): Prom
 
   // Rung 1: real AI image generation (ComfyUI) when requested + available.
   const aiRequested = ["AI_IMAGE", "ILLUSTRATION", "CONCEPT", "DIAGRAM", "ICON", "PRODUCT"].includes(scene.visualPlan.strategy);
-  if (aiRequested && ctx.aiImage) {
-      if (ctx.aiImage.available && ctx.aiImage.generate) {
-        const generate = ctx.aiImage.generate;
-        try {
-          const generated = await generate(scene);
+  if (ctx.aiImage) {
+    if (!aiRequested) {
+      attempted.push({ rung: "ai-image", outcome: "skipped", reason: "strategy does not request AI imagery" });
+    } else if (ctx.aiImage.available && ctx.aiImage.generate) {
+      const generate = ctx.aiImage.generate;
+      try {
+        const generated = await generate(scene);
         attempted.push({ rung: "ai-image", outcome: "hit" });
         scene.visualPlan.generationClass = "ai-generated";
         scene.visualPlan.resolvedAssetIds = [generated.assetId];

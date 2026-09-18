@@ -74,14 +74,26 @@ function statusPill(status: string): string {
 
 const PIPELINE_STEPS = ["SEGMENT", "PLAN", "RESOLVE_ASSETS", "VOICE", "TIMELINE", "QA", "PREVIEW_RENDER", "APPROVAL_GATE"];
 
+interface TemplateRow {
+  id: string;
+  supportsIntents: string[];
+  motion: { entrance: string; emphasis: string; exit: string };
+  version: string;
+}
+
 export function VideoStudio({ apiBase = "" }: Props) {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [ops, setOps] = useState<OpsSummary | null>(null);
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [targetDurationSec, setTargetDurationSec] = useState("");
+  const [templateId, setTemplateId] = useState("auto");
+  const [visualProvider, setVisualProvider] = useState("auto");
+  const [voiceProvider, setVoiceProvider] = useState("auto");
   const [job, setJob] = useState<JobStatus | null>(null);
   const [batchCsv, setBatchCsv] = useState("Topic,Script\n");
   const [message, setMessage] = useState<string | null>(null);
@@ -89,12 +101,14 @@ export function VideoStudio({ apiBase = "" }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const [projRes, provRes] = await Promise.all([
+      const [projRes, provRes, tmplRes] = await Promise.all([
         fetch(`${apiBase}/api/agent-os/video-studio/projects`).then((r) => (r.ok ? r.json() : { projects: [] })),
         fetch(`${apiBase}/api/agent-os/video-studio/providers`).then((r) => (r.ok ? r.json() : { providers: [] })),
+        fetch(`${apiBase}/api/agent-os/video-studio/templates`).then((r) => (r.ok ? r.json() : { templates: [] })),
       ]);
       setProjects((projRes as { projects: ProjectRow[] }).projects ?? []);
       setProviders((provRes as { providers: ProviderRow[] }).providers ?? []);
+      setTemplates((tmplRes as { templates: TemplateRow[] }).templates ?? []);
     } catch {
       setMessage("Video Studio API is unavailable");
     }
@@ -128,7 +142,12 @@ export function VideoStudio({ apiBase = "" }: Props) {
     try {
       const res = await fetch(`${apiBase}/api/agent-os/video-studio/projects`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, script, aspectRatio, actor: "dashboard_operator" }),
+        body: JSON.stringify({
+          title, script, aspectRatio, actor: "dashboard_operator",
+          targetDurationSec: targetDurationSec ? Number(targetDurationSec) : undefined,
+          templateId: templateId === "auto" ? undefined : templateId,
+          visualProvider, voiceProvider,
+        }),
       });
       const body = (await res.json()) as { ok?: boolean; project?: ProjectRow; error?: { message: string } };
       if (body.ok && body.project) {
@@ -282,6 +301,27 @@ export function VideoStudio({ apiBase = "" }: Props) {
               <option value="9:16">9:16</option>
               <option value="1:1">1:1</option>
               <option value="4:5">4:5</option>
+            </select>
+            <input
+              className="ur-search" type="number" min={10} max={600} style={{ maxWidth: 170 }}
+              placeholder="Target seconds" value={targetDurationSec}
+              onChange={(e) => setTargetDurationSec(e.target.value)}
+            />
+            <select className="ur-search" value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={{ maxWidth: 210 }} title="Preferred motion template (honoured when it supports the scene intent)">
+              <option value="auto">Template: auto (intent-aware)</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>Template: {t.id}</option>
+              ))}
+            </select>
+            <select className="ur-search" value={visualProvider} onChange={(e) => setVisualProvider(e.target.value)} style={{ maxWidth: 210 }} title="Visual provider — AI requires a configured ComfyUI endpoint">
+              <option value="auto">Visual: auto</option>
+              <option value="comfyui">Visual: ComfyUI (AI)</option>
+              <option value="deterministic-card">Visual: brand card (no AI)</option>
+            </select>
+            <select className="ur-search" value={voiceProvider} onChange={(e) => setVoiceProvider(e.target.value)} style={{ maxWidth: 210 }} title="Voice provider — VoiceStudio requires its endpoint configuration">
+              <option value="auto">Voice: auto</option>
+              <option value="voicestudio">Voice: VoiceStudio (AI)</option>
+              <option value="mock-speech">Voice: offline tone (no AI)</option>
             </select>
             <button className="ur-btn" onClick={() => void createProject()} disabled={busy || !title.trim() || !script.trim()}>Create</button>
           </div>

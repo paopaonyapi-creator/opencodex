@@ -386,4 +386,71 @@ describe("phase 20.92 GOLD — alignment utility contract", () => {
   });
 });
 
+describe("phase 20.92 GOLD — INPUT preferences (UI wiring)", () => {
+  it("target duration budgets the scene count; prefs round-trip through the project", async () => {
+    const { service, root } = freshService();
+    // 30s target → ~6 scenes budgeted by segmentation.
+    const project = service.createProject({ title: `prefs-${run}`, rawInput: SCRIPT, targetDurationSec: 30 }, "gold");
+    expect(project.format.targetDurationSec).toBe(30);
+    expect(project.prefs?.visualProvider).toBe("auto");
+    service.setScript(project.id, SCRIPT, { actor: "gold" });
+    const doc = service.getScript(project.id)!;
+    expect(doc.blocks.length).toBeGreaterThanOrEqual(4);
+
+    // Operator pins the deterministic card + mock voice + a preferred template.
+    const pinned = service.createProject({
+      title: `prefs-card-${run}`, rawInput: `Imagine a router that picks the best model for every task. ${SCRIPT}`, visualProvider: "deterministic-card",
+      voiceProvider: "mock-speech", templateId: "hero-title",
+    }, "gold");
+    const roundtrip = service.getProject(pinned.id)!.project;
+    expect(roundtrip.prefs?.templateId).toBe("hero-title");
+    expect(roundtrip.prefs?.visualProvider).toBe("deterministic-card");
+    expect(roundtrip.prefs?.voiceProvider).toBe("mock-speech");
+
+    service.setScript(pinned.id, SCRIPT.length > 0 ? `Imagine a router that picks the best model for every task. ${SCRIPT}` : SCRIPT, { actor: "gold" });
+    const planned = service.listScenes(pinned.id);
+    // hero-title supports INTRO_HOOK — the hook scene must use the preferred template.
+    const hookScene = planned.find((s) => s.intent === "INTRO_HOOK");
+    expect(hookScene).toBeTruthy();
+    expect(hookScene!.motionPlan.templateId).toBe("hero-title");
+    // And the visual ladder skips AI entirely without touching any provider.
+    const { ladder } = await service.resolveAssets(pinned.id, "gold");
+    for (const attempts of Object.values(ladder)) {
+      const ai = attempts.find((a) => a.rung === "ai-image");
+      expect(ai?.outcome).toBe("skipped");
+    }
+    rmSync(root, { recursive: true, force: true });
+  }, 60_000);
+
+  it("rate-limit gate returns deterministic delays per provider", () => {
+    const { service, root } = freshService();
+    const lastUse = new Map([["comfyui", 1000]]);
+    // 400ms after last use with 1000ms spacing → 600ms still owed.
+    expect(service.providerRateLimitDelayMs(["comfyui"], lastUse, 1400, 1000)).toBe(600);
+    // Past the spacing window → no delay.
+    expect(service.providerRateLimitDelayMs(["comfyui"], lastUse, 3000, 1000)).toBe(0);
+    // Never-used provider → no delay.
+    expect(service.providerRateLimitDelayMs(["voicestudio"], lastUse, 1400, 1000)).toBe(0);
+    // The strictest owed delay wins: comfyui owes 600, voicestudio owes 500.
+    expect(service.providerRateLimitDelayMs(["comfyui", "voicestudio"], new Map([["comfyui", 1000], ["voicestudio", 900]]), 1400, 1000)).toBe(600);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("batch runs honour provider spacing and still reach the human boundary", async () => {
+    const { service, root } = freshService();
+    const { batchId } = service.createBatch(
+      [
+        { title: `sp1-${run}`, script: SCRIPT },
+        { title: `sp2-${run}`, script: SCRIPT },
+      ],
+      "gold",
+    );
+    const result = await service.runBatch(batchId, 2, "gold", { providerSpacingMs: 50 });
+    expect(result.spacingMs).toBe(50);
+    expect(result.waiting).toBe(2);
+    expect(service.batchStatus(batchId).byStatus["WAITING_APPROVAL"]).toBe(2);
+    rmSync(root, { recursive: true, force: true });
+  }, 120_000);
+});
+
 type Scene = import("../src/agent-os/video-studio/types").Scene;

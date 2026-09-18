@@ -8,7 +8,7 @@
 // with an honest recorded reason.
 
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { openAgentOsDb } from "../db";
 import { ToolExecutionSandbox } from "../mcp-gateway/sandbox";
@@ -167,6 +167,71 @@ export class AssetRegistry {
     });
   }
 
+  /**
+   * Persist a ComfyUI artifact inside the registered studio root with the
+   * sandbox guard, then register it (checksum = real SHA-256 of the bytes).
+   * Location segments come from the id-shape guard, never from configuration.
+   */
+  persistComfyuiArtifact(input: {
+    projectId: string;
+    sceneId: string;
+    bytes: Uint8Array;
+    seed: number;
+    providerModel: string;
+    promptId: string;
+    width: number;
+    height: number;
+  }): MediaAsset {
+    const projectId = input.projectId;
+    if (!/^[\w-]+$/.test(projectId) || !/^[\w-]+$/.test(input.sceneId)) {
+      throw new VideoStudioError("SCHEMA_INVALID", 422, "id shape guard rejected the artifact location");
+    }
+    const dir = join(this.studioRoot, "projects", projectId, "assets", "generated");
+    const fname = `comfy_${input.sceneId}_${input.seed}.png`;
+    const outPath = join(dir, fname);
+    ToolExecutionSandbox.assertSafeWorkspacePath(outPath, this.studioRoot);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(outPath, input.bytes);
+    // checksum = real SHA-256 of the artifact bytes (provenance-grade identity).
+    const checksum = createHash("sha256").update(input.bytes).digest("hex");
+    return this.register({
+      type: "image", uri: outPath, checksum, width: input.width, height: input.height, mimeType: "image/png",
+      tags: ["ai-image", "comfyui", input.sceneId],
+      source: { kind: "generated", provider: "comfyui", model: input.providerModel, projectId },
+      license: { type: "generated-owned" },
+    });
+  }
+
+  /**
+   * Approved ComfyUI workflow lookup — REGISTRY-CONTROLLED. The configured
+   * workflow ID is matched against the actual contents of the registered
+   * studio `workflows/` directory; the storage location is composed from a
+   * directory entry read from disk (shape-guarded), never from a
+   * configuration-provided location string.
+   */
+  loadApprovedWorkflow(): Record<string, unknown> | null {
+    const workflowId = process.env.PAO_COMFYUI_WORKFLOW?.trim();
+    if (!workflowId || !/^[\w-]+$/.test(workflowId)) return null;
+    const dir = join(this.studioRoot, "workflows");
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return null;
+    }
+    const wfName = entries.find((e) => /^[\w-]+\.json$/.test(e) && e === `${workflowId}.json`);
+    if (!wfName) return null;
+    const candidate = join(dir, wfName);
+    if (!existsSync(candidate)) return null;
+    try {
+      const parsed = JSON.parse(readFileSync(candidate, "utf8")) as Record<string, unknown>;
+      const valid = Object.values(parsed).every((n) => n && typeof n === "object" && "class_type" in (n as object));
+      return valid ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   private rowToAsset(row: Record<string, unknown>): MediaAsset {
     return {
       id: String(row.id),
@@ -195,6 +260,13 @@ export class AssetRegistry {
 // Resolution ladder (source §14)
 // ---------------------------------------------------------------------------
 
+export interface AiImageRunner {
+  /** Returns persisted+registered asset info for one AI image generation. */
+  generate?: (scene: Scene) => Promise<{ assetId: string; provider: string; model: string; seed: number; promptId: string; retryCount: number; durationMs: number }>;
+  available: boolean;
+  unavailableReason?: string;
+}
+
 export interface LadderContext {
   registry: AssetRegistry;
   projectId: string;
@@ -205,6 +277,8 @@ export interface LadderContext {
   previouslyUsedAssetIds: string[];
   keywords: string[];
   aspectRatio: string;
+  /** Real AI image generation (ComfyUI) — present only when configured + policy-allowed. */
+  aiImage?: AiImageRunner;
 }
 
 export interface LadderOutcome {
@@ -214,22 +288,49 @@ export interface LadderOutcome {
 }
 
 /**
- * Resolve the visual for one scene, ladder order: project assets → brand
- * library → shared local library (tags) → generated cache (checksum) →
- * deterministic text/icon card. AI generation rungs are gated behind a
- * configured provider and degrade honestly when absent (source §67).
+ * Resolve the visual for one scene. GOLD fallback chain (never crash on one
+ * provider): requested AI image (ComfyUI, when available + policy-allowed) →
+ * project assets → brand library → shared library → generated cache →
+ * approved stock* → deterministic text-card. AI results are tagged
+ * "ai-generated"; library/card results are "library"/"deterministic-fallback"
+ * — a fallback is never represented as AI-generated.
  */
 export async function resolveSceneVisual(scene: Scene, ctx: LadderContext): Promise<LadderOutcome> {
   const attempted: LadderOutcome["attempted"] = [];
   const db = openAgentOsDb();
   const keywords = ctx.keywords.length > 0 ? ctx.keywords : [scene.narrationText.split(/\s+/).slice(0, 3).join(" ")];
 
-  // Rung 1: project assets (tag match).
+  // Rung 1: real AI image generation (ComfyUI) when requested + available.
+  const aiRequested = ["AI_IMAGE", "ILLUSTRATION", "CONCEPT", "DIAGRAM", "ICON", "PRODUCT"].includes(scene.visualPlan.strategy);
+  if (aiRequested && ctx.aiImage) {
+      if (ctx.aiImage.available && ctx.aiImage.generate) {
+        const generate = ctx.aiImage.generate;
+        try {
+          const generated = await generate(scene);
+        attempted.push({ rung: "ai-image", outcome: "hit" });
+        scene.visualPlan.generationClass = "ai-generated";
+        scene.visualPlan.resolvedAssetIds = [generated.assetId];
+        scene.visualPlan.generationVersion += 1;
+        scene.visualPlan.explanation = `AI image via comfyui (model ${generated.model}, seed ${generated.seed}, promptId ${generated.promptId}, retries ${generated.retryCount}, ${generated.durationMs}ms)`;
+        scene.visualPlan.candidateScores = [{ candidateId: generated.assetId, score: 1, reasons: [`ai-generation: comfyui/${generated.model}`, `seed ${generated.seed}`], selected: true }];
+        scene.status = "assets_ready";
+        return { asset: ctx.registry.get(generated.assetId)!, rung: "ai-image", attempted };
+      } catch (err) {
+        attempted.push({ rung: "ai-image", outcome: "failed", reason: err instanceof Error ? err.message : String(err) });
+      }
+    } else {
+      attempted.push({ rung: "ai-image", outcome: "skipped", reason: ctx.aiImage.unavailableReason ?? "provider unavailable" });
+    }
+  }
+
+  // Rung 2: project assets (tag match).
   const projectAssets = db.query("SELECT * FROM vs_assets WHERE project_id = ? AND type IN ('image','icon')").all(ctx.projectId) as Array<Record<string, unknown>>;
   if (projectAssets.length > 0) {
     const best = projectAssets.find((a) => (JSON.parse(String(a.tags_json)) as string[]).some((t) => keywords.some((k) => t.toLowerCase().includes(k.toLowerCase()))));
     if (best) {
       attempted.push({ rung: "project-assets", outcome: "hit" });
+      scene.visualPlan.generationClass = "library";
+      scene.visualPlan.generationVersion += 1;
       return { asset: registryRow(ctx.registry, best), rung: "project-assets", attempted };
     }
     attempted.push({ rung: "project-assets", outcome: "miss" });
@@ -237,35 +338,43 @@ export async function resolveSceneVisual(scene: Scene, ctx: LadderContext): Prom
     attempted.push({ rung: "project-assets", outcome: "miss" });
   }
 
-  // Rung 2: brand library (logoAssetIds) — queried via registry.
+  // Rung 3: brand library (logoAssetIds) — queried via registry.
   const brandAssets = db.query("SELECT * FROM vs_assets WHERE tags_json LIKE '%brand-library%' LIMIT 1").all() as Array<Record<string, unknown>>;
   if (brandAssets[0]) {
     attempted.push({ rung: "brand-library", outcome: "hit" });
+    scene.visualPlan.generationClass = "library";
+    scene.visualPlan.generationVersion += 1;
     return { asset: registryRow(ctx.registry, brandAssets[0]), rung: "brand-library", attempted };
   }
   attempted.push({ rung: "brand-library", outcome: "miss" });
 
-  // Rung 3: shared local asset library (tags across projects).
+  // Rung 4: shared local asset library (tags across projects).
   const shared = db.query("SELECT * FROM vs_assets WHERE project_id IS NULL AND type IN ('image','icon') AND tags_json LIKE ? LIMIT 1").all(`%${keywords[0]?.toLowerCase() ?? ""}%`) as Array<Record<string, unknown>>;
   if (shared[0]) {
     attempted.push({ rung: "shared-library", outcome: "hit" });
+    scene.visualPlan.generationClass = "library";
+    scene.visualPlan.generationVersion += 1;
     return { asset: registryRow(ctx.registry, shared[0]), rung: "shared-library", attempted };
   }
   attempted.push({ rung: "shared-library", outcome: "miss" });
 
-  // Rung 4: generated cache — content-addressable by deterministic card key.
+  // Rung 5: generated cache — content-addressable by deterministic card key.
+  // A cache entry whose file has vanished (cleanup, tmp roots) is a MISS, and
+  // the stale row is purged so later runs re-synthesize.
   const cardKey = createHash("sha256").update(`${scene.visualPlan.strategy}|${keywords.sort().join(",")}|${ctx.width}x${ctx.height}`).digest("hex");
   const cached = db.query("SELECT * FROM vs_assets WHERE checksum = ? LIMIT 1").get(cardKey) as Record<string, unknown> | undefined;
-  if (cached) {
+  if (cached && existsSync(String(cached.uri))) {
     attempted.push({ rung: "generated-cache", outcome: "hit" });
+    scene.visualPlan.generationClass = scene.visualPlan.generationClass ?? "deterministic-fallback";
+    scene.visualPlan.generationVersion += 1;
     return { asset: registryRow(ctx.registry, cached), rung: "generated-cache", attempted };
   }
+  if (cached) db.run("DELETE FROM vs_assets WHERE id = ?", [String(cached.id)]);
   attempted.push({ rung: "generated-cache", outcome: "miss" });
 
-  // Rungs 5-6: approved stock / AI image — provider-gated; absent credentials
-  // degrade honestly (source §67) instead of faking success.
+  // Rung 6: approved stock — provider-gated; absent credentials degrade
+  // honestly instead of faking success.
   attempted.push({ rung: "approved-stock", outcome: "skipped", reason: "no stock provider configured" });
-  attempted.push({ rung: "ai-image", outcome: "skipped", reason: "no AI image provider configured" });
 
   // Rung 7: deterministic text/icon card (owned, licensed, zero-cost).
   const title = keywords[0]?.replace(/\b\w/g, (c) => c.toUpperCase()) ?? scene.intent.replace(/_/g, " ");
@@ -280,6 +389,8 @@ export async function resolveSceneVisual(scene: Scene, ctx: LadderContext): Prom
   });
   // Re-key the cache entry to the semantic card key for future ladder hits.
   db.run("UPDATE vs_assets SET checksum = ? WHERE id = ?", [cardKey, asset.id]);
+  scene.visualPlan.generationClass = "deterministic-fallback";
+  scene.visualPlan.generationVersion += 1;
   attempted.push({ rung: "text-card", outcome: "hit" });
   return { asset: { ...asset, checksum: cardKey }, rung: "text-card", attempted };
 }

@@ -214,5 +214,72 @@ export function createVideoStudioMcpTools(service: VideoStudioService): VideoStu
         } catch (err) { return errToPayload(err); }
       },
     },
+    {
+      name: "video.providers.status",
+      description: "Provider capability matrix (IMAGE/TTS/RENDER/VIDEO/MUSIC): availability, credential status, fallback class. Set verify=true for live health probes.",
+      riskTier: "R0",
+      parameters: { type: "object", properties: { verify: { type: "boolean" } } },
+      handler: async (args) => {
+        try {
+          const providers = args.verify === true ? await service.verifyProviders() : service.providerStatuses();
+          return { ok: true, providers };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
+    {
+      name: "video.project.manifest",
+      description: "Adobe Stock sidecar manifest: full provenance, providers/models, real SHA-256 of the rendered artifact, human-approval state. Publishing remains manual.",
+      riskTier: "R1",
+      parameters: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
+      handler: async (args) => {
+        try {
+          return { ok: true, ...(await Promise.resolve(service.buildStockManifest(String(args.projectId)))) };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
+    {
+      name: "video.project.render_final",
+      description: "Final 1080p render after DRAFT_VIDEO_APPROVAL (H.264 + AAC via the deterministic ffmpeg engine).",
+      riskTier: "R3",
+      parameters: { type: "object", properties: { projectId: { type: "string" } }, required: ["projectId"] },
+      handler: async (args) => {
+        try {
+          return { ok: true, ...(await service.renderFinal(String(args.projectId), "mcp")) };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
+    {
+      name: "video.batch.run",
+      description: "Create (mode=create, items[{title,script}]) or advance (mode=run, batchId, concurrency<=8) a batch of video jobs with bounded concurrency and failure isolation.",
+      riskTier: "R2",
+      parameters: {
+        type: "object",
+        properties: { mode: { type: "string" }, items: { type: "array" }, batchId: { type: "string" }, concurrency: { type: "number" } },
+        required: ["mode"],
+      },
+      handler: async (args) => {
+        try {
+          if (args.mode === "create") {
+            const items = Array.isArray(args.items) ? (args.items as Array<{ title: string; script: string; aspectRatio?: string; language?: string }>) : [];
+            return { ok: true, ...(await Promise.resolve(service.createBatch(items, "mcp"))) };
+          }
+          const result = await service.runBatch(String(args.batchId), typeof args.concurrency === "number" ? args.concurrency : 2, "mcp");
+          return { ok: true, ...result };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
+    {
+      name: "video.job.control",
+      description: "Cancel or retry a pipeline job (retry resumes only the failed unit; cancellation refuses further steps).",
+      riskTier: "R2",
+      parameters: { type: "object", properties: { jobId: { type: "string" }, action: { type: "string" }, reason: { type: "string" } }, required: ["jobId", "action"] },
+      handler: async (args) => {
+        try {
+          if (args.action === "cancel") return { ok: true, ...(await Promise.resolve(service.cancelJob(String(args.jobId), String(args.reason ?? "cancelled"), "mcp"))) };
+          if (args.action === "retry") return { ok: true, ...(await Promise.resolve(service.retryJob(String(args.jobId), "mcp"))) };
+          return { ok: false, status: 422, error: { code: "SCHEMA_INVALID", message: "action must be cancel|retry" } };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
   ];
 }

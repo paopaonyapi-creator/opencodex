@@ -134,6 +134,10 @@ export const VisualPlanSchema = z.object({
   assetRequirements: z.array(z.object({ kind: AssetTypeSchema, query: z.string(), optional: z.boolean().default(false) })).default([]),
   resolvedAssetIds: z.array(z.string()).default([]),
   explanation: z.string().default(""),
+  /** Bumped on every visual regeneration — provenance tracks each version. */
+  generationVersion: z.number().int().nonnegative().default(0),
+  /** How the current visual was produced — fallback is never shown as AI. */
+  generationClass: z.enum(["ai-generated", "deterministic-fallback", "library"]).optional(),
   candidateScores: z.array(z.object({
     candidateId: z.string(),
     score: z.number(),
@@ -194,6 +198,8 @@ export const SceneSchema = z.object({
   transitionInMs: z.number().int().nonnegative().default(300),
   transitionOutMs: z.number().int().nonnegative().default(300),
   locks: SceneLocksSchema,
+  /** Disabled scenes are skipped by the timeline/render but kept for re-enable. */
+  disabled: z.boolean().default(false),
   status: SceneStatusSchema.default("draft"),
 });
 export type Scene = z.infer<typeof SceneSchema>;

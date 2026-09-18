@@ -39,11 +39,33 @@ export const RENDER_PROFILES: Record<string, { width: number; height: number; bi
   PREVIEW_720P: { width: 1280, height: 720, bitrateKbps: 2000 },
   YOUTUBE_1080P: { width: 1920, height: 1080, bitrateKbps: 8000 },
   SHORTS_1080X1920: { width: 1080, height: 1920, bitrateKbps: 8000 },
+  SQUARE_1080: { width: 1080, height: 1080, bitrateKbps: 6000 },
+  YOUTUBE_4K: { width: 3840, height: 2160, bitrateKbps: 24000 },
+  INSTAGRAM_REEL: { width: 1080, height: 1920, bitrateKbps: 8000 },
+  TIKTOK: { width: 1080, height: 1920, bitrateKbps: 8000 },
+  ADOBE_STOCK_HD: { width: 1920, height: 1080, bitrateKbps: 12000 },
+  ADOBE_STOCK_4K: { width: 3840, height: 2160, bitrateKbps: 30000 },
 };
 
 export function configForProfile(profile: RenderConfig["profile"], fps: number): RenderConfig {
   const p = RENDER_PROFILES[profile] ?? RENDER_PROFILES.PREVIEW_720P!;
   return { profile, engine: "ffmpeg", width: p.width, height: p.height, fps, bitrateKbps: p.bitrateKbps };
+}
+
+/**
+ * Render-engine selection seam (GOLD P1): "remotion" requires the Remotion
+ * packages to be installed; they are not part of this repository today, so the
+ * request fails with a structured code instead of degrading silently. The
+ * ffmpeg engine is the verified deterministic production path.
+ */
+export function assertRenderEngine(engine: RenderConfig["engine"]): void {
+  if (engine === "remotion") {
+    try {
+      require.resolve("remotion");
+    } catch {
+      throw new VideoStudioError("RENDER_ENGINE_UNAVAILABLE", 409, "remotion is not installed in this repository — use engine 'ffmpeg' or install remotion + @remotion/renderer");
+    }
+  }
 }
 
 /**

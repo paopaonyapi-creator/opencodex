@@ -136,6 +136,7 @@ export function planScene(projectId: string, blocks: ScriptBlock[], energy: "cal
         : [],
       resolvedAssetIds: [],
       explanation: `intent=${intent} → strategy=${strategy} (deterministic rule)`,
+      generationVersion: 0,
       candidateScores: [],
     },
     motionPlan: {
@@ -155,6 +156,7 @@ export function planScene(projectId: string, blocks: ScriptBlock[], energy: "cal
     transitionInMs: 300,
     transitionOutMs: 300,
     locks: { ...NO_LOCKS },
+    disabled: false,
     status: "planned",
   };
   return SceneSchema.parse(scene);

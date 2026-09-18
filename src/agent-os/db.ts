@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 59;
+export const AGENT_OS_SCHEMA_VERSION = 60;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6188,7 +6188,7 @@ function migrate(db: Database): void {
       CREATE TABLE IF NOT EXISTS vs_assets (id TEXT PRIMARY KEY, type TEXT NOT NULL, uri TEXT NOT NULL, checksum TEXT NOT NULL, width INTEGER, height INTEGER, duration_ms INTEGER, mime_type TEXT, tags_json TEXT NOT NULL DEFAULT '[]', source_kind TEXT NOT NULL, provider TEXT, model TEXT, source_url TEXT, license_type TEXT, project_id TEXT, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_vs_assets_checksum ON vs_assets(checksum);
       CREATE TABLE IF NOT EXISTS vs_asset_usage (id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, project_id TEXT NOT NULL, scene_id TEXT, used_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS vs_jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'auto_build', status TEXT NOT NULL DEFAULT 'QUEUED', current_step TEXT, quality TEXT NOT NULL DEFAULT 'BALANCED', idempotency_base TEXT NOT NULL, budget_json TEXT, pause_reason TEXT, error_code TEXT, error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, parent_id TEXT, kind TEXT NOT NULL DEFAULT 'auto_build', status TEXT NOT NULL DEFAULT 'QUEUED', current_step TEXT, quality TEXT NOT NULL DEFAULT 'BALANCED', idempotency_base TEXT NOT NULL, budget_json TEXT, pause_reason TEXT, error_code TEXT, error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_vs_jobs_project ON vs_jobs(project_id, created_at DESC);
       CREATE TABLE IF NOT EXISTS vs_job_steps (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', input_hash TEXT, config_hash TEXT, idempotency_key TEXT, output_json TEXT NOT NULL DEFAULT '{}', started_at TEXT, finished_at TEXT, UNIQUE(job_id, step));
       CREATE INDEX IF NOT EXISTS idx_vs_steps_job ON vs_job_steps(job_id, started_at);
@@ -6200,6 +6200,12 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_vs_cost_project ON vs_cost_events(project_id, created_at);
       CREATE TABLE IF NOT EXISTS vs_audit_events (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor TEXT NOT NULL, project_id TEXT, scene_id TEXT, operation TEXT NOT NULL, result TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_vs_audit_created ON vs_audit_events(created_at);
+
+      -- v60: Phase 20.92 GOLD — provider executions (structured observability +
+      -- retry accounting) and batch parent linkage on vs_jobs.
+      CREATE TABLE IF NOT EXISTS vs_provider_executions (id TEXT PRIMARY KEY, project_id TEXT, job_id TEXT, scene_id TEXT, capability TEXT NOT NULL, provider TEXT NOT NULL, model TEXT, operation TEXT NOT NULL, status TEXT NOT NULL, duration_ms INTEGER, retry_count INTEGER NOT NULL DEFAULT 0, error_code TEXT, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_pexec_project ON vs_provider_executions(project_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_vs_pexec_provider ON vs_provider_executions(provider, created_at);
     `);
 
     // Incremental column upgrades for pre-v53 databases
@@ -6213,6 +6219,12 @@ function migrate(db: Database): void {
     // v56: AFT post-action verification flag + idempotency ledger (Phase 20.82)
     if (storedVersion > 0 && storedVersion < 56) {
       try { db.exec("ALTER TABLE sm_actions ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;"); } catch {}
+    }
+
+    // v60: batch parent linkage on vs_jobs (Phase 20.92 GOLD)
+    if (storedVersion > 0 && storedVersion < 60) {
+      try { db.exec("ALTER TABLE vs_jobs ADD COLUMN parent_id TEXT;"); } catch {}
+      try { db.exec("CREATE INDEX IF NOT EXISTS idx_vs_jobs_parent ON vs_jobs(parent_id, created_at);"); } catch {}
     }
 
     db.query(

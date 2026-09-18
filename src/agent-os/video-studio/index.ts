@@ -12,3 +12,13 @@ export { renderWithFfmpeg, probeRender, configForProfile, RENDER_PROFILES, type 
 export { VideoStudioService, getVideoStudioService, type ProjectDetail, type JobStepRecord } from "./service";
 export { createVideoStudioMcpTools } from "./mcp-tools";
 export type { VideoStudioMcpTool } from "./mcp-tools";
+export {
+  getProviderMatrix, verifyProviderHealth, isVoiceStudioConfigured, isComfyuiConfigured,
+  isFfmpegAvailable, isRemotionInstalled, voiceStudioEndpoint, comfyuiEndpoint,
+  type ProviderStatus, type StudioCapability, type ProviderAvailability,
+} from "./providers";
+export {
+  generateImageWithComfyui, buildTextToImageWorkflow, probeComfyuiHealth,
+  assertSafeWorkflowId, defaultSeed, ComfyuiError,
+  type ComfyuiGeneration, type ComfyuiGenerationInput, type ComfyuiHealth, type ComfyuiErrorCode,
+} from "./comfyui";

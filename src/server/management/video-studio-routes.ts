@@ -109,7 +109,7 @@ export async function handleVideoStudioRoutes(ctx: ManagementContext): Promise<R
     }
 
     // 9. POST /api/agent-os/video-studio/projects/{id}/voice
-    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/projects/") && pathname.endsWith("/voice")) {
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/projects/") && pathname.endsWith("/voice") && !pathname.includes("/scenes/")) {
       const id = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/projects/".length, -"/voice".length));
       const body = await readJson(req);
       return jsonResponse({ ok: true, ...(await service.generateVoiceAndCaptions(id, actor(ctx, body))) }, 200, req, {});
@@ -200,6 +200,86 @@ export async function handleVideoStudioRoutes(ctx: ManagementContext): Promise<R
       const body = await readJson(req);
       const ids = Array.isArray(body.orderedSceneIds) ? (body.orderedSceneIds as string[]) : [];
       return jsonResponse({ ok: true, scenes: service.reorderScenes(id, ids, actor(ctx, body)) }, 200, req, {});
+    }
+
+    // 21. GET /api/agent-os/video-studio/providers (capability matrix)
+    if (req.method === "GET" && pathname === "/api/agent-os/video-studio/providers") {
+      return jsonResponse({ ok: true, providers: service.providerStatuses() }, 200, req, {});
+    }
+
+    // 22. POST /api/agent-os/video-studio/providers/verify (live health checks)
+    if (req.method === "POST" && pathname === "/api/agent-os/video-studio/providers/verify") {
+      return jsonResponse({ ok: true, providers: await service.verifyProviders() }, 200, req, {});
+    }
+
+    // 23. GET /api/agent-os/video-studio/ops (operational view)
+    if (req.method === "GET" && pathname === "/api/agent-os/video-studio/ops") {
+      return jsonResponse({ ok: true, ...service.opsSummary() }, 200, req, {});
+    }
+
+    // 24. POST /api/agent-os/video-studio/projects/{id}/manifest (Adobe Stock sidecar)
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/projects/") && pathname.endsWith("/manifest")) {
+      const id = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/projects/".length, -"/manifest".length));
+      return jsonResponse({ ok: true, ...(await Promise.resolve(service.buildStockManifest(id))) }, 200, req, {});
+    }
+
+    // 25. POST /api/agent-os/video-studio/auto-build/{jobId}/cancel
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/auto-build/") && pathname.endsWith("/cancel")) {
+      const jobId = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/auto-build/".length, -"/cancel".length));
+      const body = await readJson(req);
+      return jsonResponse({ ok: true, ...(await Promise.resolve(service.cancelJob(jobId, str(body.reason) ?? "operator cancel", actor(ctx, body)))) }, 200, req, {});
+    }
+
+    // 26. POST /api/agent-os/video-studio/auto-build/{jobId}/retry
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/auto-build/") && pathname.endsWith("/retry")) {
+      const jobId = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/auto-build/".length, -"/retry".length));
+      const body = await readJson(req);
+      return jsonResponse({ ok: true, ...(await Promise.resolve(service.retryJob(jobId, actor(ctx, body)))) }, 200, req, {});
+    }
+
+    // 27. POST /api/agent-os/video-studio/projects/{id}/render-final (approval-gated 1080p)
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/projects/") && pathname.endsWith("/render-final")) {
+      const id = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/projects/".length, -"/render-final".length));
+      const body = await readJson(req);
+      return jsonResponse({ ok: true, ...(await service.renderFinal(id, actor(ctx, body))) }, 200, req, {});
+    }
+
+    // 28. POST /api/agent-os/video-studio/batch (create N projects + jobs)
+    if (req.method === "POST" && pathname === "/api/agent-os/video-studio/batch") {
+      const body = await readJson(req);
+      const items = Array.isArray(body.items) ? (body.items as Array<{ title: string; script: string; aspectRatio?: string; language?: string }>) : [];
+      if (items.length === 0) return jsonResponse({ error: { code: "SCHEMA_INVALID", message: "items array required" } }, 422, req, {});
+      return jsonResponse({ ok: true, ...(await Promise.resolve(service.createBatch(items, actor(ctx, body)))) }, 201, req, {});
+    }
+
+    // 29. POST /api/agent-os/video-studio/batch/{batchId}/run (bounded concurrency)
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/video-studio/batch/") && pathname.endsWith("/run")) {
+      const batchId = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/batch/".length, -"/run".length));
+      const body = await readJson(req);
+      const concurrency = typeof body.concurrency === "number" ? Math.min(Math.max(body.concurrency, 1), 8) : 2;
+      return jsonResponse({ ok: true, ...(await service.runBatch(batchId, concurrency, actor(ctx, body))) }, 200, req, {});
+    }
+
+    // 30. GET /api/agent-os/video-studio/batch/{batchId}
+    if (req.method === "GET" && pathname.startsWith("/api/agent-os/video-studio/batch/")) {
+      const batchId = decodeURIComponent(pathname.slice("/api/agent-os/video-studio/batch/".length));
+      return jsonResponse({ ok: true, ...(await Promise.resolve(service.batchStatus(batchId))) }, 200, req, {});
+    }
+
+    // 31. POST /api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/voice (regen narration)
+    if (req.method === "POST" && pathname.includes("/scenes/") && pathname.endsWith("/voice")) {
+      const rest = pathname.slice("/api/agent-os/video-studio/projects/".length, -"/voice".length);
+      const [projectId, sceneId] = rest.split("/scenes/");
+      return jsonResponse({ ok: true, scene: await service.regenerateSceneVoice(decodeURIComponent(projectId ?? ""), decodeURIComponent(sceneId ?? ""), actor(ctx, {})) }, 200, req, {});
+    }
+
+    // 32. POST /api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/disable (+enable)
+    if (req.method === "POST" && pathname.includes("/scenes/") && (pathname.endsWith("/disable") || pathname.endsWith("/enable"))) {
+      const suffix = pathname.endsWith("/enable") ? "/enable" : "/disable";
+      const rest = pathname.slice("/api/agent-os/video-studio/projects/".length, -suffix.length);
+      const [projectId, sceneId] = rest.split("/scenes/");
+      const body = await readJson(req);
+      return jsonResponse({ ok: true, scene: (await Promise.resolve(service.setSceneDisabled(decodeURIComponent(projectId ?? ""), decodeURIComponent(sceneId ?? ""), suffix === "/disable", actor(ctx, body)))) }, 200, req, {});
     }
 
     return null;

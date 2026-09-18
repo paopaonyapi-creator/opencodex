@@ -1751,6 +1751,7 @@ export const ja: Partial<Record<TKey, string>> = {
   "nav.skills": "スキルゲート",
   "nav.credentials": "認証情報",
   "nav.sensorimotor": "センソリモータ",
+  "nav.marketplace": "機能ハブ",
   "nav.governance": "ガバナンス",
   "demo.title": "WebMCP チャレンジデモ",
   "demo.subtitle": "ワンクリックのエージェントネイティブ制作ワークフロー。",

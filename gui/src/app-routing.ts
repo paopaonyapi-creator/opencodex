@@ -62,7 +62,8 @@ export type Page =
   | "model-gateway"
   | "skills"
   | "credentials"
-  | "sensorimotor";
+  | "sensorimotor"
+  | "marketplace";
 
 export const VALID_PAGES = new Set<Page>([
   "dashboard",
@@ -125,6 +126,7 @@ export const VALID_PAGES = new Set<Page>([
   "skills",
   "credentials",
   "sensorimotor",
+  "marketplace",
 ]);
 
 export function readPageFromHash(hash?: string): Page {

@@ -243,6 +243,35 @@ export class McpToolGateway {
       // Sensorimotor DB may not be initialized in all environments;
       // tools remain unregistered until the runtime is ready.
     }
+
+    // Phase 20.89: register Capability Hub (Bubble) marketplace tools
+    this.registerServer({
+      id: "capability_marketplace",
+      name: "Pao-hubPro Capability Hub (Phase 20.89)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { getCapabilityHubService } = require("../marketplace/service") as typeof import("../marketplace/service");
+      const { createMarketplaceMcpTools } = require("../marketplace/mcp-tools") as typeof import("../marketplace/mcp-tools");
+      const marketplaceTools = createMarketplaceMcpTools(getCapabilityHubService());
+      for (const tool of marketplaceTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "capability_marketplace",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Marketplace DB may not be initialized in all environments;
+      // tools remain unregistered until the runtime is ready.
+    }
   }
 
   private recordAudit(

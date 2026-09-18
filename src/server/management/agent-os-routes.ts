@@ -302,6 +302,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleSensorimotorRoutes(ctx);
   }
 
+  // Phase 20.89: Capability Hub (Bubble) — registry-first capability marketplace.
+  if (url.pathname.startsWith("/api/agent-os/marketplace") || url.pathname === "/api/agent-os/marketplace") {
+    const { handleMarketplaceRoutes } = await import("./marketplace-routes");
+    return handleMarketplaceRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

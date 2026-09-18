@@ -380,6 +380,13 @@ const SENSORIMOTOR_VERB_DEFERRAL = {
   ownerDoc: "Blueprint/Phase 20.82 — Pao-hubPro × CortexKit AFT — Agent-Native IDE & Sensorimotor Runtime.md",
 } as const;
 
+const MARKETPLACE_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.89 ships the Capability Hub registry, manifest pipeline, phase importer, transactional installer and REST surface first; CLI verbs and the full enable/disable lifecycle belong to the runtime-adapter wave (P3) recorded in the phase doc.",
+  owner: "Phase 20.89 Capability Hub",
+  ownerDoc: "Blueprint/Phase_20.89_Pao-hubPro_x_Bubble.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -725,6 +732,19 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/sensorimotor/actions", module: "server/management/sensorimotor-routes", mutates: true, exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/actions/{id}", module: "server/management/sensorimotor-routes", mutates: false, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/sensorimotor/sessions/{id}/close", module: "server/management/sensorimotor-routes", mutates: true, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
+  // Phase 20.89: Capability Hub (Bubble) — registry-first marketplace.
+  { method: "GET", path: "/api/agent-os/marketplace/health", module: "server/management/marketplace-routes", mutates: false, exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/marketplace/capabilities", module: "server/management/marketplace-routes", mutates: false, exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/marketplace/capabilities/{slug}", module: "server/management/marketplace-routes", mutates: false, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/marketplace/reconciliation", module: "server/management/marketplace-routes", mutates: false, exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/marketplace/audit", module: "server/management/marketplace-routes", mutates: false, exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/import-phases", module: "server/management/marketplace-routes", mutates: true, exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/capabilities/{slug}/plan-install", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/capabilities/{slug}/favorite", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/install-plans/{id}/approve", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/install-plans/{id}/execute", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/marketplace/install-plans/{id}", module: "server/management/marketplace-routes", mutates: false, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/marketplace/installations/{id}/rollback", module: "server/management/marketplace-routes", mutates: true, mechanism: "slice", exempt: MARKETPLACE_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/sensorimotor/perceive", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/perceptions/{id}", module: "server/management/sensorimotor-routes", mutates: false, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/readiness", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },

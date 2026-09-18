@@ -1833,6 +1833,7 @@ export const en = {
   "nav.skills": "Skills Gate",
   "nav.credentials": "Credentials",
   "nav.sensorimotor": "Sensorimotor",
+  "nav.marketplace": "Capability Hub",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge Demo",
   "demo.subtitle": "One-click agent-native stock workflow.",

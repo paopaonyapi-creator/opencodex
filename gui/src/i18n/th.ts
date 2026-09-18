@@ -1665,6 +1665,7 @@ export const th: Partial<Record<TKey, string>> = {
   "nav.skills": "เกตเวย์สกิล",
   "nav.credentials": "ข้อมูลประจำตัว",
   "nav.sensorimotor": "เซนซอริมอเตอร์",
+  "nav.marketplace": "ศูนย์ความสามารถ",
   "nav.governance": "การกำกับดูแล",
   "demo.title": "เว็บเอ็มซีพีชาเลนจ์เดโม",
   "demo.subtitle": "เวิร์กโฟลว์สต็อกแบบเอเจนต์เนทีฟในคลิกเดียว",

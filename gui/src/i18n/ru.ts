@@ -1802,6 +1802,7 @@ export const ru: Partial<Record<TKey, string>> = {
   "nav.skills": "Шлюз навыков",
   "nav.credentials": "Учетные данные",
   "nav.sensorimotor": "Сенсомоторика",
+  "nav.marketplace": "Хаб возможностей",
   "nav.governance": "Управление",
   "demo.title": "Демо WebMCP Challenge",
   "demo.subtitle": "Агент-нативный стоковый рабочий процесс в один клик.",

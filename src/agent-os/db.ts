@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 56;
+export const AGENT_OS_SCHEMA_VERSION = 57;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6128,6 +6128,35 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_sm_audit_created ON sm_audit(created_at);
       -- v56: AFT idempotency ledger — one terminal outcome per caller-supplied idempotency key
       CREATE TABLE IF NOT EXISTS sm_idempotency (key TEXT PRIMARY KEY, session_id TEXT NOT NULL, action_id TEXT NOT NULL, created_at TEXT NOT NULL);
+
+      -- v57: Phase 20.89 Capability Hub (Bubble) — registry-first capability supply chain.
+      -- Prefix mk_* (marketplace): the cap_* namespace is owned by the LIVE Phase 20.56
+      -- Micro-App Capability Lab (cap_capabilities/cap_sources/cap_recipes/cap_runs at
+      -- schema v46) — reusing it would collide with a working subsystem (mission §31:
+      -- reuse > refactor > rewrite; never break working implementation).
+      -- Reused from earlier schemas, never duplicated here: policies, approvals,
+      -- core_secrets_metadata, gw_providers/gw_models (20.85), core_mcp_servers (20.74).
+      CREATE TABLE IF NOT EXISTS mk_capabilities (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, phase_id TEXT, name TEXT NOT NULL, type TEXT NOT NULL, summary TEXT, status TEXT NOT NULL DEFAULT 'DISCOVERED', visibility TEXT NOT NULL DEFAULT 'private', icon_url TEXT, homepage_url TEXT, repository_url TEXT, license_spdx TEXT, publisher_name TEXT, trust_state TEXT NOT NULL DEFAULT 'unverified', risk_class TEXT NOT NULL DEFAULT 'unknown', latest_version_id TEXT, blueprint_path TEXT, blueprint_status TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_capability_versions (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, version TEXT NOT NULL, source_ref TEXT, manifest_json TEXT NOT NULL, manifest_hash TEXT NOT NULL, checksum_sha256 TEXT, release_notes TEXT, created_at TEXT NOT NULL, UNIQUE(capability_id, version));
+      CREATE TABLE IF NOT EXISTS mk_capability_sources (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, source_type TEXT NOT NULL, source_url TEXT, source_repository TEXT, source_commit TEXT, source_release TEXT, imported_at TEXT NOT NULL, sync_status TEXT NOT NULL DEFAULT 'ok');
+      CREATE TABLE IF NOT EXISTS mk_capability_dependencies (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, required INTEGER NOT NULL DEFAULT 1, state TEXT NOT NULL DEFAULT 'MISSING');
+      CREATE TABLE IF NOT EXISTS mk_capability_permissions (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, permission TEXT NOT NULL, scope TEXT, origin TEXT NOT NULL DEFAULT 'manifest');
+      CREATE TABLE IF NOT EXISTS mk_capability_manifests (id TEXT PRIMARY KEY, version_id TEXT NOT NULL, manifest_hash TEXT NOT NULL, yaml_text TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_capability_installations (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, version_id TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'INSTALLING', enabled INTEGER NOT NULL DEFAULT 0, installed_at TEXT NOT NULL, last_health_state TEXT NOT NULL DEFAULT 'UNKNOWN', last_health_at TEXT, snapshot_ref TEXT);
+      CREATE TABLE IF NOT EXISTS mk_install_transactions (id TEXT PRIMARY KEY, installation_id TEXT, plan_id TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'PLANNED', steps_json TEXT NOT NULL DEFAULT '[]', snapshot_ref TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_snapshots (id TEXT PRIMARY KEY, transaction_id TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_rollback_records (id TEXT PRIMARY KEY, transaction_id TEXT NOT NULL, installation_id TEXT NOT NULL, restored_state TEXT NOT NULL, reason TEXT, actor TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_capability_health (id TEXT PRIMARY KEY, capability_id TEXT NOT NULL, check_type TEXT NOT NULL, state TEXT NOT NULL, detail_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_capability_audits (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor TEXT NOT NULL, capability_slug TEXT, version TEXT, operation TEXT NOT NULL, plan_id TEXT, policy_decision TEXT, approval_id TEXT, result TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_collections (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'manual', description TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_collection_items (id TEXT PRIMARY KEY, collection_id TEXT NOT NULL, capability_id TEXT NOT NULL, added_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_favorites (id TEXT PRIMARY KEY, actor TEXT NOT NULL, capability_id TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_phase_blueprints (id TEXT PRIMARY KEY, phase_id TEXT NOT NULL UNIQUE, title TEXT NOT NULL, blueprint_path TEXT NOT NULL, blueprint_status TEXT NOT NULL DEFAULT 'DRAFT', capability_id TEXT, supersedes_phase TEXT, superseded_by_phase TEXT, note TEXT, scanned_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mk_phase_imports (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, report_json TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_mk_capabilities_phase ON mk_capabilities(phase_id);
+      CREATE INDEX IF NOT EXISTS idx_mk_capabilities_status ON mk_capabilities(status);
+      CREATE INDEX IF NOT EXISTS idx_mk_audits_created ON mk_capability_audits(created_at);
+      CREATE INDEX IF NOT EXISTS idx_mk_health_capability ON mk_capability_health(capability_id, created_at);
     `);
 
     // Incremental column upgrades for pre-v53 databases

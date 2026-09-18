@@ -63,6 +63,7 @@ import { Credentials } from "./pages/Credentials";
 import { Sensorimotor } from "./pages/Sensorimotor";
 import { Marketplace } from "./pages/Marketplace";
 import { EngineeringSkills } from "./pages/EngineeringSkills";
+import { VideoStudio } from "./pages/VideoStudio";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SidebarGithubRow } from "./components/sidebar-github-row";
 import { IconGrid, IconServer, IconBoxes, IconBot, IconList, IconActivity, IconHardDrive, IconKey, IconLock, IconMenu, IconSun, IconMoon, IconMonitor, IconGlobe, IconPower, IconX, IconRefresh, IconTicket, IconPlay, IconSearch, IconCode, IconTerminal, IconBrowser, IconShield, IconBell, IconDownload } from "./icons";
@@ -142,6 +143,7 @@ const PAGE_TKEY: Record<Page, TKey> = {
   "sensorimotor": "nav.sensorimotor",
   "marketplace": "nav.marketplace",
   "engineering-skills": "nav.engineeringSkills",
+  "video-studio": "nav.videoStudio",
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -546,6 +548,7 @@ export default function App() {
 		            {page === "sensorimotor" && <Sensorimotor apiBase={API_BASE} />}
 	            {page === "marketplace" && <Marketplace apiBase={API_BASE} />}
 	            {page === "engineering-skills" && <EngineeringSkills apiBase={API_BASE} />}
+	            {page === "video-studio" && <VideoStudio apiBase={API_BASE} />}
 		            {page === "governance" && <GovernanceDashboard apiBase={API_BASE} />}
           </ErrorBoundary>
         </div>

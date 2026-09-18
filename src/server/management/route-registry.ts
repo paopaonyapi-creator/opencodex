@@ -394,6 +394,13 @@ const ENGINEERING_SKILLS_VERB_DEFERRAL = {
   ownerDoc: "Blueprint/Phase_20.91_Pao-hubPro_x_Addy_Osmani_Agent_Skills.md",
 } as const;
 
+const VIDEO_STUDIO_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.92 ships the semantic director layer (segmentation, scene planning, asset ladder, motion templates, deterministic timeline, ffmpeg preview render, QA, auto-build step machine) and REST/MCP surface first; batch CSV intake, Adobe Stock mode and multi-machine workers belong to the post-MVP wave recorded in the phase doc.",
+  owner: "Phase 20.92 Video Studio",
+  ownerDoc: "docs/PHASE_20.92_VIDEO_STUDIO.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -777,6 +784,27 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/approve", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/cancel", module: "server/management/engineering-skills-routes", mutates: true, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/engineering-skills/workflows/{id}/skip-request", module: "server/management/engineering-skills-routes", mutates: false, mechanism: "slice", exempt: ENGINEERING_SKILLS_VERB_DEFERRAL },
+  // Phase 20.92: AI Script-to-Video Studio (semantic director layer).
+  { method: "GET", path: "/api/agent-os/video-studio/health", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/video-studio/projects", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/video-studio/templates", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/video-studio/projects/{id}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/video-studio/auto-build/{jobId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects", module: "server/management/video-studio-routes", mutates: true, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/script", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/plan", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/resolve-assets", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/voice", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/timeline", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/qa", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/render", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/approve", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/auto-build", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/auto-build/{jobId}/step", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/lock", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/regenerate", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/narration", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/reorder", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/sensorimotor/perceive", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/perceptions/{id}", module: "server/management/sensorimotor-routes", mutates: false, mechanism: "slice", exempt: SENSORIMOTOR_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/sensorimotor/readiness", module: "server/management/sensorimotor-routes", mutates: false, exempt: SENSORIMOTOR_VERB_DEFERRAL },

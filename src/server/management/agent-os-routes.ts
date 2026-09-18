@@ -314,6 +314,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleEngineeringSkillsRoutes(ctx);
   }
 
+  // Phase 20.92: AI Script-to-Video Studio (semantic director layer).
+  if (url.pathname.startsWith("/api/agent-os/video-studio") || url.pathname === "/api/agent-os/video-studio") {
+    const { handleVideoStudioRoutes } = await import("./video-studio-routes");
+    return handleVideoStudioRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

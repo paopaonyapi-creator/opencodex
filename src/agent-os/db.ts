@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 58;
+export const AGENT_OS_SCHEMA_VERSION = 59;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6176,6 +6176,30 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_esk_decisions_workflow ON esk_policy_decisions(workflow_id, created_at);
       CREATE TABLE IF NOT EXISTS esk_audit (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor TEXT NOT NULL, pack_id TEXT, skill_id TEXT, workflow_id TEXT, operation TEXT NOT NULL, result TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_esk_audit_created ON esk_audit(created_at);
+
+      -- v59: Phase 20.92 AI Script-to-Video Studio — semantic director layer on top of
+      -- the Phase 20.7 video factory. Prefix vs_* (video studio): video_production_* /
+      -- gen_* namespaces are owned by live subsystems — no reuse, no collision.
+      CREATE TABLE IF NOT EXISTS vs_projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', aspect_ratio TEXT NOT NULL DEFAULT '16:9', fps INTEGER NOT NULL DEFAULT 30, language TEXT NOT NULL DEFAULT 'en', quality TEXT NOT NULL DEFAULT 'BALANCED', source_type TEXT NOT NULL DEFAULT 'script', raw_input TEXT NOT NULL DEFAULT '', brand_kit_id TEXT, budget_json TEXT, script_hash TEXT, plans_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_project_versions (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, revision INTEGER NOT NULL, reason TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_versions_project ON vs_project_versions(project_id, revision);
+      CREATE TABLE IF NOT EXISTS vs_scenes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, scene_order INTEGER NOT NULL, scene_json TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(project_id, scene_order));
+      CREATE INDEX IF NOT EXISTS idx_vs_scenes_project ON vs_scenes(project_id, scene_order);
+      CREATE TABLE IF NOT EXISTS vs_assets (id TEXT PRIMARY KEY, type TEXT NOT NULL, uri TEXT NOT NULL, checksum TEXT NOT NULL, width INTEGER, height INTEGER, duration_ms INTEGER, mime_type TEXT, tags_json TEXT NOT NULL DEFAULT '[]', source_kind TEXT NOT NULL, provider TEXT, model TEXT, source_url TEXT, license_type TEXT, project_id TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_assets_checksum ON vs_assets(checksum);
+      CREATE TABLE IF NOT EXISTS vs_asset_usage (id TEXT PRIMARY KEY, asset_id TEXT NOT NULL, project_id TEXT NOT NULL, scene_id TEXT, used_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'auto_build', status TEXT NOT NULL DEFAULT 'QUEUED', current_step TEXT, quality TEXT NOT NULL DEFAULT 'BALANCED', idempotency_base TEXT NOT NULL, budget_json TEXT, pause_reason TEXT, error_code TEXT, error_message TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_jobs_project ON vs_jobs(project_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS vs_job_steps (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, step TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', input_hash TEXT, config_hash TEXT, idempotency_key TEXT, output_json TEXT NOT NULL DEFAULT '{}', started_at TEXT, finished_at TEXT, UNIQUE(job_id, step));
+      CREATE INDEX IF NOT EXISTS idx_vs_steps_job ON vs_job_steps(job_id, started_at);
+      CREATE TABLE IF NOT EXISTS vs_brand_kits (id TEXT PRIMARY KEY, name TEXT NOT NULL, kit_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_approvals (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'REQUESTED', approver TEXT, decided_at TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS vs_provenance (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, scene_id TEXT, origin TEXT NOT NULL, provider TEXT, model TEXT, prompt_hash TEXT, input_hash TEXT, output_hash TEXT, license TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_provenance_project ON vs_provenance(project_id, created_at);
+      CREATE TABLE IF NOT EXISTS vs_cost_events (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, scene_id TEXT, provider TEXT NOT NULL, operation TEXT NOT NULL, cost_usd REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_cost_project ON vs_cost_events(project_id, created_at);
+      CREATE TABLE IF NOT EXISTS vs_audit_events (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, actor TEXT NOT NULL, project_id TEXT, scene_id TEXT, operation TEXT NOT NULL, result TEXT NOT NULL, details_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_vs_audit_created ON vs_audit_events(created_at);
     `);
 
     // Incremental column upgrades for pre-v53 databases

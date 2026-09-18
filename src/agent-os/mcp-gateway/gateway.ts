@@ -301,6 +301,35 @@ export class McpToolGateway {
       // Engineering-skills DB may not be initialized in all environments;
       // tools remain unregistered until the runtime is ready.
     }
+
+    // Phase 20.92: register Video Studio (AI Script-to-Video) tools
+    this.registerServer({
+      id: "video_studio",
+      name: "Pao-hubPro Video Studio (Phase 20.92)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { getVideoStudioService } = require("../video-studio/service") as typeof import("../video-studio/service");
+      const { createVideoStudioMcpTools } = require("../video-studio/mcp-tools") as typeof import("../video-studio/mcp-tools");
+      const vsTools = createVideoStudioMcpTools(getVideoStudioService());
+      for (const tool of vsTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "video_studio",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Video-studio DB may not be initialized in all environments;
+      // tools remain unregistered until the runtime is ready.
+    }
   }
 
   private recordAudit(

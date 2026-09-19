@@ -79,7 +79,7 @@ export class WorkflowRunEngine {
   }
 
   /** Start a run against the workflow's active published version. */
-  startRun(workflowId: string, trigger = "manual", actor = "operator"): { runId: string; version: number; planHash: string } {
+  startRun(workflowId: string, trigger = "manual", actor = "operator", opts?: { budget?: import("./types").Budget }): { runId: string; version: number; planHash: string; budgetPaused?: boolean } {
     const db = openAgentOsDb();
     const workflow = db.query("SELECT active_version FROM wfs_workflows WHERE id = ?").get(workflowId) as { active_version: number } | undefined;
     if (!workflow) throw new WorkflowStudioError("WORKFLOW_NOT_FOUND", 404, `workflow '${workflowId}' not found`);
@@ -109,6 +109,18 @@ export class WorkflowRunEngine {
       );
     }
     this.event(runId, null, "workflow.started", { workflowId, version: version.version, planHash: plan.planHash, actor });
+    // Budget pre-flight (source §30): a projection above the run ceiling pauses
+    // the run immediately (action_on_limit=pause) rather than failing it.
+    if (opts?.budget?.maxRunUsd !== undefined && plan.projectedCostUsd > opts.budget.maxRunUsd) {
+      const action = opts.budget.actionOnLimit ?? "pause";
+      if (action === "pause") {
+        openAgentOsDb().run("UPDATE wfs_runs SET status = 'PAUSED', updated_at = ? WHERE id = ?", [now(), runId]);
+        this.event(runId, null, "workflow.budget_exceeded", { projectedCostUsd: plan.projectedCostUsd, maxRunUsd: opts.budget.maxRunUsd, action });
+        return { runId, version: version.version, planHash: plan.planHash, budgetPaused: true };
+      }
+      openAgentOsDb().run("UPDATE wfs_runs SET status = 'FAILED', error = ?, updated_at = ? WHERE id = ?", [`projected cost $${plan.projectedCostUsd.toFixed(4)} exceeds budget $${opts.budget.maxRunUsd}`, now(), runId]);
+      throw new WorkflowStudioError("POLICY_DENIED", 402, `projected cost $${plan.projectedCostUsd.toFixed(4)} exceeds the run budget $${opts.budget.maxRunUsd}`, { projectedCostUsd: plan.projectedCostUsd });
+    }
     return { runId, version: version.version, planHash: plan.planHash };
   }
 
@@ -166,6 +178,13 @@ export class WorkflowRunEngine {
             if (k === `__approval_${nodeId}` && (v === "APPROVED" || v === "REJECTED")) return true;
           }
           return false;
+        },
+        recordUsage: (rid, nodeId, usage, effectiveNodeType) => this.recordUsage(rid, nodeId, usage, effectiveNodeType),
+        applyFailover: (rid, nodeId, failoverNodeType) => {
+          openAgentOsDb().run(
+            "UPDATE wfs_node_runs SET effective_node_type = ?, failover_node_type = ? WHERE run_id = ? AND node_id = ?",
+            [failoverNodeType, failoverNodeType, rid, nodeId],
+          );
         },
         actor,
         studioRoot: this.studioRoot,
@@ -286,19 +305,22 @@ export class WorkflowRunEngine {
   persistArtifact(runId: string, nodeId: string, name: string, content: string): ArtifactRecord {
     if (!/^[\w-]+$/.test(runId)) throw new WorkflowStudioError("SCHEMA_INVALID", 422, "run id failed the shape guard");
     const dir = join(this.studioRoot, "runs", runId, "artifacts");
-    const fname = `${name}.json`;
+    // The exporter may already provide an extension (report.md / data.csv);
+    // otherwise the artifact defaults to .json.
+    const fname = /\.[a-z0-9]{2,5}$/i.test(name) ? name : `${name}.json`;
     const path = join(dir, fname);
     mkdirSync(dir, { recursive: true });
     writeFileSync(path, content);
+    const mimeType = fname.endsWith(".md") ? "text/markdown" : fname.endsWith(".csv") ? "text/csv" : "application/json";
     const record: ArtifactRecord = {
-      id: newId("wfsart"), runId, nodeId, name, uri: path, mimeType: "application/json",
+      id: newId("wfsart"), runId, nodeId, name: fname, uri: path, mimeType,
       sha256: createHash("sha256").update(content).digest("hex"), sizeBytes: Buffer.byteLength(content), createdAt: now(),
     };
     openAgentOsDb().run(
       "INSERT INTO wfs_artifacts (id, run_id, node_id, name, uri, mime_type, sha256, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [record.id, runId, nodeId, record.name, record.uri, record.mimeType, record.sha256, record.sizeBytes, record.createdAt],
     );
-    this.event(runId, nodeId, "artifact.created", { name: record.name, sha256: record.sha256 });
+    this.event(runId, nodeId, "artifact.created", { name: record.name, sha256: record.sha256, mimeType });
     return record;
   }
 
@@ -311,6 +333,20 @@ export class WorkflowRunEngine {
     } catch {
       // Event persistence is best-effort; functional gates surface their own errors.
     }
+  }
+
+  /** Persist per-attempt cost/token usage and the effective node type. */
+  private recordUsage(runId: string, nodeId: string, usage: import("./types").NodeUsage, effectiveNodeType: string): void {
+    const db = openAgentOsDb();
+    db.run(
+      "UPDATE wfs_node_runs SET cost_usd = ?, input_tokens = ?, output_tokens = ?, provider = ?, model = ?, effective_node_type = ? WHERE run_id = ? AND node_id = ?",
+      [usage.costUsd ?? null, usage.inputTokens ?? null, usage.outputTokens ?? null, usage.provider ?? null, usage.model ?? null, effectiveNodeType, runId, nodeId],
+    );
+    // Roll the run totals forward from the per-node ledger.
+    const totals = db.query(
+      "SELECT COALESCE(SUM(cost_usd), 0) AS cost, COALESCE(SUM(input_tokens), 0) AS tin, COALESCE(SUM(output_tokens), 0) AS tout FROM wfs_node_runs WHERE run_id = ?",
+    ).get(runId) as { cost: number; tin: number; tout: number };
+    db.run("UPDATE wfs_runs SET cost_total = ?, input_tokens = ?, output_tokens = ?, updated_at = ? WHERE id = ?", [Number(totals.cost), Number(totals.tin), Number(totals.tout), now(), runId]);
   }
 
   private getApproval(approvalId: string): ApprovalRequestRecord {
@@ -337,12 +373,18 @@ export class WorkflowRunEngine {
   private rowToNodeRun(row: Record<string, unknown>): NodeRunRecord {
     return {
       id: String(row.id), runId: String(row.run_id), nodeId: String(row.node_id), nodeType: String(row.node_type),
+      effectiveNodeType: row.effective_node_type === null || row.effective_node_type === undefined ? null : String(row.effective_node_type),
+      failoverNodeType: row.failover_node_type === null || row.failover_node_type === undefined ? null : String(row.failover_node_type),
+      maxAttempts: row.max_attempts === null || row.max_attempts === undefined ? 3 : Number(row.max_attempts),
       status: String(row.status) as NodeRunStatus, attempt: Number(row.attempt),
       startedAt: row.started_at === null ? null : String(row.started_at), finishedAt: row.finished_at === null ? null : String(row.finished_at),
       durationMs: row.duration_ms === null ? null : Number(row.duration_ms),
       outputJson: row.output_json === null ? null : String(row.output_json),
       errorJson: row.error_json === null ? null : String(row.error_json),
       provider: row.provider === null ? null : String(row.provider), model: row.model === null ? null : String(row.model),
+      costUsd: row.cost_usd === null || row.cost_usd === undefined ? null : Number(row.cost_usd),
+      inputTokens: row.input_tokens === null || row.input_tokens === undefined ? null : Number(row.input_tokens),
+      outputTokens: row.output_tokens === null || row.output_tokens === undefined ? null : Number(row.output_tokens),
     };
   }
 
@@ -350,7 +392,11 @@ export class WorkflowRunEngine {
     return {
       id: String(row.id), workflowId: String(row.workflow_id), workflowVersionId: String(row.version_id), version: Number(row.version),
       status: String(row.status) as RunStatus, planHash: String(row.plan_hash), trigger: String(row.trigger ?? "manual"),
-      memoryJson: String(row.memory_json ?? "{}"), error: row.error === null ? null : String(row.error),
+      memoryJson: String(row.memory_json ?? "{}"),
+      costTotal: row.cost_total === null || row.cost_total === undefined ? 0 : Number(row.cost_total),
+      inputTokens: row.input_tokens === null || row.input_tokens === undefined ? 0 : Number(row.input_tokens),
+      outputTokens: row.output_tokens === null || row.output_tokens === undefined ? 0 : Number(row.output_tokens),
+      error: row.error === null ? null : String(row.error),
       createdAt: String(row.created_at), updatedAt: String(row.updated_at),
     };
   }
@@ -360,6 +406,7 @@ export class WorkflowRunEngine {
       id: String(row.id), workflowId: String(row.workflow_id), version: Number(row.version),
       status: String(row.status) as WorkflowVersionRecord["status"], graphJson: String(row.graph_json),
       planJson: row.plan_json === null ? null : String(row.plan_json), planHash: row.plan_hash === null ? null : String(row.plan_hash),
+      exportHash: row.export_hash === null || row.export_hash === undefined ? null : String(row.export_hash),
       createdAt: String(row.created_at),
     };
   }

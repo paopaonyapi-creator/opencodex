@@ -19,9 +19,9 @@
 | --- | --- |
 | `types.ts` | Node/ports/graph/plan/run/approval contracts (Zod) + `redactSecrets` |
 | `catalog.ts` | Node registry (pure functions) + **`advanceRunDeps`** — the pure scheduler (dependency-ready nodes, condition-port routing, approval pause) with persistence injected |
-| `nodes.ts` | 13 executors: local deterministic set (JSON transform/validate/condition/delay/memory/artifact payload/notify/approval resolve) + remote set (Agent via 20.85 model gateway, MCP via 20.74 gateway, HTTP with SSRF guard) |
-| `built-in.ts` | 14 built-in node definitions with typed ports + capabilities + risk/side-effect metadata |
-| `compiler.ts` | Graph compilation: schema, node existence, port-type compatibility, cycle detection (DFS), unreachable-node warnings, trigger presence → immutable plan |
+| `nodes.ts` | 17 executors: local deterministic set (JSON transform/validate/condition/delay/memory/artifact payload/notify/approval resolve) + exporters (json/markdown/csv + declared-unavailable kinds) + remote set (Agent via 20.85 model gateway, MCP via 20.74 gateway, HTTP with SSRF guard) |
+| `built-in.ts` | 20 built-in node definitions with typed ports + capabilities + risk/side-effect metadata |
+| `compiler.ts` | Graph compilation: schema, node existence, port-type compatibility, cycle detection (DFS), unreachable-node warnings, trigger presence, capability/policy expansion, budget projection → immutable plan |
 | `service.ts` | Workflow/version persistence (draft → published immutable), graph validation, run memory checkpoints, artifact lineage |
 | `run-engine.ts` | Run lifecycle: start (policy gate) → advance (scheduler callbacks) → pause/resume/cancel/retry, approval requests + decisions, artifact persistence (SHA-256 + sandbox guard) |
 | `mcp-tools.ts` | `workflow.*` MCP tools |
@@ -41,12 +41,24 @@
 
 ## Tests
 
-`tests/workflow-studio.test.ts` — registry integrity, compiler diagnostics (unknown node, port mismatch, cycle, no-trigger), GOLD local workflow (Manual → JSON Input → Transform → Validate → Condition → Save Artifact → Notify, zero external APIs), approval pause/resume, retry failed node, cancel, artifact lineage SHA-256, secret redaction.
+`tests/workflow-studio.test.ts` (20 tests): registry integrity, compiler diagnostics (unknown node, port mismatch, cycle, no-trigger), GOLD local workflow (Manual → JSON Input → Transform → Validate → Condition → Save Artifact → Notify, zero external APIs), approval pause/resume, failing-node retry policy (maxAttempts), provider failover (`failoverNodeType`), exporters (json/markdown/csv with real content + declared-but-unavailable pdf failing structurally), budget pre-flight pause, cost/token roll-up from the node ledger, cancel, artifact lineage SHA-256, secret redaction.
+
+## GOLD extensions (post-review)
+
+| Capability | Status |
+| --- | --- |
+| Node retry policy (`maxAttempts` per node, default 3) | ✅ VERIFIED |
+| Provider failover (`failoverNodeType`, recorded as `effectiveNodeType` + `node.failover` event) | ✅ VERIFIED |
+| Cost/token accounting (`cost_usd`/`input_tokens`/`output_tokens` per node, rolled into `wfs_runs`) | ✅ VERIFIED |
+| Budget pre-flight (`maxRunUsd` + `actionOnLimit: pause|fail`, projection from node cost models) | ✅ VERIFIED |
+| Exporters: json / markdown / csv | ✅ VERIFIED |
+| Exporters: pdf / webhook / database | 🟡 DECLARED — fail with structured `CAPABILITY_UNAVAILABLE` (no silent success) |
+| Run-level cost/usage exposure (`costTotal`, `inputTokens`, `outputTokens`) | ✅ VERIFIED |
 
 ## Known limitations (Milestones E–H deferred)
 
-- Canvas editor is a compact wire-frame (list + JSON) — full drag-and-drop canvas is Milestone A UI follow-up
+- Canvas editor is a compact authoring surface (node palette + JSON graph + inspector) — full drag-and-drop canvas remains a Milestone A UI follow-up
 - Cron/webhook/scheduling triggers defined but not wired to a scheduler service
 - Subflows and plugin SDK packaging deferred
-- Distributed workers (Apra Fleet adapter) deferred
-- Agent nodes require a configured model provider (fail with PROVIDER_UNAVAILABLE otherwise)
+- Distributed workers (Apra Fleet adapter) deferred — single-machine execution is complete
+- Agent nodes require a configured model provider (structured PROVIDER_UNAVAILABLE otherwise)

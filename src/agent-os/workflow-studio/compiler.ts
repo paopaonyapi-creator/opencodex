@@ -137,6 +137,12 @@ export function compileGraph(graph: WorkflowGraph): CompileResult {
   let estimatedRisk: RiskLevel = "low";
   for (const node of graph.nodes) estimatedRisk = maxRisk(estimatedRisk, definitions.get(node.id)?.riskLevel ?? "low");
 
+  // Budget projection (source §30): sum declared per-call costs + estimated tokens.
+  const projectedCostUsd = graph.nodes.reduce((sum, n) => {
+    const def = definitions.get(n.id);
+    return sum + (def?.costPerCallUsd ?? 0);
+  }, 0);
+
   const plan: ExecutionPlan = {
     schemaVersion: "1.0",
     workflowName: graph.name,
@@ -149,6 +155,7 @@ export function compileGraph(graph: WorkflowGraph): CompileResult {
     executionGroups: groups,
     requiredCapabilities,
     estimatedRisk,
+    projectedCostUsd,
     policyGates,
   };
 

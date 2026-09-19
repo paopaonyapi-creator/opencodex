@@ -55,6 +55,8 @@ export interface WorkflowNodeDefinition {
   timeoutMs: number;
   /** Side-effect class drives the approval requirement (source §11/§12). */
   sideEffect: "none" | "local-write" | "external" | "destructive";
+  /** Cost model for budget projection (USD per call; AI nodes fill per usage). */
+  costPerCallUsd?: number;
   /** Execute one node. Local-first; returns the output payload per port. */
   execute: (ctx: NodeExecutionContext) => Promise<Record<string, unknown>>;
 }
@@ -63,6 +65,8 @@ export interface NodeExecutionContext {
   runId: string;
   nodeId: string;
   attempt: number;
+  /** Node type EFFECTIVELY running (may differ from the planned type after failover). */
+  effectiveType: string;
   config: Record<string, unknown>;
   /** Inputs resolved from upstream node outputs, keyed by port name. */
   inputs: Record<string, unknown>;
@@ -71,7 +75,33 @@ export interface NodeExecutionContext {
   actor: string;
   studioRoot: string;
   signal: AbortSignal;
+  /** Runtime collects cost + token usage reported by executors. */
+  reportUsage: (usage: NodeUsage) => void;
 }
+
+/** Cost/token accounting reported by an executor for one node attempt. */
+export interface NodeUsage {
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  provider?: string;
+  model?: string;
+}
+
+/** Per-node autonomy controls declared in graph node config. */
+export const NodeControlsSchema = z.object({
+  /** Max attempts before the node is considered failed (default 3). */
+  maxAttempts: z.number().int().positive().max(10).default(3),
+  /** Node type to switch to after attempts are exhausted (provider failover). */
+  failoverNodeType: z.string().optional(),
+  /** Optional workflow budget slice for this node (USD). */
+  maxCostUsd: z.number().positive().optional(),
+});
+export type NodeControls = z.infer<typeof NodeControlsSchema>;
+
+/** Runnable artifact exporter descriptors (source §17 exporters). */
+export const ExporterKindSchema = z.enum(["json", "markdown", "csv", "pdf", "webhook", "database"]);
+export type ExporterKind = z.infer<typeof ExporterKindSchema>;
 
 // ---------------------------------------------------------------------------
 // Canvas graph (authored JSON — never executed directly)
@@ -127,6 +157,8 @@ export interface ExecutionPlan {
   executionGroups: ExecutionGroup[];
   requiredCapabilities: string[];
   estimatedRisk: RiskLevel;
+  /** Projected per-call cost from node cost models (budget pre-flight, source §30). */
+  projectedCostUsd: number;
   policyGates: Array<{ nodeId: string; capability: string }>;
 }
 
@@ -150,6 +182,10 @@ export interface NodeRunRecord {
   runId: string;
   nodeId: string;
   nodeType: string;
+  /** Type actually executed (differs after failover). */
+  effectiveNodeType: string | null;
+  failoverNodeType: string | null;
+  maxAttempts: number;
   status: NodeRunStatus;
   attempt: number;
   startedAt: string | null;
@@ -159,6 +195,9 @@ export interface NodeRunRecord {
   errorJson: string | null;
   provider: string | null;
   model: string | null;
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 export interface WorkflowRunRecord {
@@ -170,6 +209,9 @@ export interface WorkflowRunRecord {
   planHash: string;
   trigger: string;
   memoryJson: string;
+  costTotal: number;
+  inputTokens: number;
+  outputTokens: number;
   error: string | null;
   createdAt: string;
   updatedAt: string;
@@ -183,8 +225,17 @@ export interface WorkflowVersionRecord {
   graphJson: string;
   planJson: string | null;
   planHash: string | null;
+  exportHash: string | null;
   createdAt: string;
 }
+
+/** Budget controls (source §30) — enforced at run start and per node. */
+export const BudgetSchema = z.object({
+  maxRunUsd: z.number().positive().optional(),
+  maxDailyUsd: z.number().positive().optional(),
+  actionOnLimit: z.enum(["pause", "fail"]).default("pause"),
+});
+export type Budget = z.infer<typeof BudgetSchema>;
 
 export interface WorkflowRecord {
   id: string;

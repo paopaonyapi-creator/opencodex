@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 62;
+export const AGENT_OS_SCHEMA_VERSION = 63;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6211,10 +6211,10 @@ function migrate(db: Database): void {
       -- (workflow studio): the legacy Phase 11 workflows/workflow_runs tables are
       -- owned by that subsystem — no reuse, no collision.
       CREATE TABLE IF NOT EXISTS wfs_workflows (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', active_version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS wfs_versions (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', graph_json TEXT NOT NULL, plan_json TEXT, plan_hash TEXT, created_at TEXT NOT NULL, UNIQUE(workflow_id, version));
-      CREATE TABLE IF NOT EXISTS wfs_runs (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', plan_hash TEXT NOT NULL, trigger TEXT NOT NULL DEFAULT 'manual', memory_json TEXT NOT NULL DEFAULT '{}', error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS wfs_versions (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', graph_json TEXT NOT NULL, plan_json TEXT, plan_hash TEXT, export_hash TEXT, created_at TEXT NOT NULL, UNIQUE(workflow_id, version));
+      CREATE TABLE IF NOT EXISTS wfs_runs (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', plan_hash TEXT NOT NULL, trigger TEXT NOT NULL DEFAULT 'manual', memory_json TEXT NOT NULL DEFAULT '{}', cost_total REAL NOT NULL DEFAULT 0, input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_wfs_runs_workflow ON wfs_runs(workflow_id, created_at DESC);
-      CREATE TABLE IF NOT EXISTS wfs_node_runs (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, node_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', attempt INTEGER NOT NULL DEFAULT 0, started_at TEXT, finished_at TEXT, duration_ms INTEGER, output_json TEXT, error_json TEXT, provider TEXT, model TEXT, UNIQUE(run_id, node_id, attempt));
+      CREATE TABLE IF NOT EXISTS wfs_node_runs (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, node_type TEXT NOT NULL, effective_node_type TEXT, failover_node_type TEXT, max_attempts INTEGER NOT NULL DEFAULT 3, status TEXT NOT NULL DEFAULT 'PENDING', attempt INTEGER NOT NULL DEFAULT 0, started_at TEXT, finished_at TEXT, duration_ms INTEGER, output_json TEXT, error_json TEXT, provider TEXT, model TEXT, cost_usd REAL, input_tokens INTEGER, output_tokens INTEGER, UNIQUE(run_id, node_id, attempt));
       CREATE INDEX IF NOT EXISTS idx_wfs_noderuns_run ON wfs_node_runs(run_id, started_at);
       CREATE TABLE IF NOT EXISTS wfs_events (id TEXT PRIMARY KEY, run_id TEXT, node_id TEXT, type TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_wfs_events_run ON wfs_events(run_id, created_at);
@@ -6246,6 +6246,20 @@ function migrate(db: Database): void {
     if (storedVersion > 0 && storedVersion < 61) {
       try { db.exec("ALTER TABLE vs_projects ADD COLUMN target_duration_sec REAL;"); } catch {}
       try { db.exec("ALTER TABLE vs_projects ADD COLUMN prefs_json TEXT;"); } catch {}
+    }
+
+    // v63: Workflow Studio cost/usage accounting, retry policy + failover, export hash
+    if (storedVersion > 0 && storedVersion < 63) {
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN cost_usd REAL;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN input_tokens INTEGER;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN output_tokens INTEGER;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN failover_node_type TEXT;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_node_runs ADD COLUMN effective_node_type TEXT;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_runs ADD COLUMN cost_total REAL NOT NULL DEFAULT 0;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_runs ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_runs ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0;"); } catch {}
+      try { db.exec("ALTER TABLE wfs_versions ADD COLUMN export_hash TEXT;"); } catch {}
     }
 
     db.query(

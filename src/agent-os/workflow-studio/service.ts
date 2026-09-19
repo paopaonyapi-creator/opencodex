@@ -333,12 +333,18 @@ export class WorkflowStudioService {
   private rowToNodeRun(row: Record<string, unknown>): NodeRunRecord {
     return {
       id: String(row.id), runId: String(row.run_id), nodeId: String(row.node_id), nodeType: String(row.node_type),
+      effectiveNodeType: row.effective_node_type === null || row.effective_node_type === undefined ? null : String(row.effective_node_type),
+      failoverNodeType: row.failover_node_type === null || row.failover_node_type === undefined ? null : String(row.failover_node_type),
+      maxAttempts: row.max_attempts === null || row.max_attempts === undefined ? 3 : Number(row.max_attempts),
       status: String(row.status) as NodeRunStatus, attempt: Number(row.attempt),
       startedAt: row.started_at === null ? null : String(row.started_at), finishedAt: row.finished_at === null ? null : String(row.finished_at),
       durationMs: row.duration_ms === null ? null : Number(row.duration_ms),
       outputJson: row.output_json === null ? null : String(row.output_json),
       errorJson: row.error_json === null ? null : String(row.error_json),
       provider: row.provider === null ? null : String(row.provider), model: row.model === null ? null : String(row.model),
+      costUsd: row.cost_usd === null || row.cost_usd === undefined ? null : Number(row.cost_usd),
+      inputTokens: row.input_tokens === null || row.input_tokens === undefined ? null : Number(row.input_tokens),
+      outputTokens: row.output_tokens === null || row.output_tokens === undefined ? null : Number(row.output_tokens),
     };
   }
 
@@ -346,7 +352,11 @@ export class WorkflowStudioService {
     return {
       id: String(row.id), workflowId: String(row.workflow_id), workflowVersionId: String(row.version_id), version: Number(row.version),
       status: String(row.status) as RunStatus, planHash: String(row.plan_hash), trigger: String(row.trigger ?? "manual"),
-      memoryJson: String(row.memory_json ?? "{}"), error: row.error === null ? null : String(row.error),
+      memoryJson: String(row.memory_json ?? "{}"),
+      costTotal: row.cost_total === null || row.cost_total === undefined ? 0 : Number(row.cost_total),
+      inputTokens: row.input_tokens === null || row.input_tokens === undefined ? 0 : Number(row.input_tokens),
+      outputTokens: row.output_tokens === null || row.output_tokens === undefined ? 0 : Number(row.output_tokens),
+      error: row.error === null ? null : String(row.error),
       createdAt: String(row.created_at), updatedAt: String(row.updated_at),
     };
   }
@@ -356,6 +366,7 @@ export class WorkflowStudioService {
       id: String(row.id), workflowId: String(row.workflow_id), version: Number(row.version),
       status: String(row.status) as WorkflowVersionRecord["status"], graphJson: String(row.graph_json),
       planJson: row.plan_json === null ? null : String(row.plan_json), planHash: row.plan_hash === null ? null : String(row.plan_hash),
+      exportHash: row.export_hash === null || row.export_hash === undefined ? null : String(row.export_hash),
       createdAt: String(row.created_at),
     };
   }

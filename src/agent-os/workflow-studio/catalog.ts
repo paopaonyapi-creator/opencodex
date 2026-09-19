@@ -74,6 +74,10 @@ export interface AdvanceContext {
   requestApproval: (runId: string, nodeId: string, nodeType: string, proposedAction: string, payload: unknown, riskLevel: string) => void;
   /** True when a decision for this approval node is already recorded in memory. */
   hasApprovalDecision: (memory: Record<string, unknown>, nodeId: string) => boolean;
+  /** Persist per-attempt cost/token usage + the effective (possibly failed-over) type. */
+  recordUsage: (runId: string, nodeId: string, usage: import("./types").NodeUsage, effectiveNodeType: string) => void;
+  /** Switch a node to its failover type (provider failover) before scheduling it. */
+  applyFailover: (runId: string, nodeId: string, failoverNodeType: string) => void;
   actor: string;
   studioRoot: string;
   currentStatus: import("./types").RunStatus;
@@ -83,6 +87,17 @@ export interface AdvanceOutcome {
   status: import("./types").RunStatus;
   executed: string[];
   paused: boolean;
+}
+
+/** Read node autonomy controls from graph node config (defaults: 3 attempts). */
+function readNodeControls(config: Record<string, unknown>): { maxAttempts: number; failoverNodeType: string | null } {
+  let maxAttempts = 3;
+  let failoverNodeType: string | null = null;
+  for (const [k, v] of Object.entries(config)) {
+    if (k === "maxAttempts" && typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 10) maxAttempts = Math.floor(v);
+    if (k === "failoverNodeType" && typeof v === "string" && /^[\w.]+$/.test(v)) failoverNodeType = v;
+  }
+  return { maxAttempts, failoverNodeType };
 }
 
 /** Fire condition-routing edges: an output entry whose key matches the edge's source port. */
@@ -120,8 +135,9 @@ function succeededOutputs(listNodeRuns: AdvanceContext["listNodeRuns"], runId: s
 /**
  * Advance a run one scheduling pass-set: execute nodes whose upstream edges
  * have all fired (condition routing via source ports), pausing on approval
- * nodes, failing fast with structured errors, and persisting checkpoints at
- * every node boundary via the injected callbacks.
+ * nodes, retrying transient failures up to the node's maxAttempts, applying
+ * provider FAILOVER to the configured alternate node type, failing fast with
+ * structured errors, and persisting checkpoints at every node boundary.
  */
 export async function advanceRunDeps(input: AdvanceContext, runId: string): Promise<AdvanceOutcome> {
   if (["SUCCEEDED", "FAILED", "CANCELLED"].includes(input.currentStatus)) {
@@ -146,24 +162,43 @@ export async function advanceRunDeps(input: AdvanceContext, runId: string): Prom
         const { ready, inputs } = collectInputs(plan, pairs, nodeId);
         if (!ready) continue;
 
+        const plannedConfig = plan.nodes.find((n) => n.id === nodeId)?.config ?? {};
+        const controls = readNodeControls(plannedConfig);
+        const plannedType = nodeRun.nodeType;
+        // Failover precedence: the configured alternate type wins once the
+        // planned type has exhausted its attempts; otherwise the recorded
+        // effective type (if any) is reused.
+        const failoverType = nodeRun.failoverNodeType ?? controls.failoverNodeType ?? null;
+        const useFailover = nodeRun.attempt >= controls.maxAttempts && failoverType !== null;
+        const effectiveType = useFailover
+          ? failoverType
+          : (nodeRun.effectiveNodeType ?? plannedType);
+        if (useFailover && nodeRun.failoverNodeType !== failoverType) {
+          input.applyFailover(runId, nodeId, failoverType);
+          input.event(runId, nodeId, "node.failover", { from: plannedType, to: failoverType, attempt: nodeRun.attempt });
+        }
+
         const attempt = nodeRun.attempt + 1;
         // Approval nodes are INTERCEPTED: without a recorded decision the run
         // pauses (WAITING_FOR_APPROVAL) instead of executing the node.
-        if (nodeRun.nodeType === "human.approval" && !input.hasApprovalDecision(input.runMemory, nodeId)) {
-          input.requestApproval(runId, nodeId, nodeRun.nodeType, "human approval required", inputs, "medium");
+        if (effectiveType === "human.approval" && !input.hasApprovalDecision(input.runMemory, nodeId)) {
+          input.requestApproval(runId, nodeId, effectiveType, "human approval required", inputs, "medium");
           return { status: "WAITING_FOR_APPROVAL", executed, paused: true };
         }
         input.markNodeRunning(runId, nodeId, attempt);
-        input.event(runId, nodeId, "node.started", { nodeType: nodeRun.nodeType, attempt });
+        input.event(runId, nodeId, "node.started", { nodeType: effectiveType, attempt });
         const startedAt = Date.now();
         const abort = new AbortController();
+        let usage: import("./types").NodeUsage = {};
         const context: import("./types").NodeExecutionContext = {
-          runId, nodeId, attempt, config: plan.nodes.find((n) => n.id === nodeId)?.config ?? {},
+          runId, nodeId, attempt, effectiveType, config: plannedConfig,
           inputs, memory, actor: input.actor, studioRoot: input.studioRoot, signal: abort.signal,
+          reportUsage: (reported) => { usage = { ...usage, ...reported }; },
         };
         try {
-          const output = await input.invokeNode(nodeRun.nodeType, context);
+          const output = await input.invokeNode(effectiveType, context);
           input.completeNode(runId, nodeId, attempt, output, Date.now() - startedAt);
+          input.recordUsage(runId, nodeId, usage, effectiveType);
           input.persistMemory(runId, Object.fromEntries(memory));
           executed.push(nodeId);
           progressed = true;
@@ -171,8 +206,20 @@ export async function advanceRunDeps(input: AdvanceContext, runId: string): Prom
           const message = err instanceof Error ? err.message : String(err);
           const code = (err as { code?: string }).code ?? "NODE_FAILED";
           input.failNode(runId, nodeId, attempt, message, code);
+          input.recordUsage(runId, nodeId, usage, effectiveType);
+          input.event(runId, nodeId, "node.failed", { error: message, code, attempt, maxAttempts: controls.maxAttempts });
+          // Retry policy: transient/provider failures retry while attempts remain
+          // (and while a failover alternative exists for the final attempts).
+          const retryable = code === "PROVIDER_UNAVAILABLE" || code === "CAPABILITY_UNAVAILABLE" || code === "NODE_FAILED";
+          // A configured failover is an alternative attempt path even after the
+          // planned type's attempts are exhausted.
+          const failoverAvailable = failoverType !== null && failoverType !== effectiveType;
+          const attemptsLeft = attempt < controls.maxAttempts || failoverAvailable;
+          if (retryable && attemptsLeft) {
+            input.event(runId, nodeId, "node.retrying", { attempt: attempt + 1, nextType: failoverAvailable ? failoverType : effectiveType });
+            continue;
+          }
           input.markRunFailed(runId, message);
-          input.event(runId, nodeId, "node.failed", { error: message, code });
           return { status: "FAILED", executed, paused: false };
         }
       }

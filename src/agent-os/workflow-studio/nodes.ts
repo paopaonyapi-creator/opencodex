@@ -149,9 +149,53 @@ const resolveApproval = async (ctx: NodeExecutionContext) => {
   return approved ? { approved: ctx.inputs.input } : { rejected: ctx.inputs.input };
 };
 
+// ---------------------------------------------------------------------------
+// Exporters (source §17): deterministic serializers that produce a payload the
+// runtime persists as an artifact. `pdf`/`webhook`/`database` declare a
+// structured unavailability rather than silently succeeding.
+// ---------------------------------------------------------------------------
+
+const exportJson = async (ctx: NodeExecutionContext) => {
+  const value = ctx.inputs.input;
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  const name = String(ctx.config.name ?? `export-${ctx.nodeId}`).replace(/[^\w.-]/g, "_");
+  return { artifactName: `${name}.json`, content: text, exportKind: "json" };
+};
+
+const exportMarkdown = async (ctx: NodeExecutionContext) => {
+  const value = ctx.inputs.input;
+  const title = String(ctx.config.title ?? "Workflow Export");
+  const body = typeof value === "string"
+    ? value
+    : Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `## ${k}\n\n${typeof v === "string" ? v : JSON.stringify(v, null, 2)}`)
+      .join("\n\n");
+  const name = String(ctx.config.name ?? `export-${ctx.nodeId}`).replace(/[^\w.-]/g, "_");
+  return { artifactName: `${name}.md`, content: `# ${title}\n\n${body}\n`, exportKind: "markdown" };
+};
+
+const exportCsv = async (ctx: NodeExecutionContext) => {
+  const value = ctx.inputs.input;
+  const rows = Array.isArray(value) ? value as Array<Record<string, unknown>> : [value as Record<string, unknown>];
+  const headers = [...new Set(rows.flatMap((r) => Object.keys(r ?? {})))];
+  const escapeCell = (cell: unknown): string => {
+    const text = typeof cell === "string" ? cell : JSON.stringify(cell ?? "");
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const lines = [headers.join(","), ...rows.map((r) => headers.map((h) => escapeCell(r?.[h])).join(","))];
+  const name = String(ctx.config.name ?? `export-${ctx.nodeId}`).replace(/[^\w.-]/g, "_");
+  return { artifactName: `${name}.csv`, content: `${lines.join("\n")}\n`, exportKind: "csv" };
+};
+
+const exportUnavailable = async (ctx: NodeExecutionContext) => {
+  const kind = String(ctx.config.exportKind ?? "pdf");
+  throw new WorkflowStudioError("CAPABILITY_UNAVAILABLE", 422, `exporter '${kind}' is declared but not enabled in this milestone (json/markdown/csv are available)`, { nodeId: ctx.nodeId, kind });
+};
+
 export const EXECUTORS: Record<string, (ctx: NodeExecutionContext) => Promise<Record<string, unknown>>> = {
   jsonInput, jsonTransform, validateFields, runCondition, runDelay,
   writeMemory, readMemory, prepareArtifact, emitNotify, resolveApproval,
+  exportJson, exportMarkdown, exportCsv, exportUnavailable,
 };
 
 // Named bindings — the registry references these directly (no string dispatch).

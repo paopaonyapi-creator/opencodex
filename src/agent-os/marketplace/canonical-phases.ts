@@ -50,6 +50,7 @@ export const CANONICAL_PHASES: readonly CanonicalPhase[] = [
   { phaseId: "20.88", title: "Pao-hubPro × Remotion AI Video Runtime", type: t("workflow"), blueprintFile: "Phase_20.88_Pao-hubPro_x_Remotion_AI_Video_Runtime.md", note: "Collision resolution: 20.88 = Remotion (user lock 2026-09-18)" },
   { phaseId: "20.89", title: "Pao-hubPro × Bubble — Capability Hub", type: t("runtime-adapter"), blueprintFile: "Phase_20.89_Pao-hubPro_x_Bubble.md", note: "This phase: the registry/marketplace itself" },
   { phaseId: "20.90", title: "Pao-hubPro × Forge — Prompt Engineering Control Plane", type: t("agent"), blueprintFile: "Phase_20.90_Pao-hubPro_x_Forge.md", note: "Collision resolution: Forge renumbered from 20.88 to 20.90 (user lock 2026-09-18)" },
+  { phaseId: "20.94", title: "Pao-hubPro × ENZO — Unified AI Operating Workspace", type: t("runtime-adapter"), blueprintFile: "Phase_20.94_Pao-hubPro_x_ENZO.md", note: "Composition plane: ENZO is reference architecture, not a runtime dependency" },
 ] as const;
 
 /** RESERVED phase numbers — never assignable to a blueprint. */

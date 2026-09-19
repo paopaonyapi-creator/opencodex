@@ -408,6 +408,13 @@ const WORKFLOW_STUDIO_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_20.93_WORKFLOW_STUDIO.md",
 } as const;
 
+const ENZO_WORKSPACE_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.94 ships the composition plane (intent compiler, Forge-style two-pass factory, SkillsGate composer, OmniRoute marketplace, credential leases, budget research, sandbox coding, lesson distillation, REST/MCP) first; live OmniRoute completions, encrypted KEK vault when CREDENTIAL_RUNTIME is off, and drag-and-drop canvas remain documented follow-ups.",
+  owner: "Phase 20.94 ENZO Workspace",
+  ownerDoc: "docs/PHASE_20.94_ENZO_WORKSPACE.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -829,6 +836,33 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/cancel", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/retry", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/workflow-studio/approvals/{id}/decision", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  // Phase 20.94: ENZO unified workspace.
+  { method: "GET", path: "/api/agent-os/enzo-workspace/health", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/models", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/agents", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/skills", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/runs", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/approvals", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/memory/search", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/runs/{id}", module: "server/management/enzo-workspace-routes", mutates: false, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/runs/{id}/events", module: "server/management/enzo-workspace-routes", mutates: false, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/enzo-workspace/agents/{slug}/{version}", module: "server/management/enzo-workspace-routes", mutates: false, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/models/route", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/agents/draft", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/agents", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/skills/resolve", module: "server/management/enzo-workspace-routes", mutates: false, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/runs", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/research", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/credentials", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/credentials/lease", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/tools/invoke", module: "server/management/enzo-workspace-routes", mutates: true, exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/runs/{id}/cancel", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/runs/{id}/replay", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/approvals/{id}/approve", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/approvals/{id}/deny", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/memory/lessons/{id}/accept", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/memory/lessons/{id}/quarantine", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/enzo-workspace/agents/{slug}/{version}/run", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

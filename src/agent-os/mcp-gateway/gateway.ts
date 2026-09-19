@@ -355,9 +355,35 @@ export class McpToolGateway {
           enabled: true,
         });
       }
+  } catch {
+    // Workflow-studio DB may not be initialized in all environments;
+    // tools remain unregistered until the runtime is ready.
+  }
+    // Phase 20.94: register ENZO unified workspace tools
+    this.registerServer({
+      id: "enzo_workspace",
+      name: "Pao-hubPro ENZO Workspace (Phase 20.94)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createEnzoWorkspaceMcpTools } = require("../enzo-workspace/mcp-tools") as typeof import("../enzo-workspace/mcp-tools");
+      const enzoTools = createEnzoWorkspaceMcpTools();
+      for (const tool of enzoTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "enzo_workspace",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
     } catch {
-      // Workflow-studio DB may not be initialized in all environments;
-      // tools remain unregistered until the runtime is ready.
+      // Workspace DB may not be initialized in all environments.
     }
   }
 

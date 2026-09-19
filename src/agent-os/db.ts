@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 63;
+export const AGENT_OS_SCHEMA_VERSION = 65;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6220,8 +6220,26 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_wfs_events_run ON wfs_events(run_id, created_at);
       CREATE TABLE IF NOT EXISTS wfs_artifacts (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, name TEXT NOT NULL, uri TEXT NOT NULL, mime_type TEXT, sha256 TEXT NOT NULL, size_bytes INTEGER, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS wfs_approvals (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, node_type TEXT NOT NULL, proposed_action TEXT NOT NULL, payload_json TEXT NOT NULL, risk_level TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', reviewer TEXT, reviewer_note TEXT, created_at TEXT NOT NULL, decided_at TEXT);
-      CREATE INDEX IF NOT EXISTS idx_wfs_approvals_run ON wfs_approvals(run_id, status);
-    `);
+     CREATE INDEX IF NOT EXISTS idx_wfs_approvals_run ON wfs_approvals(run_id, status);
+
+      -- v64: Phase 20.94 ENZO unified workspace (composition plane). Prefix enzo_*
+      -- so existing agents/approvals/skills/memories tables stay owned by their phases.
+      CREATE TABLE IF NOT EXISTS enzo_agents (id TEXT PRIMARY KEY, slug TEXT NOT NULL, version INTEGER NOT NULL, name TEXT NOT NULL, blueprint_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', drafted_by TEXT, created_by TEXT, created_at TEXT NOT NULL, UNIQUE(slug, version));
+      CREATE INDEX IF NOT EXISTS idx_enzo_agents_slug ON enzo_agents(slug, version);
+      CREATE TABLE IF NOT EXISTS enzo_runs (id TEXT PRIMARY KEY, mode TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'CREATED', request_text TEXT NOT NULL, agent_id TEXT, policy_profile TEXT NOT NULL DEFAULT 'safe-personal', budget_json TEXT NOT NULL DEFAULT '{}', usage_json TEXT NOT NULL DEFAULT '{}', plan_json TEXT NOT NULL DEFAULT '{}', started_at TEXT, completed_at TEXT, created_at TEXT NOT NULL, error TEXT);
+      CREATE INDEX IF NOT EXISTS idx_enzo_runs_created ON enzo_runs(created_at DESC);
+      CREATE TABLE IF NOT EXISTS enzo_run_events (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, seq INTEGER NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL, UNIQUE(run_id, seq));
+      CREATE INDEX IF NOT EXISTS idx_enzo_events_run ON enzo_run_events(run_id, seq);
+      CREATE TABLE IF NOT EXISTS enzo_approvals (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, action_type TEXT NOT NULL, risk_level TEXT NOT NULL, request_payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', resolved_by TEXT, resolved_at TEXT, created_at TEXT NOT NULL, expires_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_enzo_approvals_run ON enzo_approvals(run_id, status);
+      CREATE TABLE IF NOT EXISTS enzo_lessons (id TEXT PRIMARY KEY, agent_slug TEXT NOT NULL, domain TEXT NOT NULL, statement TEXT NOT NULL, evidence_json TEXT NOT NULL DEFAULT '[]', run_refs_json TEXT NOT NULL DEFAULT '[]', confidence REAL NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_validated_at TEXT, expires_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_enzo_lessons_slug ON enzo_lessons(agent_slug, status);
+      CREATE TABLE IF NOT EXISTS enzo_artifacts (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, type TEXT NOT NULL, name TEXT NOT NULL, uri TEXT NOT NULL, sha256 TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS enzo_leases (id TEXT PRIMARY KEY, secret_ref TEXT NOT NULL, run_id TEXT NOT NULL, principal TEXT NOT NULL, scopes_json TEXT NOT NULL DEFAULT '[]', issued_at TEXT NOT NULL, expires_at TEXT NOT NULL, max_uses INTEGER NOT NULL DEFAULT 8, uses INTEGER NOT NULL DEFAULT 0, provider TEXT, revoked INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS enzo_secrets (id TEXT PRIMARY KEY, secret_ref TEXT NOT NULL UNIQUE, provider TEXT, scopes_json TEXT NOT NULL DEFAULT '[]', secret_hash TEXT NOT NULL, envelope_json TEXT, created_at TEXT NOT NULL, rotated_at TEXT);
+      CREATE TABLE IF NOT EXISTS enzo_policy_decisions (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, action TEXT NOT NULL, risk TEXT NOT NULL, decision TEXT NOT NULL, rules_json TEXT NOT NULL DEFAULT '[]', reason TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_enzo_policy_run ON enzo_policy_decisions(run_id, created_at);
+   `);
 
     // Incremental column upgrades for pre-v53 databases
     if (storedVersion > 0 && storedVersion < 53) {
@@ -6259,10 +6277,15 @@ function migrate(db: Database): void {
       try { db.exec("ALTER TABLE wfs_runs ADD COLUMN cost_total REAL NOT NULL DEFAULT 0;"); } catch {}
       try { db.exec("ALTER TABLE wfs_runs ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0;"); } catch {}
       try { db.exec("ALTER TABLE wfs_runs ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0;"); } catch {}
-      try { db.exec("ALTER TABLE wfs_versions ADD COLUMN export_hash TEXT;"); } catch {}
+     try { db.exec("ALTER TABLE wfs_versions ADD COLUMN export_hash TEXT;"); } catch {}
+   }
+
+    // v65: Phase 20.94 AES-256-GCM envelopes for workspace secrets
+    if (storedVersion > 0 && storedVersion < 65) {
+      try { db.exec("ALTER TABLE enzo_secrets ADD COLUMN envelope_json TEXT;"); } catch {}
     }
 
-    db.query(
+   db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     ).run(String(AGENT_OS_SCHEMA_VERSION));
     db.exec("COMMIT");

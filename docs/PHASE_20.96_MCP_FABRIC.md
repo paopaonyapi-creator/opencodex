@@ -4,7 +4,18 @@
 **Blueprint:** `docs/Phase_20.96_Pao-hubPro_x_AnythingMCP.md`
 **Law:** AnythingMCP is a replaceable connector/protocol engine. Pao-hubPro owns policy, secrets, privacy, approval, versioning, audit, knowledge, and skills. Enterprise Edition source is not vendored.
 
-## Architecture law
+## Architectural Modes
+
+| Dimension | MOCK Mode (Default CI) | LIVE Integration Mode | PRODUCTION Enterprise Deployment |
+|---|---|---|---|
+| **Engine** | MockAnythingMcpAdapter | Containerized helpcodeai/anythingmcp | Dedicated hardened AnythingMCP cluster |
+| **Target host** | In-process simulated connector | Loopback 127.0.0.1:14000 | Isolated private VPC / internal subnet |
+| **MCP Protocol** | Synchronous memory stub | HTTP JSON-RPC 2.0 at POST /mcp | HTTP JSON-RPC 2.0 with mTLS & RBAC |
+| **Auth Bearer** | Simulated | Scoped JWT accessToken | Rotating Vault service principal |
+| **Tool Secrets** | In-memory secret:// lease | AES-256-GCM broker lease | Hardware KMS / Enterprise Vault |
+| **CI Execution** | Always runs (bun test) | Opt-in via LIVE_ANYTHINGMCP=1 | Continuous automated health probe |
+
+## Architecture Law
 
 1. **AnythingMCP is not the control plane.** Agents never talk to it directly.
 2. **Never auto-publish.** `CONNECTOR_AUTO_PUBLISH_ENABLED` defaults false.
@@ -23,6 +34,34 @@
 - CI stays mock-only. Live proof is opt-in via `LIVE_ANYTHINGMCP=1` against an isolated loopback container.
 
 ## Live AnythingMCP (isolated, loopback)
+
+### Execution Path
+
+1. Agent calls McpFabricService.execute().
+2. Schema & parameter validation via AJV inputSchema.
+3. Tool publication & profile risk check (R0..R4).
+4. Human approval gate (R4) & rate limiting.
+5. Credential lease brokerage (secret:// refs).
+6. AnythingMcpHttpAdapter session handshake (initialize / notifications/initialized).
+7. JSON-RPC 2.0 tools/call via POST {PAO_ANYTHINGMCP_URL}/mcp.
+8. AnythingMCP runtime verifies tool roles and calls upstream connector.
+9. Upstream response is extracted and unwrapped.
+10. Reflected credential check guards against bearer/secret leaks.
+11. shapeResponse() privacy gateway scrubs PII, transport headers, and scans prompt injection candidates.
+12. Audit record written to amf_executions and amf_events with full correlation.
+
+### Authentication Model
+
+- Control Plane: Agents never interact with AnythingMCP directly.
+- Upstream Bearer Token: Sent as Authorization: Bearer <accessToken>.
+- Tool Secrets: Tools bind to secret:// URIs. Broker issues scoped single-use leases.
+- Redaction: Secrets and authorization headers are scrubbed before persistence.
+
+### Health & Readiness
+
+- Liveness: GET {PAO_ANYTHINGMCP_URL}/health (no auth).
+- Readiness: POST {PAO_ANYTHINGMCP_URL}/mcp protocol handshake.
+- Exposes status, engine, connectorCount, toolCount, latency, and readiness.
 
 Official contract used by the adapter:
 

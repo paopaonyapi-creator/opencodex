@@ -11,7 +11,7 @@ export interface McpFabricMcpTool {
 
 function err(e: unknown): Record<string, unknown> {
   if (e instanceof McpFabricError) return { ok: false, status: e.httpStatus, error: { code: e.code, message: e.message, detail: e.detail } };
-  return { ok: false, status: 500, error: { code: "INTERNAL", message: e instanceof Error ? e.message : String(e) } };
+  return { ok: false, status: 500, error: { code: "INTERNAL", message: "MCP Fabric request failed" } };
 }
 
 export function createMcpFabricMcpTools(): McpFabricMcpTool[] {

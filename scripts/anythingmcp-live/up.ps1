@@ -37,19 +37,44 @@ if (-not (Test-Path $envFile)) {
   Write-Host "Wrote $envFile (gitignored). Keep ENCRYPTION_KEY; losing it invalidates stored connector credentials."
 }
 
-docker compose --env-file $envFile up -d
-$url = "http://127.0.0.1:14000/health"
-for ($i = 0; $i -lt 60; $i++) {
-  try {
-    $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
-    if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 300) {
-      Write-Host "AnythingMCP healthy at http://127.0.0.1:14000"
-      Write-Host "Set PAO_ANYTHINGMCP_URL=http://127.0.0.1:14000"
-      Write-Host "UI (loopback): http://127.0.0.1:13000"
-      exit 0
+$envMap = @{}
+if (Test-Path $envFile) {
+  Get-Content -LiteralPath $envFile | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -and -not $line.StartsWith("#") -and $line.Contains("=")) {
+      $parts = $line.Split("=", 2)
+      $envMap[$parts[0].Trim()] = $parts[1].Trim()
     }
-  } catch {
-    Start-Sleep -Seconds 2
   }
 }
-Write-Error "AnythingMCP /health did not become ready on http://127.0.0.1:14000"
+$backendPort = if ($env:BACKEND_PORT) { $env:BACKEND_PORT } elseif ($envMap.ContainsKey("BACKEND_PORT")) { $envMap["BACKEND_PORT"] } else { "14000" }
+$frontendPort = if ($env:FRONTEND_PORT) { $env:FRONTEND_PORT } elseif ($envMap.ContainsKey("FRONTEND_PORT")) { $envMap["FRONTEND_PORT"] } else { "13000" }
+$url = "http://127.0.0.1:$backendPort/health"
+
+try {
+  docker compose --env-file $envFile up -d
+  if ($LASTEXITCODE -ne 0) { throw "docker compose up failed with exit code $LASTEXITCODE" }
+  $healthy = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    try {
+      $res = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+      if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 300) {
+        $healthy = $true
+        break
+      }
+    } catch {
+      Start-Sleep -Seconds 2
+    }
+  }
+  if (-not $healthy) {
+    throw "AnythingMCP /health did not become ready on $url"
+  }
+  Write-Host "AnythingMCP healthy at http://127.0.0.1:$backendPort"
+  Write-Host "Set PAO_ANYTHINGMCP_URL=http://127.0.0.1:$backendPort"
+  Write-Host "UI (loopback): http://127.0.0.1:$frontendPort"
+  exit 0
+} catch {
+  Write-Warning "Startup failed: $_. Cleaning up containers..."
+  docker compose --env-file $envFile down
+  throw $_
+}

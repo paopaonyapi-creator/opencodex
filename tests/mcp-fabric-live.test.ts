@@ -141,6 +141,52 @@ describe.skipIf(!LIVE)("phase 20.96 — LIVE AnythingMCP", () => {
     }
   });
 
+  it("malformed and invalid JWT tokens fail safely without leaking into audit or responses", async () => {
+    const email = process.env.PAO_ANYTHINGMCP_ADMIN_EMAIL;
+    const password = process.env.PAO_ANYTHINGMCP_ADMIN_PASSWORD;
+    if (!email || !password) throw new Error("PAO_ANYTHINGMCP_ADMIN_EMAIL/PASSWORD required");
+    const validToken = await anythingMcpLogin(BASE, email, password);
+    process.env.PAO_ANYTHINGMCP_TOKEN = validToken;
+
+    const svc = new McpFabricService();
+    const imported = svc.importConnector({
+      kind: "mcp",
+      name: "jsonplaceholder-jwt-auth",
+      raw: JSON.stringify({ tools: [{ name: "get_post", description: "Read-only record", destructiveHint: false, inputSchema: { type: "object", properties: { id: { type: "integer" } }, required: ["id"] } }] }),
+      actor: "live-tester",
+    });
+    svc.approveConnector(imported.connector.id, "reviewer", "ok");
+    svc.publishConnector(imported.connector.id, "paohub-readonly", "reviewer");
+    const tool = svc.listTools(imported.connector.id)[0]!;
+
+    // 1. Malformed token fails safely
+    const malformedAdapter = new AnythingMcpHttpAdapter();
+    try {
+      await malformedAdapter.execute({ tool: "get_post", args: { id: 1 }, credentialHeader: "Bearer invalid.jwt.token" });
+      throw new Error("expected malformed token failure");
+    } catch (err) {
+      expect((err as McpFabricError).code).toBe("CREDENTIAL_DENIED");
+    }
+
+    // 2. Bogus token fails safely
+    try {
+      await malformedAdapter.execute({ tool: "get_post", args: { id: 1 }, credentialHeader: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.bogussignature" });
+      throw new Error("expected bogus token failure");
+    } catch (err) {
+      expect((err as McpFabricError).code).toBe("CREDENTIAL_DENIED");
+    }
+
+    // 3. Valid token succeeds and audit does not log the token
+    const ok = await svc.execute({ toolId: tool.id, args: { id: 1 }, actor: "live-tester", profile: "paohub-readonly" });
+    expect(ok.ok).toBe(true);
+    expect(ok.engine).toBe("anythingmcp");
+
+    const db = (await import("../src/agent-os/db")).openAgentOsDb();
+    const execRow = db.query("SELECT * FROM amf_executions WHERE id = ?").get(String(ok.executionId)) as Record<string, unknown>;
+    expect(JSON.stringify(execRow)).not.toContain(validToken);
+    expect(JSON.stringify(ok)).not.toContain(validToken);
+  });
+
   it("secret:// lease is required, wrong scope is denied, expired lease cannot be revealed", async () => {
     const secretRef = "secret://workspace/main/anythingmcp/mcp-bearer";
     const token = process.env.PAO_ANYTHINGMCP_TOKEN;

@@ -131,7 +131,7 @@ export function normalizeDatabase(kind: ConnectorKind, name: string, credentialR
 }
 
 export function normalizeMcp(name: string, raw: string, credentialRef?: string): NormalizedTool[] {
-  const doc = parseJson(raw) as { tools?: Array<{ name: string; description?: string; destructiveHint?: boolean; inputSchema?: Record<string, unknown> }> };
+  const doc = parseJson(raw) as { tools?: Array<{ name: string; description?: string; destructiveHint?: boolean; annotations?: { destructiveHint?: boolean; readOnlyHint?: boolean }; inputSchema?: Record<string, unknown>; outputSchema?: Record<string, unknown> }> };
   const list = doc.tools ?? [];
   if (list.length === 0) throw new McpFabricError("INVALID_SOURCE", 400, "MCP descriptor contained no tools");
   return list.map((t) => toNormalizedTool({
@@ -140,9 +140,10 @@ export function normalizeMcp(name: string, raw: string, credentialRef?: string):
     action: t.name.split(".").slice(1).join("_") || t.name,
     upstreamName: t.name,
     description: t.description ?? t.name,
-    method: t.destructiveHint ? "DELETE" : /write|create|update/i.test(t.name) ? "POST" : "GET",
+    method: t.destructiveHint || t.annotations?.destructiveHint ? "DELETE" : /write|create|update/i.test(t.name) || t.annotations?.readOnlyHint === false ? "POST" : "GET",
     path: "/mcp/" + t.name,
     inputSchema: t.inputSchema,
+    outputSchema: t.outputSchema,
     upstreamDestructiveHint: t.destructiveHint === false ? false : t.destructiveHint,
     credentialRef,
   }));

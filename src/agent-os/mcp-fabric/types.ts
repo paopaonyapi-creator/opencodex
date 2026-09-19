@@ -135,20 +135,37 @@ export interface ToolRecord {
   health: string;
   credentialRef: string | null;
   frozen: boolean;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+  profile: PublicationProfile | null;
 }
 
-export function redactSecrets(text: string): string {
+export const SECRET_FIELD = /^(?:password|passwd|secret|token|access_?token|refresh_?token|api[_-]?key|client_?secret|private_?key|encryption_?key|credential_?master_?key|authorization|proxy-authorization|cookie|cookies|set-cookie)$/i;
+
+function redactText(text: string): string {
   return text
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "Bearer [REDACTED]")
     .replace(/(password|token|secret|api[_-]?key|authorization)(\s*[:=]\s*)\S+/gi, "$1$2[REDACTED]")
     .replace(/sk-[A-Za-z0-9]{8,}/g, "sk-[REDACTED]")
     .replace(/Cookie:\s*[^\r\n]+/gi, "Cookie: [REDACTED]");
 }
 
+export function redactSecrets(text: string): string {
+  function walk(value: unknown): unknown {
+    if (typeof value === "string") return redactText(value);
+    if (Array.isArray(value)) return value.map(walk);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, SECRET_FIELD.test(key) ? "[REDACTED]" : walk(val)]));
+  }
+  try { return JSON.stringify(walk(JSON.parse(text))); }
+  catch { return redactText(text); }
+}
+
 export function looksLikeSecretPayload(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
-  const rec = value as Record<string, unknown>;
-  return ["password", "apiKey", "api_key", "accessToken", "refreshToken", "clientSecret", "privateKey", "ENCRYPTION_KEY", "cookie", "cookies"].some((k) => k in rec && rec[k] != null);
+  return Object.entries(value).some(([key, child]) =>
+    (SECRET_FIELD.test(key) && child != null) || looksLikeSecretPayload(child));
 }
 
 export const PUBLICATION_PROFILES: Record<PublicationProfile, { maxRisk: RiskLevel; writes: boolean; destructive: boolean }> = {

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import { openAgentOsDb } from "../db";
 import { getMcpToolGateway } from "../mcp-gateway/gateway";
 import { validateAndNormalizeUrl } from "../media-acquisition/url-policy";
@@ -33,9 +34,52 @@ export class McpFabricService {
 
   async health(): Promise<Record<string, unknown>> {
     const adapters = [];
-    for (const a of this.adapters) adapters.push(await a.probe());
+    let ready = true;
+    let engine: "anythingmcp" | "mock" = "mock";
+    let readinessInfo: { status: string; latencyMs?: number; detail?: string } = { status: "ready" };
+    const live = anythingMcpLiveRequested();
+    const amcp = this.adapters.find((a) => a.id === "anythingmcp");
+    const hasConfiguredAmcp = Boolean(amcp?.configuredBase?.());
+    const hasMock = this.adapters.some((a) => a.id === "mock");
+    const forceMock = !live && mcpFabricMockForced() && !hasConfiguredAmcp && hasMock;
+
+    for (const a of this.adapters) {
+      const probe = await a.probe();
+      adapters.push(probe);
+      if (a.id === "anythingmcp") {
+        if (a.readiness) {
+          const r = await a.readiness();
+          if (live || hasConfiguredAmcp || !hasMock) {
+            readinessInfo = r;
+            engine = "anythingmcp";
+            if (r.status !== "ready") {
+              ready = false;
+            }
+          }
+        } else if (probe.status !== "healthy" && live) {
+          ready = false;
+          readinessInfo = { status: probe.status, detail: probe.detail };
+        }
+      }
+    }
+
+    if (forceMock) {
+      engine = "mock";
+      ready = true;
+      readinessInfo = { status: "ready", detail: "mock adapter active" };
+    }
+
+    const db = openAgentOsDb();
+    const connectorCount = (db.query("SELECT COUNT(*) AS n FROM amf_connectors").get() as { n: number }).n;
+    const toolCount = (db.query("SELECT COUNT(*) AS n FROM amf_tools WHERE published = 1 AND enabled = 1").get() as { n: number }).n;
+
     return {
-      ok: mcpFabricEnabled(),
+      ok: mcpFabricEnabled() && ready,
+      ready,
+      engine,
+      readiness: readinessInfo,
+      connectorCount,
+      toolCount,
       phase: "20.96",
       flags: {
         autoPublish: MCP_FABRIC_FLAGS.autoPublishEnabled(),
@@ -73,6 +117,13 @@ export class McpFabricService {
     }
     this.assertNoSsrf(input.raw);
     const tools = normalizeSource({ kind: input.kind, name: input.name, raw: input.raw, credentialRef: input.credentialRef });
+    const names = new Set<string>();
+    for (const tool of tools) {
+      if (names.has(tool.canonicalName) || openAgentOsDb().query("SELECT id FROM amf_tools WHERE canonical_name = ?").get(tool.canonicalName)) {
+        throw new McpFabricError("SCHEMA_INVALID", 409, "Canonical tool name already exists; use a distinct connector name");
+      }
+      names.add(tool.canonicalName);
+    }
     const id = newId("con");
     const ts = now();
     const sourceHash = createHash("sha256").update(input.raw).digest("hex");
@@ -141,6 +192,7 @@ export class McpFabricService {
       throw new McpFabricError("POLICY_DENIED", 409, "publish requires APPROVED lifecycle");
     }
     const gate = PUBLICATION_PROFILES[profile];
+    if (!gate) throw new McpFabricError("POLICY_DENIED", 403, "Unknown publication profile");
     const gw = getMcpToolGateway();
     gw.registerServer({ id: "mcp_fabric_" + connectorId, name: "Pao MCP Fabric / " + con.name, transport: "stdio", trustScore: 80, status: "active" });
     for (const tool of this.listTools(connectorId)) {
@@ -193,6 +245,7 @@ export class McpFabricService {
     canonicalName?: string;
     args: Record<string, unknown>;
     actor: string;
+    connectorId?: string;
     agentId?: string;
     profile?: PublicationProfile;
     approvalId?: string;
@@ -202,11 +255,24 @@ export class McpFabricService {
     if (looksLikeSecretPayload(input.args)) throw new McpFabricError("SECRET_IN_REQUEST", 400, "arguments must not contain raw secrets");
     const tool = input.toolId ? this.requireTool(input.toolId) : this.requireToolByName(String(input.canonicalName));
     const con = this.requireConnector(tool.connectorId);
+    if (input.connectorId && input.connectorId !== con.id) throw new McpFabricError("POLICY_DENIED", 403, "Tool does not belong to the requested connector");
+    if (!input.args || typeof input.args !== "object" || Array.isArray(input.args)) throw new McpFabricError("SCHEMA_INVALID", 400, "Tool arguments must be an object");
+    const reserved = (value: unknown): boolean => Boolean(value && typeof value === "object" &&
+      Object.entries(value).some(([key, child]) => /^(?:_meta|headers|credentialRef|credentialHeader|connectorId|toolId|upstreamName|__proto__|prototype|constructor)$/i.test(key) || reserved(child)));
+    if (reserved(input.args)) throw new McpFabricError("POLICY_DENIED", 403, "Arguments contain reserved execution controls");
+    try {
+      const valid = new AjvJsonSchemaValidator().getValidator(tool.inputSchema)(input.args);
+      if (!valid.valid) throw new McpFabricError("SCHEMA_INVALID", 400, "Tool arguments do not match the published schema");
+    } catch (error) {
+      if (error instanceof McpFabricError) throw error;
+      throw new McpFabricError("SCHEMA_INVALID", 400, "Tool input schema cannot be validated");
+    }
     if (con.lifecycle === "DISABLED") throw new McpFabricError("POLICY_DENIED", 403, "connector disabled");
     if (con.lifecycle === "FROZEN" || tool.frozen) throw new McpFabricError("FROZEN", 409, "tool frozen due to schema drift");
     if (!tool.published || !tool.enabled) throw new McpFabricError("UNPUBLISHED", 403, "tool is not published to this profile");
     const profile = input.profile ?? "paohub-readonly";
     const gate = PUBLICATION_PROFILES[profile];
+    if (!gate) throw new McpFabricError("POLICY_DENIED", 403, "Unknown publication profile");
     if (riskRank(tool.risk) > riskRank(gate.maxRisk)) throw new McpFabricError("POLICY_DENIED", 403, "profile " + profile + " forbids " + tool.risk);
     this.rateLimit(input.actor + ":" + tool.id);
     this.assertCircuit(tool.connectorId);
@@ -229,30 +295,42 @@ export class McpFabricService {
 
     const correlationId = newId("corr");
     const started = Date.now();
-    const adapter = await this.pickAdapter();
+    let adapter: FabricAdapter | undefined;
     let payload: unknown;
     let upstreamHttpStatus: number | undefined;
     let upstreamDurationMs: number | undefined;
+    let shaped: ReturnType<typeof shapeResponse>;
     try {
       const credentialHeader = this.resolveCredentialHeader(tool, correlationId, input.actor);
-      const result = await adapter.execute({ tool: tool.upstreamName || tool.canonicalName, args: input.args, credentialHeader });
+      adapter = await this.pickAdapter();
+      const result = await adapter.execute({ tool: tool.upstreamName || tool.canonicalName, args: input.args, credentialHeader, correlationId });
+      if (!result.ok) throw new McpFabricError("ADAPTER_UNAVAILABLE", 502, "Connector execution failed");
       payload = result.payload;
       upstreamHttpStatus = result.httpStatus;
-      upstreamDurationMs = result.durationMs;
+      upstreamDurationMs = Number.isFinite(result.durationMs) && result.durationMs! >= 0 ? result.durationMs : undefined;
+      shaped = shapeResponse({ risk: tool.risk, payload, fallbackToRaw: input.fallbackToRaw });
       circuit.set(tool.connectorId, { fails: 0, openUntil: 0 });
     } catch (err) {
-      if (err instanceof McpFabricError) throw err;
-      this.tripCircuit(tool.connectorId);
-      const execId = this.recordExecution(tool, input, correlationId, "failed", Date.now() - started, null, err instanceof Error ? err.message : String(err));
-      throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "connector engine failed", { executionId: execId, correlationId });
+      const failure = err instanceof McpFabricError ? err : new McpFabricError("ADAPTER_UNAVAILABLE", 503, "Connector engine failed");
+      if (failure.code === "ADAPTER_UNAVAILABLE") this.tripCircuit(tool.connectorId);
+      const execId = this.recordExecution(tool, input, correlationId, "failed", Date.now() - started, null, failure.code);
+      this.event(tool.connectorId, tool.id, "execution.completed", input.actor, {
+        requestId: execId, correlationId, engine: adapter?.id ?? "anythingmcp", connectorId: tool.connectorId,
+        toolName: tool.canonicalName, status: "failed", errorCode: failure.code, durationMs: Date.now() - started,
+      });
+      throw new McpFabricError(failure.code, failure.httpStatus, failure.message, { ...failure.detail, executionId: execId, correlationId });
     }
-    const shaped = shapeResponse({ risk: tool.risk, payload, fallbackToRaw: input.fallbackToRaw });
     const text = JSON.stringify(shaped.visible);
     const injected = scanPromptInjection(text);
     const visible = injected
       ? { trust: "untrusted_external_content", warning: "prompt_injection_candidate", content: shaped.visible }
       : { trust: "untrusted_external_content", content: shaped.visible };
     const execId = this.recordExecution(tool, input, correlationId, "success", Date.now() - started, shaped.actions, null);
+    this.event(tool.connectorId, tool.id, "execution.completed", input.actor, {
+      requestId: execId, correlationId, engine: adapter.id, connectorId: tool.connectorId,
+      toolName: tool.canonicalName, upstreamToolName: tool.upstreamName, status: "success",
+      durationMs: Date.now() - started, upstreamHttpStatus, upstreamDurationMs,
+    });
     this.maybeLearnSkill(tool, input.actor);
     this.maybeKnowledge(tool, shaped.visible, input.actor);
     return {
@@ -369,7 +447,9 @@ export class McpFabricService {
   }
 
   requireToolByName(name: string): ToolRecord {
-    const row = openAgentOsDb().query("SELECT * FROM amf_tools WHERE canonical_name = ? ORDER BY version DESC").get(name) as Record<string, unknown> | undefined;
+    const rows = openAgentOsDb().query("SELECT * FROM amf_tools WHERE canonical_name = ? ORDER BY version DESC LIMIT 2").all(name) as Array<Record<string, unknown>>;
+    if (rows.length > 1) throw new McpFabricError("POLICY_DENIED", 409, "Ambiguous tool name; select a connector-scoped tool ID");
+    const row = rows[0];
     if (!row) throw new McpFabricError("NOT_FOUND", 404, "tool not found: " + name);
     return rowToTool(row);
   }
@@ -474,8 +554,7 @@ export class McpFabricService {
       const secret = broker.revealForProviderCall(lease.leaseId);
       return "Bearer " + secret;
     } catch (err) {
-      const message = redactSecrets(err instanceof Error ? err.message : String(err));
-      throw new McpFabricError("CREDENTIAL_DENIED", 403, "credential lease failed; secret was not sent to the agent", { reason: message });
+      throw new McpFabricError("CREDENTIAL_DENIED", 403, "Credential lease denied");
     }
   }
 
@@ -600,6 +679,9 @@ function rowToTool(row: Record<string, unknown>): ToolRecord {
     health: String(row.health),
     credentialRef: row.credential_ref ? String(row.credential_ref) : null,
     frozen: Boolean(row.frozen),
+    inputSchema: JSON.parse(String(row.input_schema_json ?? "{}")),
+    outputSchema: JSON.parse(String(row.output_schema_json ?? "{}")),
+    profile: row.profile ? row.profile as PublicationProfile : null,
   };
 }
 

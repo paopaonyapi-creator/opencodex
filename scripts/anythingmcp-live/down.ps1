@@ -2,4 +2,9 @@
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
-docker compose --env-file (Join-Path $here ".env") down
+$envFile = Join-Path $here ".env"
+if (Test-Path $envFile) {
+  docker compose --env-file $envFile down
+} else {
+  docker compose down
+}

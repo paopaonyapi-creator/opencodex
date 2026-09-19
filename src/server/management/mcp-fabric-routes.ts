@@ -11,7 +11,7 @@ function fail(req: Request, err: unknown): Response {
   if (err instanceof McpFabricError) {
     return jsonResponse({ error: { code: err.code, message: err.message, detail: err.detail } }, err.httpStatus, req, {});
   }
-  return jsonResponse({ error: { code: "INTERNAL", message: err instanceof Error ? err.message : "internal_error" } }, 500, req, {});
+  return jsonResponse({ error: { code: "INTERNAL", message: "MCP Fabric request failed" } }, 500, req, {});
 }
 
 async function readJson(req: Request): Promise<Record<string, unknown>> {
@@ -76,6 +76,7 @@ export async function handleMcpFabricRoutes(ctx: ManagementContext): Promise<Res
         toolId: typeof body.toolId === "string" ? body.toolId : undefined,
         canonicalName: typeof body.canonicalName === "string" ? body.canonicalName : undefined,
         args: (body.args as Record<string, unknown>) ?? {},
+        connectorId: typeof body.connectorId === "string" ? body.connectorId : undefined,
         actor: actor(ctx, body),
         agentId: typeof body.agentId === "string" ? body.agentId : undefined,
         profile: body.profile as PublicationProfile | undefined,

@@ -13,10 +13,10 @@ function bool(name: string, fallback: boolean): boolean {
 }
 
 export function mcpFabricMockForced(): boolean {
-  if ((process.env.PAO_MCP_FABRIC_MOCK ?? "").trim() === "1") return true;
   if ((process.env.PAO_MCP_FABRIC_LIVE ?? "").trim() === "1" || (process.env.LIVE_ANYTHINGMCP ?? "").trim() === "1") {
     return false;
   }
+  if ((process.env.PAO_MCP_FABRIC_MOCK ?? "").trim() === "1") return true;
   return Boolean(process.env.BUN_TEST) || process.env.BUN_TEST_WORKER_ID != null || process.env.NODE_ENV === "test";
 }
 
@@ -33,9 +33,9 @@ export function anythingMcpBaseUrl(): string | undefined {
  * forces the real adapter and forbids mock fallback.
  */
 export function anythingMcpLiveRequested(): boolean {
-  if ((process.env.PAO_MCP_FABRIC_MOCK ?? "").trim() === "1") return false;
   const liveFlag = (process.env.PAO_MCP_FABRIC_LIVE ?? "").trim() === "1" || (process.env.LIVE_ANYTHINGMCP ?? "").trim() === "1";
   if (liveFlag) return true;
+  if ((process.env.PAO_MCP_FABRIC_MOCK ?? "").trim() === "1") return false;
   if (mcpFabricMockForced()) return false;
   return Boolean(anythingMcpBaseUrl());
 }

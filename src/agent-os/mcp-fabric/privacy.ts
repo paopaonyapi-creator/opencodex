@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { MCP_FABRIC_FLAGS } from "./flags";
 import type { DataClass, PrivacyAction, RiskLevel } from "./types";
-import { McpFabricError, looksLikeSecretPayload, redactSecrets } from "./types";
+import { McpFabricError, SECRET_FIELD, redactSecrets } from "./types";
 import { riskRank } from "./classify";
 
 const SENSITIVE_KEYS = /^(password|passwd|secret|token|access_token|refresh_token|api[_-]?key|authorization|cookie|ssn|pan|card|cvv|iban|account_number|private_key|encryption_key)$/i;
@@ -26,6 +26,7 @@ function hashValue(v: unknown): string {
 }
 
 function classifyKey(key: string): { action: PrivacyAction; classification: DataClass } | null {
+  if (SECRET_FIELD.test(key) || /^(headers|_meta|connectorPrivate|connector_private|__proto__|constructor|prototype)$/i.test(key)) return { action: "drop", classification: "CREDENTIAL" };
   if (SENSITIVE_KEYS.test(key)) return { action: "drop", classification: key.toLowerCase().includes("card") || key.toLowerCase().includes("iban") ? "FINANCIAL" : "CREDENTIAL" };
   if (EMAIL_KEY.test(key)) return { action: "mask", classification: "PII" };
   if (PII_KEY.test(key)) return { action: "mask", classification: "PII" };
@@ -44,6 +45,7 @@ function mask(v: unknown): string {
 
 function walk(value: unknown, path: string, actions: PrivacyResult["actions"]): unknown {
   if (Array.isArray(value)) return value.map((v, i) => walk(v, path + "[" + i + "]", actions));
+  if (typeof value === "string") return redactSecrets(value);
   if (!value || typeof value !== "object") return value;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
@@ -67,9 +69,7 @@ export function shapeResponse(input: { risk: RiskLevel; payload: unknown; fallba
   const failClosed = MCP_FABRIC_FLAGS.sensitiveFailClosed() && riskRank(input.risk) >= 2;
   const fallbackToRaw = failClosed ? false : Boolean(input.fallbackToRaw);
   try {
-    if (looksLikeSecretPayload(input.payload)) {
-      throw new McpFabricError("SECRET_IN_RESPONSE", 500, "upstream payload contains secret-class keys");
-    }
+    if (Buffer.byteLength(JSON.stringify(input.payload) ?? "") > 1_048_576) throw new McpFabricError("PRIVACY_FAIL_CLOSED", 502, "Response size limit exceeded");
     const actions: PrivacyResult["actions"] = [];
     const visible = walk(input.payload, "", actions);
     const blob = redactSecrets(JSON.stringify(visible));
@@ -80,7 +80,7 @@ export function shapeResponse(input: { risk: RiskLevel; payload: unknown; fallba
   } catch (err) {
     if (failClosed || !fallbackToRaw) {
       if (err instanceof McpFabricError) throw err;
-      throw new McpFabricError("PRIVACY_FAIL_CLOSED", 500, "privacy transformation failed; raw upstream response withheld", { cause: err instanceof Error ? err.message : String(err) });
+      throw new McpFabricError("PRIVACY_FAIL_CLOSED", 500, "privacy transformation failed; raw upstream response withheld");
     }
     return { visible: { error: "privacy_failed_raw_withheld" }, rawHeld: false, actions: [], fallbackToRaw: false };
   }

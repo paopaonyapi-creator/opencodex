@@ -422,6 +422,13 @@ const ACQUISITION_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_20.95_ACQUISITION.md",
 } as const;
 
+const MCP_FABRIC_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.96 ships the AnythingMCP capability control plane (connector intake, canonical tools, privacy gateway, approvals, versioning/drift, KG/skill candidates) first; live AnythingMCP HTTP execute remains discovery-based and is not assumed from unreleased upstream roadmap features.",
+  owner: "Phase 20.96 MCP Fabric",
+  ownerDoc: "docs/PHASE_20.96_MCP_FABRIC.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -888,6 +895,24 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/deny", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/acquisition/session-refs", module: "server/management/acquisition-routes", mutates: true, exempt: ACQUISITION_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/acquisition/session-refs/{id}/revoke", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/health", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/doctor", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/connectors", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/tools", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/approvals", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/knowledge", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/skills", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/metrics", module: "server/management/mcp-fabric-routes", mutates: false, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mcp-fabric/connectors/{id}", module: "server/management/mcp-fabric-routes", mutates: false, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/import", module: "server/management/mcp-fabric-routes", mutates: true, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/execute", module: "server/management/mcp-fabric-routes", mutates: true, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/privacy-preview", module: "server/management/mcp-fabric-routes", mutates: true, exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/connectors/{id}/approve", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/connectors/{id}/publish", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/connectors/{id}/disable", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/connectors/{id}/drift", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/approvals/{id}/approve", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/approvals/{id}/deny", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

@@ -412,6 +412,33 @@ export class McpToolGateway {
     } catch {
       // Acquisition DB may not be initialized in all environments.
     }
+
+    // Phase 20.96: register MCP Fabric / AnythingMCP control-plane tools
+    this.registerServer({
+      id: "mcp_fabric",
+      name: "Pao-hubPro MCP Fabric (Phase 20.96)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createMcpFabricMcpTools } = require("../mcp-fabric/mcp-tools") as typeof import("../mcp-fabric/mcp-tools");
+      const fabricTools = createMcpFabricMcpTools();
+      for (const tool of fabricTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "mcp_fabric",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Fabric DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

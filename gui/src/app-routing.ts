@@ -68,7 +68,8 @@ export type Page =
   | "video-studio"
   | "workflow-studio"
   | "enzo-workspace"
-  | "acquisition";
+  | "acquisition"
+  | "mcp-fabric";
 
 export const VALID_PAGES = new Set<Page>([
   "dashboard",
@@ -137,6 +138,7 @@ export const VALID_PAGES = new Set<Page>([
   "workflow-studio",
   "enzo-workspace",
   "acquisition",
+  "mcp-fabric",
 ]);
 
 export function readPageFromHash(hash?: string): Page {

@@ -332,10 +332,16 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
    return handleEnzoWorkspaceRoutes(ctx);
  }
 
-  // Phase 20.95: Content Acquisition Gateway (OmniGet Next).
-  if (url.pathname.startsWith("/api/agent-os/acquisition") || url.pathname === "/api/agent-os/acquisition") {
-    const { handleAcquisitionRoutes } = await import("./acquisition-routes");
-    return handleAcquisitionRoutes(ctx);
+ // Phase 20.95: Content Acquisition Gateway (OmniGet Next).
+ if (url.pathname.startsWith("/api/agent-os/acquisition") || url.pathname === "/api/agent-os/acquisition") {
+   const { handleAcquisitionRoutes } = await import("./acquisition-routes");
+   return handleAcquisitionRoutes(ctx);
+ }
+
+  // Phase 20.96: AnythingMCP capability control plane.
+  if (url.pathname.startsWith("/api/agent-os/mcp-fabric") || url.pathname === "/api/agent-os/mcp-fabric") {
+    const { handleMcpFabricRoutes } = await import("./mcp-fabric-routes");
+    return handleMcpFabricRoutes(ctx);
   }
 
   // Phase 20.85: OmniRoute Unified Model Gateway

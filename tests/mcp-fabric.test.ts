@@ -1,0 +1,174 @@
+// Phase 20.96 — MCP Fabric / AnythingMCP control plane. Mock-only: no live AnythingMCP.
+
+import { describe, expect, it } from "bun:test";
+import { AGENT_OS_SCHEMA_VERSION, openAgentOsDb } from "../src/agent-os/db";
+import {
+  McpFabricError,
+  classifyOperation,
+  classifySql,
+  createMcpFabricMcpTools,
+  getMcpFabricService,
+  normalizeOpenApi,
+  resetMcpFabricServiceForTests,
+  shapeResponse,
+} from "../src/agent-os/mcp-fabric";
+
+resetMcpFabricServiceForTests();
+const svc = getMcpFabricService();
+
+const OPENAPI = JSON.stringify({
+  openapi: "3.0.0",
+  info: { title: "CRM", version: "1" },
+  paths: {
+    "/customers/{id}": {
+      get: { operationId: "getCustomer", summary: "Get customer" },
+      delete: { operationId: "deleteCustomer", summary: "Delete customer", destructiveHint: false },
+    },
+    "/invoices": {
+      post: { operationId: "createInvoiceDraft", summary: "Create invoice draft" },
+    },
+  },
+});
+
+describe("phase 20.96 — schema", () => {
+  it("migrates Agent OS schema to v67 with amf_* tables", () => {
+    expect(AGENT_OS_SCHEMA_VERSION).toBeGreaterThanOrEqual(67);
+    const db = openAgentOsDb();
+    const tables = (db.query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'amf_%'").all() as { name: string }[]).map((r) => r.name);
+    for (const name of ["amf_connectors", "amf_tools", "amf_executions", "amf_approvals", "amf_kg_candidates", "amf_skill_candidates"]) {
+      expect(tables).toContain(name);
+    }
+  });
+});
+
+describe("phase 20.96 — classification", () => {
+  it("overrides destructiveHint=false on delete to R4", () => {
+    const cls = classifyOperation({ name: "deleteCustomer", method: "DELETE", path: "/customers/1", upstreamDestructiveHint: false });
+    expect(cls.risk).toBe("R4");
+    expect(cls.destructiveHint).toBe(true);
+  });
+
+  it("classifies OpenAPI tools with canonical names", () => {
+    const tools = normalizeOpenApi("crm", OPENAPI);
+    expect(tools.some((t) => t.canonicalName === "crm.customers.getcustomer")).toBe(true);
+    expect(tools.find((t) => t.method === "DELETE")?.risk).toBe("R4");
+    expect(tools.find((t) => t.method === "POST")?.risk).toBe("R4"); // invoice is financial
+  });
+
+  it("SQL guard allows SELECT/WITH and denies writes without relying only on a single regex", () => {
+    expect(classifySql("SELECT sku, qty FROM inventory WHERE qty > 0").allow).toBe(true);
+    expect(classifySql("WITH x AS (SELECT 1 AS n) SELECT * FROM x").allow).toBe(true);
+    expect(classifySql("INSERT INTO inventory VALUES (1)").allow).toBe(false);
+    expect(classifySql("SELECT 1; DROP TABLE inventory").allow).toBe(false);
+    expect(classifySql("UPDATE inventory SET qty=0").allow).toBe(false);
+  });
+});
+
+describe("phase 20.96 — privacy", () => {
+  it("masks PII, drops credentials, and fail-closes rather than returning raw", () => {
+    const shaped = shapeResponse({ risk: "R2", payload: { email: "ada@example.com", token: "sk-live-secret", sku: "A-1" } });
+    const vis = shaped.visible as Record<string, unknown>;
+    expect(String(vis.email)).not.toContain("ada@example.com");
+    expect(vis.token).toBeUndefined();
+    expect(vis.sku).toBe("A-1");
+    expect(shaped.fallbackToRaw).toBe(false);
+  });
+});
+
+describe("phase 20.96 — connector lifecycle", () => {
+  it("imports as draft and never auto-publishes", () => {
+    const { connector, tools } = svc.importConnector({ kind: "openapi", name: "crm", raw: OPENAPI, actor: "tester" });
+    expect(connector.lifecycle).toBe("POLICY_REVIEW");
+    expect(tools.every((t) => t.published === false)).toBe(true);
+    expect(tools.every((t) => t.enabled === false)).toBe(true);
+  });
+
+  it("rejects raw secrets and SSRF targets on import", () => {
+    expect(() => svc.importConnector({ kind: "curl", name: "bad", raw: "curl http://127.0.0.1/admin", actor: "tester" })).toThrow(/SSRF|INVALID/i);
+    try {
+      svc.importConnector({ kind: "openapi", name: "leak", raw: OPENAPI, credentialRef: "sk-live-not-a-ref", actor: "tester" });
+    } catch (err) {
+      expect((err as McpFabricError).code).toBe("SECRET_IN_REQUEST");
+    }
+  });
+
+  it("publishes only after approval and can disable immediately", () => {
+    const { connector } = svc.importConnector({ kind: "openapi", name: "crm2", raw: OPENAPI, actor: "tester" });
+    const approved = svc.approveConnector(connector.id, "reviewer", "ok");
+    expect(approved.lifecycle).toBe("APPROVED");
+    const published = svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    expect(["PUBLISHED", "MONITORED"]).toContain(published.lifecycle);
+    expect(svc.listTools(connector.id).some((t) => t.published)).toBe(true);
+    const disabled = svc.disableConnector(connector.id, "reviewer");
+    expect(disabled.lifecycle).toBe("DISABLED");
+  });
+
+  it("freezes on breaking schema drift", () => {
+    const { connector } = svc.importConnector({ kind: "openapi", name: "crm3", raw: OPENAPI, actor: "tester" });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-readonly", "reviewer");
+    const drift = svc.detectDrift(connector.id, OPENAPI.replace("getCustomer", "getCustomerV2"), "tester");
+    expect(drift.breaking).toBe(true);
+    expect(svc.requireConnector(connector.id).lifecycle).toBe("DEGRADED");
+  });
+});
+
+describe("phase 20.96 — execution policy", () => {
+  it("executes a published read tool through the gateway and tags output untrusted", async () => {
+    const { connector } = svc.importConnector({ kind: "openapi", name: "crm4", raw: OPENAPI, actor: "tester" });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    const read = svc.listTools(connector.id).find((t) => t.risk === "R0" || t.risk === "R1" || t.method === undefined && t.canonicalName.includes("get")) ?? svc.listTools(connector.id).find((t) => t.canonicalName.includes("getcustomer"));
+    expect(read).toBeTruthy();
+    const result = await svc.execute({ toolId: read!.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" });
+    expect(result.ok).toBe(true);
+    expect((result.result as { trust?: string }).trust).toBe("untrusted_external_content");
+    expect(result.correlationId).toBeTruthy();
+  });
+
+  it("requires approval for R4 and refuses unpublished tools", async () => {
+    const { connector, tools } = svc.importConnector({ kind: "openapi", name: "crm5", raw: OPENAPI, actor: "tester" });
+    const del = tools.find((t) => t.risk === "R4")!;
+    await expect(svc.execute({ toolId: del.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" })).rejects.toBeInstanceOf(McpFabricError);
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    const publishedDel = svc.listTools(connector.id).find((t) => t.risk === "R4")!;
+    try {
+      await svc.execute({ toolId: publishedDel.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" });
+      throw new Error("expected approval");
+    } catch (err) {
+      expect((err as McpFabricError).code).toBe("APPROVAL_REQUIRED");
+      const approvalId = String((err as McpFabricError).detail.approvalId);
+      svc.decideApproval(approvalId, true, "human");
+      const done = await svc.execute({ toolId: publishedDel.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin", approvalId });
+      expect(done.ok).toBe(true);
+    }
+  });
+
+  it("denies dangerous SQL on database connectors", async () => {
+    const { connector } = svc.importConnector({ kind: "postgres", name: "inventory", raw: "postgres://secret://workspace/db", credentialRef: "secret://workspace/main/postgres/inventory", actor: "tester" });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-research", "reviewer");
+    const tool = svc.listTools(connector.id)[0]!;
+    await expect(svc.execute({ toolId: tool.id, args: { sql: "DELETE FROM inventory" }, actor: "tester", profile: "paohub-research" })).rejects.toMatchObject({ code: "SQL_DENIED" });
+    const ok = await svc.execute({ toolId: tool.id, args: { sql: "SELECT sku FROM inventory" }, actor: "tester", profile: "paohub-research" });
+    expect(ok.ok).toBe(true);
+  });
+});
+
+describe("phase 20.96 — additional sources and MCP facade", () => {
+  it("imports graphql, wsdl, postman, curl, and mcp descriptors", () => {
+    expect(svc.importConnector({ kind: "graphql", name: "shop", raw: "type Query { order(id: ID!): Order } type Mutation { refundOrder(id: ID!): Order }", actor: "t" }).tools.length).toBe(2);
+    expect(svc.importConnector({ kind: "wsdl", name: "legacy", raw: '<wsdl:operation name="GetStatus"></wsdl:operation>', actor: "t" }).tools.length).toBe(1);
+    expect(svc.importConnector({ kind: "postman", name: "pm", raw: JSON.stringify({ item: [{ name: "list", request: { method: "GET", url: "https://example.com/v1/items" } }] }), actor: "t" }).tools.length).toBe(1);
+    expect(svc.importConnector({ kind: "curl", name: "curl", raw: "curl -X GET https://example.com/v1/status", actor: "t" }).tools.length).toBe(1);
+    expect(svc.importConnector({ kind: "mcp", name: "dhl", raw: JSON.stringify({ tools: [{ name: "dhl.shipments.track", description: "track", destructiveHint: false }] }), actor: "t" }).tools.length).toBe(1);
+  });
+
+  it("pao.connector.invoke rejects secrets", async () => {
+    const tools = createMcpFabricMcpTools();
+    const invoke = tools.find((t) => t.name === "pao.connector.invoke")!;
+    const denied = await invoke.handler({ canonicalName: "crm.customers.get", args: { apiKey: "secret" } });
+    expect(denied.ok).toBe(false);
+  });
+});

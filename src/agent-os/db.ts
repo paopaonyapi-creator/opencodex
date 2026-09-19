@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 66;
+export const AGENT_OS_SCHEMA_VERSION = 67;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6245,8 +6245,21 @@ function migrate(db: Database): void {
       CREATE TABLE IF NOT EXISTS acq_session_refs (id TEXT PRIMARY KEY, provider TEXT NOT NULL, domain_scope_json TEXT NOT NULL, owner_actor_id TEXT NOT NULL, external_secret_ref TEXT NOT NULL, expires_at TEXT, revoked_at TEXT, created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS acq_events (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_acq_events_job ON acq_events(job_id, created_at);
-      CREATE TABLE IF NOT EXISTS enzo_policy_decisions (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, action TEXT NOT NULL, risk TEXT NOT NULL, decision TEXT NOT NULL, rules_json TEXT NOT NULL DEFAULT '[]', reason TEXT NOT NULL, created_at TEXT NOT NULL);
-      CREATE INDEX IF NOT EXISTS idx_enzo_policy_run ON enzo_policy_decisions(run_id, created_at);
+     CREATE TABLE IF NOT EXISTS enzo_policy_decisions (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, action TEXT NOT NULL, risk TEXT NOT NULL, decision TEXT NOT NULL, rules_json TEXT NOT NULL DEFAULT '[]', reason TEXT NOT NULL, created_at TEXT NOT NULL);
+     CREATE INDEX IF NOT EXISTS idx_enzo_policy_run ON enzo_policy_decisions(run_id, created_at);
+      CREATE TABLE IF NOT EXISTS amf_connectors (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, environment TEXT NOT NULL, lifecycle TEXT NOT NULL, health TEXT NOT NULL, source_hash TEXT NOT NULL, source_kind TEXT NOT NULL, source_excerpt TEXT, credential_ref TEXT, risk_max TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_amf_connectors_created ON amf_connectors(created_at DESC);
+      CREATE TABLE IF NOT EXISTS amf_tools (id TEXT PRIMARY KEY, connector_id TEXT NOT NULL, canonical_name TEXT NOT NULL, upstream_name TEXT NOT NULL, description TEXT NOT NULL, method TEXT, path TEXT, input_schema_json TEXT NOT NULL, output_schema_json TEXT NOT NULL, risk TEXT NOT NULL, side_effect TEXT NOT NULL, data_classes_json TEXT NOT NULL, destructive_hint INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 0, published INTEGER NOT NULL DEFAULT 0, frozen INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1, schema_hash TEXT NOT NULL, source_hash TEXT NOT NULL, credential_ref TEXT, health TEXT NOT NULL, profile TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_amf_tools_connector ON amf_tools(connector_id, canonical_name);
+      CREATE TABLE IF NOT EXISTS amf_tool_versions (id TEXT PRIMARY KEY, tool_id TEXT NOT NULL, version INTEGER NOT NULL, schema_hash TEXT NOT NULL, policy_hash TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS amf_executions (id TEXT PRIMARY KEY, tool_id TEXT NOT NULL, connector_id TEXT NOT NULL, actor TEXT NOT NULL, agent_id TEXT, correlation_id TEXT NOT NULL, status TEXT NOT NULL, risk TEXT NOT NULL, duration_ms INTEGER, args_redacted_json TEXT, privacy_json TEXT, error_redacted TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_amf_exec_corr ON amf_executions(correlation_id);
+      CREATE TABLE IF NOT EXISTS amf_approvals (id TEXT PRIMARY KEY, tool_id TEXT NOT NULL, connector_id TEXT NOT NULL, actor TEXT NOT NULL, agent_id TEXT, args_redacted_json TEXT NOT NULL, risk TEXT NOT NULL, side_effect TEXT, status TEXT NOT NULL, approver TEXT, reason TEXT, created_at TEXT NOT NULL, expires_at TEXT, decided_at TEXT);
+      CREATE TABLE IF NOT EXISTS amf_reviews (id TEXT PRIMARY KEY, connector_id TEXT NOT NULL, tool_id TEXT, decision TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS amf_drift (id TEXT PRIMARY KEY, connector_id TEXT NOT NULL, previous_hash TEXT NOT NULL, next_hash TEXT NOT NULL, breaking INTEGER NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS amf_kg_candidates (id TEXT PRIMARY KEY, connector_id TEXT, tool_id TEXT, relation TEXT NOT NULL, confidence REAL NOT NULL, status TEXT NOT NULL, reviewer TEXT, created_at TEXT NOT NULL, decided_at TEXT);
+      CREATE TABLE IF NOT EXISTS amf_skill_candidates (id TEXT PRIMARY KEY, title TEXT NOT NULL, workflow_json TEXT NOT NULL, status TEXT NOT NULL, actor TEXT, reviewer TEXT, created_at TEXT NOT NULL, decided_at TEXT);
+      CREATE TABLE IF NOT EXISTS amf_events (id TEXT PRIMARY KEY, connector_id TEXT, tool_id TEXT, event_type TEXT NOT NULL, actor TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
    `);
 
     // Incremental column upgrades for pre-v53 databases

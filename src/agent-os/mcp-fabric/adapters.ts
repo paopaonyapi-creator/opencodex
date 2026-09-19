@@ -36,26 +36,61 @@ export class MockAnythingMcpAdapter implements FabricAdapter {
 
 export class AnythingMcpHttpAdapter implements FabricAdapter {
   readonly id = "anythingmcp" as const;
+  private discovered: string | null = null;
+
+  constructor(private readonly extraEndpoints: string[] = []) {}
+
+  private candidateEndpoints(): string[] {
+    return [...this.extraEndpoints, process.env.PAO_ANYTHINGMCP_URL, process.env.ANYTHINGMCP_BASE_URL, "http://127.0.0.1:18080", "http://127.0.0.1:8088"].filter((u): u is string => Boolean(u));
+  }
+
   async probe(): Promise<AdapterHealth> {
-    if (mcpFabricMockForced()) {
+    if (mcpFabricMockForced() && this.extraEndpoints.length === 0 && process.env.PAO_MCP_FABRIC_LIVE !== "1") {
       return { id: "anythingmcp", status: "unconfigured", detail: "probe skipped under test/mock flag" };
     }
-    const endpoints = [process.env.PAO_ANYTHINGMCP_URL, process.env.ANYTHINGMCP_BASE_URL, "http://127.0.0.1:18080", "http://127.0.0.1:8088"].filter((u): u is string => Boolean(u));
-    for (const endpoint of endpoints) {
+    for (const endpoint of this.candidateEndpoints()) {
       const started = Date.now();
       try {
-        const res = await fetch(endpoint.replace(/\/+$/, "") + "/health", { signal: AbortSignal.timeout(800) });
-        if (res.ok) return { id: "anythingmcp", status: "healthy", latencyMs: Date.now() - started, detail: "AnythingMCP healthy at discovered endpoint" };
+        const base = endpoint.replace(/\/+$/, "");
+        const res = await fetch(base + "/health", { signal: AbortSignal.timeout(800) });
+        if (res.ok) {
+          this.discovered = base;
+          return { id: "anythingmcp", status: "healthy", latencyMs: Date.now() - started, detail: "AnythingMCP healthy at discovered endpoint", version: "discovered" };
+        }
       } catch {
         // try next
       }
     }
     return { id: "anythingmcp", status: "unconfigured", detail: "AnythingMCP not discovered; set PAO_ANYTHINGMCP_URL" };
   }
-  async execute(): Promise<{ ok: boolean; payload: unknown }> {
+
+  async execute(input: { tool: string; args: Record<string, unknown>; credentialHeader?: string }): Promise<{ ok: boolean; payload: unknown }> {
     const health = await this.probe();
-    if (health.status !== "healthy") throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP is unavailable; failing closed");
-    throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "live AnythingMCP execute requires a healthy bridge; tests use the mock adapter");
+    if (health.status !== "healthy" || !this.discovered) {
+      throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP is unavailable; failing closed");
+    }
+    const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
+    if (input.credentialHeader) headers.authorization = input.credentialHeader;
+    const paths = ["/execute", "/api/execute", "/api/tools/execute", "/tools/call"];
+    let last = "no execute endpoint accepted the call";
+    for (const path of paths) {
+      try {
+        const res = await fetch(this.discovered + path, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ tool: input.tool, name: input.tool, arguments: input.args, input: input.args }),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          const payload = await res.json().catch(() => ({ ok: true }));
+          return { ok: true, payload };
+        }
+        last = "HTTP " + res.status + " at " + path;
+      } catch (err) {
+        last = err instanceof Error ? err.message : String(err);
+      }
+    }
+    throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP execute failed: " + last);
   }
 }
 

@@ -913,6 +913,8 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/mcp-fabric/connectors/{id}/drift", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/mcp-fabric/approvals/{id}/approve", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/mcp-fabric/approvals/{id}/deny", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/skills/{id}/promote", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mcp-fabric/tools/{id}/rollback", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

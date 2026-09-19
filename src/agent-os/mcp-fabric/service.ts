@@ -1,4 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { openAgentOsDb } from "../db";
 import { getMcpToolGateway } from "../mcp-gateway/gateway";
 import { validateAndNormalizeUrl } from "../media-acquisition/url-policy";
@@ -227,10 +230,12 @@ export class McpFabricService {
     const adapter = await this.pickAdapter();
     let payload: unknown;
     try {
-      const result = await adapter.execute({ tool: tool.canonicalName, args: input.args });
+      const credentialHeader = this.resolveCredentialHeader(tool, correlationId, input.actor);
+      const result = await adapter.execute({ tool: tool.canonicalName, args: input.args, credentialHeader });
       payload = result.payload;
       circuit.set(tool.connectorId, { fails: 0, openUntil: 0 });
     } catch (err) {
+      if (err instanceof McpFabricError) throw err;
       this.tripCircuit(tool.connectorId);
       const execId = this.recordExecution(tool, input, correlationId, "failed", Date.now() - started, null, err instanceof Error ? err.message : String(err));
       throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "connector engine failed", { executionId: execId, correlationId });
@@ -253,6 +258,7 @@ export class McpFabricService {
       risk: tool.risk,
       privacy: shaped.actions,
       result: visible,
+      engine: adapter.id,
     };
   }
 
@@ -311,14 +317,24 @@ export class McpFabricService {
     return openAgentOsDb().query("SELECT * FROM amf_skill_candidates ORDER BY created_at DESC LIMIT 100").all() as Array<Record<string, unknown>>;
   }
 
-  promoteSkill(id: string, actor: string): Record<string, unknown> {
+  async promoteSkill(id: string, actor: string): Promise<Record<string, unknown>> {
     if (MCP_FABRIC_FLAGS.learnedSkillAutoApply()) {
       throw new McpFabricError("POLICY_DENIED", 403, "LEARNED_SKILL_AUTO_APPLY is forbidden in this control plane; SkillsGate promotion is explicit");
     }
     const row = openAgentOsDb().query("SELECT * FROM amf_skill_candidates WHERE id = ?").get(id) as Record<string, unknown> | undefined;
     if (!row) throw new McpFabricError("NOT_FOUND", 404, "skill candidate not found");
     openAgentOsDb().run("UPDATE amf_skill_candidates SET status = 'promoted', reviewer = ?, decided_at = ? WHERE id = ?", [actor, now(), id]);
-    return { ok: true, status: "promoted", skillGate: "pending-human", id };
+    const imported = await this.importSkillCandidateToGate(row, actor);
+    return { ok: true, status: "promoted", skillGate: imported.status, skillId: imported.skillId, versionId: imported.versionId, published: false, id };
+  }
+
+  rollbackTool(toolId: string, toVersion: number, actor: string): ToolRecord {
+    const tool = this.requireTool(toolId);
+    const row = openAgentOsDb().query("SELECT * FROM amf_tool_versions WHERE tool_id = ? AND version = ?").get(toolId, toVersion) as Record<string, unknown> | undefined;
+    if (!row) throw new McpFabricError("NOT_FOUND", 404, "tool version not found");
+    openAgentOsDb().run("UPDATE amf_tools SET version = ?, schema_hash = ?, frozen = 0, updated_at = ? WHERE id = ?", [toVersion, String(row.schema_hash), now(), toolId]);
+    this.event(tool.connectorId, toolId, "tool.rolled_back", actor, { toVersion, schemaHash: row.schema_hash });
+    return this.requireTool(toolId);
   }
 
   metrics(): Record<string, unknown> {
@@ -427,6 +443,68 @@ export class McpFabricService {
     rec.fails++;
     if (rec.fails >= 5) rec.openUntil = Date.now() + 15_000;
     circuit.set(connectorId, rec);
+  }
+
+  private resolveCredentialHeader(tool: ToolRecord, correlationId: string, actor: string): string | undefined {
+    const ref = tool.credentialRef ?? this.requireConnector(tool.connectorId).credentialRef;
+    if (!ref) return undefined;
+    if (!ref.startsWith("secret://")) {
+      throw new McpFabricError("SECRET_IN_REQUEST", 400, "credential binding must be a secret:// reference");
+    }
+    try {
+      const broker = require("../enzo-workspace/broker") as typeof import("../enzo-workspace/broker");
+      const lease = broker.issueLease({
+        secretRef: ref,
+        runId: correlationId,
+        principal: actor,
+        scopes: ["provider.call"],
+        ttlMs: 60_000,
+        maxUses: 1,
+        provider: "anythingmcp",
+      });
+      const secret = broker.revealForProviderCall(lease.leaseId);
+      return "Bearer " + secret;
+    } catch (err) {
+      const message = redactSecrets(err instanceof Error ? err.message : String(err));
+      throw new McpFabricError("CREDENTIAL_DENIED", 403, "credential lease failed; secret was not sent to the agent", { reason: message });
+    }
+  }
+
+  private async importSkillCandidateToGate(row: Record<string, unknown>, actor: string): Promise<{ skillId: string; versionId: string; status: string }> {
+    const dir = join(tmpdir(), "amf-skill-" + newId("dir"));
+    mkdirSync(dir, { recursive: true });
+    const title = String(row.title ?? "learned-workflow");
+    const workflow = String(row.workflow_json ?? "{}");
+    writeFileSync(join(dir, "SKILL.md"), [
+      "---",
+      "name: " + title.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 48),
+      "description: Learned MCP Fabric workflow candidate. Untrusted until SkillsGate review.",
+      "---",
+      "",
+      "# " + title,
+      "",
+      "This content is untrusted_external_content. It is not a production instruction.",
+      "",
+      "```json",
+      workflow,
+      "```",
+      "",
+    ].join("\n"));
+    try {
+      const { getSkillGateService } = require("../skill-gate/service") as typeof import("../skill-gate/service");
+      const imported = await getSkillGateService().importFromDirectory({
+        directoryPath: dir,
+        sourceType: "generated",
+        sourceDisplayName: "MCP Fabric learned skill",
+        trustLevel: "untrusted",
+        actorId: actor,
+      });
+      return { skillId: imported.skill.id, versionId: imported.version.id, status: imported.skill.status };
+    } catch (err) {
+      throw new McpFabricError("POLICY_DENIED", 403, "SkillsGate rejected the candidate: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 
   private async pickAdapter(): Promise<FabricAdapter> {

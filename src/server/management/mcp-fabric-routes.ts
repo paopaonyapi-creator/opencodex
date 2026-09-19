@@ -115,6 +115,15 @@ export async function handleMcpFabricRoutes(ctx: ManagementContext): Promise<Res
       const id = decodeURIComponent(pathname.slice("/api/agent-os/mcp-fabric/approvals/".length, -"/deny".length));
       return jsonResponse({ ok: true, ...svc.decideApproval(id, false, actor(ctx)) }, 200, req, {});
     }
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/mcp-fabric/skills/") && pathname.endsWith("/promote")) {
+      const id = decodeURIComponent(pathname.slice("/api/agent-os/mcp-fabric/skills/".length, -"/promote".length));
+      return jsonResponse(await svc.promoteSkill(id, actor(ctx)), 200, req, {});
+    }
+    if (req.method === "POST" && pathname.startsWith("/api/agent-os/mcp-fabric/tools/") && pathname.endsWith("/rollback")) {
+      const id = decodeURIComponent(pathname.slice("/api/agent-os/mcp-fabric/tools/".length, -"/rollback".length));
+      const body = await readJson(req);
+      return jsonResponse({ ok: true, tool: svc.rollbackTool(id, Number(body.version ?? 1), actor(ctx, body)) }, 200, req, {});
+    }
     if (req.method === "GET" && pathname.startsWith("/api/agent-os/mcp-fabric/connectors/")) {
       const id = decodeURIComponent(pathname.slice("/api/agent-os/mcp-fabric/connectors/".length));
       if (id.includes("/")) return jsonResponse({ error: { code: "not_found", message: "unknown connector subroute" } }, 404, req, {});

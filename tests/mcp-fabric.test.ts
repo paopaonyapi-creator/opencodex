@@ -11,6 +11,7 @@ import {
   normalizeOpenApi,
   resetMcpFabricServiceForTests,
   shapeResponse,
+  AnythingMcpHttpAdapter,
 } from "../src/agent-os/mcp-fabric";
 
 resetMcpFabricServiceForTests();
@@ -146,7 +147,7 @@ describe("phase 20.96 — execution policy", () => {
   });
 
   it("denies dangerous SQL on database connectors", async () => {
-    const { connector } = svc.importConnector({ kind: "postgres", name: "inventory", raw: "postgres://secret://workspace/db", credentialRef: "secret://workspace/main/postgres/inventory", actor: "tester" });
+    const { connector } = svc.importConnector({ kind: "postgres", name: "inventory", raw: "{}", actor: "tester" });
     svc.approveConnector(connector.id, "reviewer", "ok");
     svc.publishConnector(connector.id, "paohub-research", "reviewer");
     const tool = svc.listTools(connector.id)[0]!;
@@ -170,5 +171,76 @@ describe("phase 20.96 — additional sources and MCP facade", () => {
     const invoke = tools.find((t) => t.name === "pao.connector.invoke")!;
     const denied = await invoke.handler({ canonicalName: "crm.customers.get", args: { apiKey: "secret" } });
     expect(denied.ok).toBe(false);
+  });
+});
+
+describe("phase 20.96 — live adapter, credentials, SkillsGate, rollback", () => {
+  it("HTTP adapter posts to a discovered bridge and does not fake success when the bridge is down", async () => {
+    let hitExecute = false;
+    const server = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/health") return new Response("ok");
+        if (url.pathname === "/execute" && req.method === "POST") {
+          hitExecute = true;
+          return Response.json({ live: true, echo: "from-bridge" });
+        }
+        return new Response("missing", { status: 404 });
+      },
+    });
+    try {
+      const adapter = new AnythingMcpHttpAdapter(["http://127.0.0.1:" + server.port]);
+      const health = await adapter.probe();
+      expect(health.status).toBe("healthy");
+      const result = await adapter.execute({ tool: "crm.customers.get", args: { id: "1" } });
+      expect(hitExecute).toBe(true);
+      expect((result.payload as { live?: boolean }).live).toBe(true);
+    } finally {
+      server.stop(true);
+    }
+    const down = new AnythingMcpHttpAdapter(["http://127.0.0.1:9"]);
+    await expect(down.execute({ tool: "x.y.z", args: {} })).rejects.toBeInstanceOf(McpFabricError);
+  });
+
+  it("fail-closes when a tool is bound to a missing secret:// ref", async () => {
+    const { connector } = svc.importConnector({
+      kind: "openapi",
+      name: "crm-secret",
+      raw: OPENAPI,
+      credentialRef: "secret://workspace/main/crm/missing",
+      actor: "tester",
+    });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    const tool = svc.listTools(connector.id).find((t) => t.canonicalName.includes("getcustomer"))!;
+    try {
+      await svc.execute({ toolId: tool.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" });
+      throw new Error("expected credential deny");
+    } catch (err) {
+      expect((err as McpFabricError).code).toBe("CREDENTIAL_DENIED");
+    }
+  });
+
+  it("promotes a learned skill into SkillsGate without publishing it", async () => {
+    const { connector } = svc.importConnector({ kind: "openapi", name: "crm-skill", raw: OPENAPI, actor: "tester" });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    const tool = svc.listTools(connector.id).find((t) => t.canonicalName.includes("getcustomer"))!;
+    await svc.execute({ toolId: tool.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" });
+    const candidate = svc.listSkills()[0];
+    expect(candidate).toBeTruthy();
+    const promoted = await svc.promoteSkill(String(candidate!.id), "reviewer");
+    expect(promoted.ok).toBe(true);
+    expect(promoted.published).toBe(false);
+    expect(promoted.skillId).toBeTruthy();
+  });
+
+  it("rolls a tool back to a retained version hash", () => {
+    const { tools } = svc.importConnector({ kind: "openapi", name: "crm-rb", raw: OPENAPI, actor: "tester" });
+    const tool = tools[0]!;
+    const rolled = svc.rollbackTool(tool.id, 1, "reviewer");
+    expect(rolled.version).toBe(1);
+    expect(rolled.frozen).toBe(false);
   });
 });

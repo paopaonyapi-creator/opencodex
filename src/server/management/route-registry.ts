@@ -415,6 +415,13 @@ const ENZO_WORKSPACE_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_20.94_ENZO_WORKSPACE.md",
 } as const;
 
+const ACQUISITION_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.95 ships the Content Acquisition Gateway (plan/policy/jobs/artifacts/session refs, MCP-first OmniGet adapter, CLI fallback, mock worker) first; live OmniGet MCP/CLI execution remains discovery-based and is not a hardcoded tool count.",
+  owner: "Phase 20.95 Content Acquisition Gateway",
+  ownerDoc: "docs/PHASE_20.95_ACQUISITION.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -863,6 +870,24 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/enzo-workspace/memory/lessons/{id}/accept", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/enzo-workspace/memory/lessons/{id}/quarantine", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/enzo-workspace/agents/{slug}/{version}/run", module: "server/management/enzo-workspace-routes", mutates: true, mechanism: "slice", exempt: ENZO_WORKSPACE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/health", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/adapters/health", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/doctor", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/jobs", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/capabilities", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/sessions", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/jobs/{id}", module: "server/management/acquisition-routes", mutates: false, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/acquisition/jobs/{id}/artifacts", module: "server/management/acquisition-routes", mutates: false, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/plan", module: "server/management/acquisition-routes", mutates: false, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs", module: "server/management/acquisition-routes", mutates: true, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/pause", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/resume", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/cancel", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/retry", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/approve", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/jobs/{id}/deny", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/session-refs", module: "server/management/acquisition-routes", mutates: true, exempt: ACQUISITION_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/acquisition/session-refs/{id}/revoke", module: "server/management/acquisition-routes", mutates: true, mechanism: "slice", exempt: ACQUISITION_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

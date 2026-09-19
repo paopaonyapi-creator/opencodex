@@ -385,6 +385,33 @@ export class McpToolGateway {
     } catch {
       // Workspace DB may not be initialized in all environments.
     }
+
+    // Phase 20.95: register Content Acquisition Gateway tools
+    this.registerServer({
+      id: "acquisition",
+      name: "Pao-hubPro Content Acquisition Gateway (Phase 20.95)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createAcquisitionMcpTools } = require("../acquisition/mcp-tools") as typeof import("../acquisition/mcp-tools");
+      const acqTools = createAcquisitionMcpTools();
+      for (const tool of acqTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "acquisition",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Acquisition DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

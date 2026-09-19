@@ -326,10 +326,16 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
    return handleWorkflowStudioRoutes(ctx);
  }
 
-  // Phase 20.94: Pao-hubPro × ENZO unified AI operating workspace.
-  if (url.pathname.startsWith("/api/agent-os/enzo-workspace") || url.pathname === "/api/agent-os/enzo-workspace") {
-    const { handleEnzoWorkspaceRoutes } = await import("./enzo-workspace-routes");
-    return handleEnzoWorkspaceRoutes(ctx);
+ // Phase 20.94: Pao-hubPro × ENZO unified AI operating workspace.
+ if (url.pathname.startsWith("/api/agent-os/enzo-workspace") || url.pathname === "/api/agent-os/enzo-workspace") {
+   const { handleEnzoWorkspaceRoutes } = await import("./enzo-workspace-routes");
+   return handleEnzoWorkspaceRoutes(ctx);
+ }
+
+  // Phase 20.95: Content Acquisition Gateway (OmniGet Next).
+  if (url.pathname.startsWith("/api/agent-os/acquisition") || url.pathname === "/api/agent-os/acquisition") {
+    const { handleAcquisitionRoutes } = await import("./acquisition-routes");
+    return handleAcquisitionRoutes(ctx);
   }
 
   // Phase 20.85: OmniRoute Unified Model Gateway

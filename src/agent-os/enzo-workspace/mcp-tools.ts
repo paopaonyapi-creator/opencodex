@@ -67,5 +67,30 @@ export function createEnzoWorkspaceMcpTools(): EnzoMcpTool[] {
         try { return { ok: true, ...service.resolveSkills(String(args.request)) }; } catch (err) { return errToPayload(err); }
       },
     },
+    {
+      name: "acquire_content",
+      description: "Governed content acquisition for workspace agents. Pass source + intent only — never cookies, OmniGet tokens, or raw secrets.",
+      riskTier: "R2",
+      parameters: { type: "object", properties: { source: { type: "string" }, intent: { type: "string" }, ingestKnowledge: { type: "boolean" } }, required: ["source"] },
+      handler: async (args) => {
+        try {
+          if (args.cookies || args.cookie || args.authorization || args.omnigetToken) {
+            return { ok: false, error: { code: "SECRET_IN_REQUEST", message: "cookies/secrets/OmniGet tokens are not allowed" } };
+          }
+          const { getAcquisitionGateway } = require("../acquisition/service") as typeof import("../acquisition/service");
+          const { inferIntent } = require("../acquisition/classify") as typeof import("../acquisition/classify");
+          const source = String(args.source);
+          const intent = (typeof args.intent === "string" ? args.intent : inferIntent(source)) as import("../acquisition/types").AcquisitionIntent;
+          const result = await getAcquisitionGateway().submit({
+            actor: { type: "agent", id: "enzo" },
+            source: { kind: "url", value: source },
+            intent,
+            options: { ingestKnowledge: args.ingestKnowledge === true, transcribe: intent === "research" || intent === "transcribe", summarize: intent === "research" },
+            policyContext: { workspaceId: "default", purpose: "research" },
+          }, "enzo");
+          return { ok: true, job: result.job, plan: result.plan, policy: result.policy };
+        } catch (err) { return errToPayload(err); }
+      },
+    },
   ];
 }

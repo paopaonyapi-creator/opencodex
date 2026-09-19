@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 65;
+export const AGENT_OS_SCHEMA_VERSION = 66;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6236,7 +6236,15 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_enzo_lessons_slug ON enzo_lessons(agent_slug, status);
       CREATE TABLE IF NOT EXISTS enzo_artifacts (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, type TEXT NOT NULL, name TEXT NOT NULL, uri TEXT NOT NULL, sha256 TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS enzo_leases (id TEXT PRIMARY KEY, secret_ref TEXT NOT NULL, run_id TEXT NOT NULL, principal TEXT NOT NULL, scopes_json TEXT NOT NULL DEFAULT '[]', issued_at TEXT NOT NULL, expires_at TEXT NOT NULL, max_uses INTEGER NOT NULL DEFAULT 8, uses INTEGER NOT NULL DEFAULT 0, provider TEXT, revoked INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS enzo_secrets (id TEXT PRIMARY KEY, secret_ref TEXT NOT NULL UNIQUE, provider TEXT, scopes_json TEXT NOT NULL DEFAULT '[]', secret_hash TEXT NOT NULL, envelope_json TEXT, created_at TEXT NOT NULL, rotated_at TEXT);
+     CREATE TABLE IF NOT EXISTS enzo_secrets (id TEXT PRIMARY KEY, secret_ref TEXT NOT NULL UNIQUE, provider TEXT, scopes_json TEXT NOT NULL DEFAULT '[]', secret_hash TEXT NOT NULL, envelope_json TEXT, created_at TEXT NOT NULL, rotated_at TEXT);
+      CREATE TABLE IF NOT EXISTS acq_jobs (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, project_id TEXT, request_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, intent TEXT NOT NULL, source_kind TEXT NOT NULL, source_value_json TEXT NOT NULL, source_host TEXT, selected_adapter TEXT, selected_capability TEXT, auth_class TEXT, policy_decision TEXT, state TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0, error_class TEXT, error_message_redacted TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, completed_at TEXT, request_json TEXT, plan_json TEXT);
+      CREATE INDEX IF NOT EXISTS idx_acq_jobs_created ON acq_jobs(created_at DESC);
+      CREATE TABLE IF NOT EXISTS acq_attempts (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, attempt_no INTEGER NOT NULL, adapter TEXT NOT NULL, external_job_ref TEXT, started_at TEXT NOT NULL, ended_at TEXT, status TEXT NOT NULL, error_class TEXT, diagnostics_json TEXT);
+      CREATE TABLE IF NOT EXISTS acq_artifacts (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, parent_artifact_id TEXT, artifact_type TEXT NOT NULL, relative_path TEXT NOT NULL, mime_type TEXT, size_bytes INTEGER, sha256 TEXT, source_url TEXT, source_host TEXT, source_id TEXT, authenticated INTEGER NOT NULL DEFAULT 0, commercial_rights TEXT NOT NULL DEFAULT 'unknown', metadata_json TEXT, created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_acq_artifacts_job ON acq_artifacts(job_id);
+      CREATE TABLE IF NOT EXISTS acq_session_refs (id TEXT PRIMARY KEY, provider TEXT NOT NULL, domain_scope_json TEXT NOT NULL, owner_actor_id TEXT NOT NULL, external_secret_ref TEXT NOT NULL, expires_at TEXT, revoked_at TEXT, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS acq_events (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_acq_events_job ON acq_events(job_id, created_at);
       CREATE TABLE IF NOT EXISTS enzo_policy_decisions (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, action TEXT NOT NULL, risk TEXT NOT NULL, decision TEXT NOT NULL, rules_json TEXT NOT NULL DEFAULT '[]', reason TEXT NOT NULL, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_enzo_policy_run ON enzo_policy_decisions(run_id, created_at);
    `);
@@ -6284,6 +6292,10 @@ function migrate(db: Database): void {
     if (storedVersion > 0 && storedVersion < 65) {
       try { db.exec("ALTER TABLE enzo_secrets ADD COLUMN envelope_json TEXT;"); } catch {}
     }
+
+    // v66: Phase 20.95 stored request/plan for approval resume on already-created acq_jobs
+    try { db.exec("ALTER TABLE acq_jobs ADD COLUMN request_json TEXT;"); } catch {}
+    try { db.exec("ALTER TABLE acq_jobs ADD COLUMN plan_json TEXT;"); } catch {}
 
    db.query(
       "INSERT INTO schema_meta (key, value) VALUES ('version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

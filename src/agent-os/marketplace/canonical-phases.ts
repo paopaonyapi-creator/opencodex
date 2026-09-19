@@ -51,6 +51,7 @@ export const CANONICAL_PHASES: readonly CanonicalPhase[] = [
   { phaseId: "20.89", title: "Pao-hubPro × Bubble — Capability Hub", type: t("runtime-adapter"), blueprintFile: "Phase_20.89_Pao-hubPro_x_Bubble.md", note: "This phase: the registry/marketplace itself" },
   { phaseId: "20.90", title: "Pao-hubPro × Forge — Prompt Engineering Control Plane", type: t("agent"), blueprintFile: "Phase_20.90_Pao-hubPro_x_Forge.md", note: "Collision resolution: Forge renumbered from 20.88 to 20.90 (user lock 2026-09-18)" },
   { phaseId: "20.94", title: "Pao-hubPro × ENZO — Unified AI Operating Workspace", type: t("runtime-adapter"), blueprintFile: "Phase_20.94_Pao-hubPro_x_ENZO.md", note: "Composition plane: ENZO is reference architecture, not a runtime dependency" },
+  { phaseId: "20.95", title: "Pao-hubPro × OmniGet Next — Content Acquisition Gateway", type: t("runtime-adapter"), blueprintFile: "Phase_20.95_Pao-hubPro_x_OmniGet_Next.md", note: "OmniGet is a replaceable MCP/CLI worker; Pao-hubPro owns policy, jobs, secrets, artifacts, audit" },
 ] as const;
 
 /** RESERVED phase numbers — never assignable to a blueprint. */

@@ -330,6 +330,35 @@ export class McpToolGateway {
       // Video-studio DB may not be initialized in all environments;
       // tools remain unregistered until the runtime is ready.
     }
+
+    // Phase 20.93: register Workflow Studio (visual orchestration) tools
+    this.registerServer({
+      id: "workflow_studio",
+      name: "Pao-hubPro Workflow Studio (Phase 20.93)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { getWorkflowStudioService } = require("../workflow-studio/service") as typeof import("../workflow-studio/service");
+      const { createWorkflowStudioMcpTools } = require("../workflow-studio/mcp-tools") as typeof import("../workflow-studio/mcp-tools");
+      const wfsTools = createWorkflowStudioMcpTools(getWorkflowStudioService());
+      for (const tool of wfsTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "workflow_studio",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Workflow-studio DB may not be initialized in all environments;
+      // tools remain unregistered until the runtime is ready.
+    }
   }
 
   private recordAudit(

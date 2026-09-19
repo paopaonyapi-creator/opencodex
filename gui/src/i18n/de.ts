@@ -1131,6 +1131,7 @@ export const de: Partial<Record<TKey, string>> = {
   "nav.marketplace": "Capability Hub",
   "nav.engineeringSkills": "Engineering Skills",
   "nav.videoStudio": "Video Studio",
+  "nav.workflowStudio": "Workflow-Studio",
   "nav.governance": "Governance",
   "demo.title": "WebMCP Challenge-Demo",
   "demo.subtitle": "Agent-native Stock-Workflow mit einem Klick.",

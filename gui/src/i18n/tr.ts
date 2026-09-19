@@ -1812,6 +1812,7 @@ export const tr: Partial<Record<TKey, string>> = {
   "nav.marketplace": "Yetenek Merkezi",
   "nav.engineeringSkills": "Mühendislik Becerileri",
   "nav.videoStudio": "Video Stüdyosu",
+  "nav.workflowStudio": "İş Akışı Stüdyosu",
   "nav.governance": "Yönetişim",
   "demo.title": "WebMCP Challenge Demosu",
   "demo.subtitle": "Tek tıkla ajan yerli stok iş akışı.",

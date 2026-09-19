@@ -154,7 +154,7 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 61;
+export const AGENT_OS_SCHEMA_VERSION = 62;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6206,6 +6206,21 @@ function migrate(db: Database): void {
       CREATE TABLE IF NOT EXISTS vs_provider_executions (id TEXT PRIMARY KEY, project_id TEXT, job_id TEXT, scene_id TEXT, capability TEXT NOT NULL, provider TEXT NOT NULL, model TEXT, operation TEXT NOT NULL, status TEXT NOT NULL, duration_ms INTEGER, retry_count INTEGER NOT NULL DEFAULT 0, error_code TEXT, started_at TEXT, finished_at TEXT, created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS idx_vs_pexec_project ON vs_provider_executions(project_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_vs_pexec_provider ON vs_provider_executions(provider, created_at);
+
+      -- v62: Phase 20.93 Workflow Studio — visual orchestration layer. Prefix wfs_*
+      -- (workflow studio): the legacy Phase 11 workflows/workflow_runs tables are
+      -- owned by that subsystem — no reuse, no collision.
+      CREATE TABLE IF NOT EXISTS wfs_workflows (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', active_version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS wfs_versions (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', graph_json TEXT NOT NULL, plan_json TEXT, plan_hash TEXT, created_at TEXT NOT NULL, UNIQUE(workflow_id, version));
+      CREATE TABLE IF NOT EXISTS wfs_runs (id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, version_id TEXT NOT NULL, version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', plan_hash TEXT NOT NULL, trigger TEXT NOT NULL DEFAULT 'manual', memory_json TEXT NOT NULL DEFAULT '{}', error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_wfs_runs_workflow ON wfs_runs(workflow_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS wfs_node_runs (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, node_type TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', attempt INTEGER NOT NULL DEFAULT 0, started_at TEXT, finished_at TEXT, duration_ms INTEGER, output_json TEXT, error_json TEXT, provider TEXT, model TEXT, UNIQUE(run_id, node_id, attempt));
+      CREATE INDEX IF NOT EXISTS idx_wfs_noderuns_run ON wfs_node_runs(run_id, started_at);
+      CREATE TABLE IF NOT EXISTS wfs_events (id TEXT PRIMARY KEY, run_id TEXT, node_id TEXT, type TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_wfs_events_run ON wfs_events(run_id, created_at);
+      CREATE TABLE IF NOT EXISTS wfs_artifacts (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, name TEXT NOT NULL, uri TEXT NOT NULL, mime_type TEXT, sha256 TEXT NOT NULL, size_bytes INTEGER, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS wfs_approvals (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, node_id TEXT NOT NULL, node_type TEXT NOT NULL, proposed_action TEXT NOT NULL, payload_json TEXT NOT NULL, risk_level TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', reviewer TEXT, reviewer_note TEXT, created_at TEXT NOT NULL, decided_at TEXT);
+      CREATE INDEX IF NOT EXISTS idx_wfs_approvals_run ON wfs_approvals(run_id, status);
     `);
 
     // Incremental column upgrades for pre-v53 databases

@@ -207,7 +207,8 @@
         "src/pages/Sensorimotor.tsx",
         "src/pages/Marketplace.tsx",
         "src/pages/EngineeringSkills.tsx",
-        "src/pages/VideoStudio.tsx"
+        "src/pages/VideoStudio.tsx",
+        "src/pages/WorkflowStudio.tsx"
       ],
       "rules": {
         "local-i18n/no-hardcoded-ui-strings": "off"

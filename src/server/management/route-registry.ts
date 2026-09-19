@@ -401,6 +401,13 @@ const VIDEO_STUDIO_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_20.92_VIDEO_STUDIO.md",
 } as const;
 
+const WORKFLOW_STUDIO_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.93 ships the visual orchestration core (node registry, typed ports, compiler with policy/budget analysis, durable run engine, approval gates, REST surface) first; canvas drag-and-drop editor, cron/webhook triggers, subflows and plugin SDK belong to Milestones E-H recorded in the phase doc.",
+  owner: "Phase 20.93 Workflow Studio",
+  ownerDoc: "docs/PHASE_20.93_WORKFLOW_STUDIO.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -805,6 +812,23 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/regenerate", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/{sceneId}/narration", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/video-studio/projects/{id}/scenes/reorder", module: "server/management/video-studio-routes", mutates: true, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },
+  // Phase 20.93: Visual Agentic Workflow Studio (orchestration layer).
+  { method: "GET", path: "/api/agent-os/workflow-studio/health", module: "server/management/workflow-studio-routes", mutates: false, exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/workflow-studio/workflows", module: "server/management/workflow-studio-routes", mutates: false, exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/workflow-studio/nodes", module: "server/management/workflow-studio-routes", mutates: false, exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/workflow-studio/approvals", module: "server/management/workflow-studio-routes", mutates: false, exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/workflow-studio/workflows/{id}", module: "server/management/workflow-studio-routes", mutates: false, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/workflow-studio/runs/{id}", module: "server/management/workflow-studio-routes", mutates: false, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/workflows", module: "server/management/workflow-studio-routes", mutates: true, exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/workflows/{id}/validate", module: "server/management/workflow-studio-routes", mutates: false, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/workflows/{id}/publish", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/workflows/{id}/run", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/advance", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/pause", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/resume", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/cancel", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/runs/{id}/retry", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/workflow-studio/approvals/{id}/decision", module: "server/management/workflow-studio-routes", mutates: true, mechanism: "slice", exempt: WORKFLOW_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

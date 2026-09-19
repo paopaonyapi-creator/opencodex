@@ -320,6 +320,12 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleVideoStudioRoutes(ctx);
   }
 
+  // Phase 20.93: Visual Agentic Workflow Studio (orchestration layer).
+  if (url.pathname.startsWith("/api/agent-os/workflow-studio") || url.pathname === "/api/agent-os/workflow-studio") {
+    const { handleWorkflowStudioRoutes } = await import("./workflow-studio-routes");
+    return handleWorkflowStudioRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

@@ -1754,6 +1754,7 @@ export const ja: Partial<Record<TKey, string>> = {
   "nav.marketplace": "機能ハブ",
   "nav.engineeringSkills": "エンジニアリングスキル",
   "nav.videoStudio": "動画スタジオ",
+  "nav.workflowStudio": "ワークフロースタジオ",
   "nav.governance": "ガバナンス",
   "demo.title": "WebMCP チャレンジデモ",
   "demo.subtitle": "ワンクリックのエージェントネイティブ制作ワークフロー。",

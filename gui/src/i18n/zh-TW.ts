@@ -2168,6 +2168,7 @@ export const zhTW: Partial<Record<TKey, string>> = {
   "nav.marketplace": "能力中心",
   "nav.engineeringSkills": "工程技能",
   "nav.videoStudio": "影片工作室",
+  "nav.workflowStudio": "工作流工作室",
   "nav.governance": "治理中心",
   "demo.title": "WebMCP 挑戰示範",
   "demo.subtitle": "一鍵式代理原生素材工作流程。",

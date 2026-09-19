@@ -7,7 +7,7 @@ import { getMcpToolGateway } from "../mcp-gateway/gateway";
 import { validateAndNormalizeUrl } from "../media-acquisition/url-policy";
 import { defaultAdapters, type FabricAdapter } from "./adapters";
 import { maxRisk, riskRank, schemaHash } from "./classify";
-import { MCP_FABRIC_FLAGS, mcpFabricEnabled, mcpFabricMockForced } from "./flags";
+import { MCP_FABRIC_FLAGS, anythingMcpLiveRequested, mcpFabricEnabled, mcpFabricMockForced } from "./flags";
 import { normalizeSource } from "./normalize";
 import { scanPromptInjection, shapeResponse } from "./privacy";
 import { assertSafeSelect } from "./sql-guard";
@@ -55,7 +55,9 @@ export class McpFabricService {
       ...health,
       notes: [
         "AnythingMCP is an isolated connector engine; GPL/EE source is not vendored.",
-        "Set PAO_ANYTHINGMCP_URL when the local/container bridge is running.",
+        "Set PAO_ANYTHINGMCP_URL to the AnythingMCP API origin (example: http://127.0.0.1:14000). Do not hard-code ports in code.",
+        "Tool execution uses POST {base}/mcp JSON-RPC tools/call. There is no REST /execute path.",
+        "Optional PAO_ANYTHINGMCP_TOKEN is the MCP bearer for /mcp. Tool secrets stay in secret:// leases.",
         "New connectors never auto-publish. R4 requires human approval. DB connectors are SELECT-only.",
       ],
     };
@@ -231,7 +233,7 @@ export class McpFabricService {
     let payload: unknown;
     try {
       const credentialHeader = this.resolveCredentialHeader(tool, correlationId, input.actor);
-      const result = await adapter.execute({ tool: tool.canonicalName, args: input.args, credentialHeader });
+      const result = await adapter.execute({ tool: tool.upstreamName || tool.canonicalName, args: input.args, credentialHeader });
       payload = result.payload;
       circuit.set(tool.connectorId, { fails: 0, openUntil: 0 });
     } catch (err) {
@@ -508,13 +510,29 @@ export class McpFabricService {
   }
 
   private async pickAdapter(): Promise<FabricAdapter> {
-    if (mcpFabricMockForced()) return this.adapters.find((a) => a.id === "mock")!;
-    for (const a of this.adapters) {
-      const h = await a.probe();
-      if (h.status === "healthy" && a.id === "anythingmcp") return a;
+    const live = anythingMcpLiveRequested();
+    if (!live && mcpFabricMockForced()) {
+      const mock = this.adapters.find((a) => a.id === "mock");
+      if (mock) return mock;
     }
-    const mock = this.adapters.find((a) => a.id === "mock");
-    if (mock) return mock;
+    const liveAdapter = this.adapters.find((a) => a.id === "anythingmcp");
+    if (liveAdapter) {
+      const health = await liveAdapter.probe();
+      if (health.status === "healthy") return liveAdapter;
+      if (live) {
+        throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP live adapter unavailable", {
+          status: health.status,
+          detail: health.detail,
+        });
+      }
+    }
+    if (live) {
+      throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP live adapter was requested but is not registered");
+    }
+    if (mcpFabricMockForced()) {
+      const mock = this.adapters.find((a) => a.id === "mock");
+      if (mock) return mock;
+    }
     throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "no connector engine available");
   }
 

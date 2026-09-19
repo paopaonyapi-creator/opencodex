@@ -23,7 +23,7 @@ export interface AdapterHealth {
 export interface FabricAdapter {
   id: "anythingmcp" | "mock";
   probe(): Promise<AdapterHealth>;
-  execute(input: { tool: string; args: Record<string, unknown>; credentialHeader?: string }): Promise<{ ok: boolean; payload: unknown }>;
+  execute(input: { tool: string; args: Record<string, unknown>; credentialHeader?: string }): Promise<{ ok: boolean; payload: unknown; httpStatus?: number; durationMs?: number }>;
 }
 
 export class MockAnythingMcpAdapter implements FabricAdapter {
@@ -36,17 +36,18 @@ export class MockAnythingMcpAdapter implements FabricAdapter {
       detail: "deterministic mock connector engine for tests; not a live AnythingMCP",
     };
   }
-  async execute(input: { tool: string; args: Record<string, unknown> }): Promise<{ ok: boolean; payload: unknown }> {
+  async execute(input: { tool: string; args: Record<string, unknown> }): Promise<{ ok: boolean; payload: unknown; httpStatus?: number; durationMs?: number }> {
+    const started = Date.now();
     if (input.tool.includes("track") || input.tool.includes("shipment")) {
-      return { ok: true, payload: { tracking: String(input.args.tracking_number ?? "1Z999"), status: "in_transit", eta: "2026-09-22" } };
+      return { ok: true, payload: { tracking: String(input.args.tracking_number ?? "1Z999"), status: "in_transit", eta: "2026-09-22" }, httpStatus: 200, durationMs: Date.now() - started };
     }
     if (input.tool.includes("order")) {
-      return { ok: true, payload: { id: input.args.id ?? "ord_1", tracking_number: "1Z999AA10123456784", email: "ada@example.com", token: "sk-live-should-drop" } };
+      return { ok: true, payload: { id: input.args.id ?? "ord_1", tracking_number: "1Z999AA10123456784", email: "ada@example.com", token: "sk-live-should-drop" }, httpStatus: 200, durationMs: Date.now() - started };
     }
     if (input.tool.includes("select") || input.args.sql) {
-      return { ok: true, payload: { rows: [{ sku: "A-1", qty: 12 }], truncated: false } };
+      return { ok: true, payload: { rows: [{ sku: "A-1", qty: 12 }], truncated: false }, httpStatus: 200, durationMs: Date.now() - started };
     }
-    return { ok: true, payload: { echo: input.tool, ok: true, email: "user@example.com" } };
+    return { ok: true, payload: { echo: input.tool, ok: true, email: "user@example.com" }, httpStatus: 200, durationMs: Date.now() - started };
   }
 }
 
@@ -208,7 +209,7 @@ export class AnythingMcpHttpAdapter implements FabricAdapter {
     }
   }
 
-  async execute(input: { tool: string; args: Record<string, unknown>; credentialHeader?: string }): Promise<{ ok: boolean; payload: unknown }> {
+  async execute(input: { tool: string; args: Record<string, unknown>; credentialHeader?: string }): Promise<{ ok: boolean; payload: unknown; httpStatus?: number; durationMs?: number }> {
     const base = this.configuredBase();
     if (!base) throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP is not configured; set PAO_ANYTHINGMCP_URL");
     const health = await this.probe();
@@ -222,11 +223,11 @@ export class AnythingMcpHttpAdapter implements FabricAdapter {
         method: "tools/call",
         params: { name: input.tool, arguments: input.args ?? {} },
       });
-      const payload = unwrapToolsCall(rpc);
-      return { ok: true, payload };
+      const payload = unwrapToolsCall(rpc.body);
+      return { ok: true, payload, httpStatus: rpc.status, durationMs: rpc.durationMs };
     } catch (err) {
       if (err instanceof McpFabricError) throw err;
-      if (isAbortError(err)) throw new McpFabricError("ADAPTER_UNAVAILABLE", 504, "AnythingMCP tools/call timed out");
+      if (isAbortError(err)) throw new McpFabricError("ADAPTER_UNAVAILABLE", 504, "AnythingMCP tools/call timed out", { status: "timeout" });
       throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP tools/call failed");
     }
   }
@@ -255,7 +256,7 @@ export class AnythingMcpHttpAdapter implements FabricAdapter {
     base: string,
     authHeader: string | undefined,
     input: { method: string; params?: unknown; notification?: boolean },
-  ): Promise<Record<string, unknown> | null> {
+  ): Promise<{ body: Record<string, unknown> | null; status: number; durationMs: number }> {
     const headers: Record<string, string> = {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
@@ -266,12 +267,14 @@ export class AnythingMcpHttpAdapter implements FabricAdapter {
     const payload: Record<string, unknown> = { jsonrpc: "2.0", method: input.method };
     if (!input.notification) payload.id = crypto.randomUUID();
     if (input.params !== undefined) payload.params = input.params;
+    const started = Date.now();
     const res = await fetch(base.replace(/\/+$/, "") + "/mcp", {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(this.executeMs()),
     });
+    const durationMs = Date.now() - started;
     const sid = res.headers.get("mcp-session-id");
     if (sid) this.sessionId = sid;
     if (res.status === 401 || res.status === 403) {
@@ -281,13 +284,13 @@ export class AnythingMcpHttpAdapter implements FabricAdapter {
       throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP MCP endpoint returned HTTP " + res.status);
     }
     if (input.notification && (res.status === 202 || res.status === 204 || res.status === 200)) {
-      return null;
+      return { body: null, status: res.status, durationMs };
     }
     const text = await res.text().catch(() => "");
     if (!res.ok) {
       throw new McpFabricError("ADAPTER_UNAVAILABLE", 503, "AnythingMCP MCP endpoint returned HTTP " + res.status);
     }
-    return parseMcpHttpBody(text, res.headers.get("content-type") ?? "");
+    return { body: parseMcpHttpBody(text, res.headers.get("content-type") ?? ""), status: res.status, durationMs };
   }
 }
 

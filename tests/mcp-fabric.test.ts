@@ -335,4 +335,32 @@ describe("phase 20.96 — AnythingMCP adapter contract, credentials, SkillsGate,
     expect(rolled.schemaHash).toBe(tool.schemaHash);
     expect(rolled.frozen).toBe(false);
   });
+ 
+  it("denies the wrong unpublished tool and a disabled connector", async () => {
+    const { connector, tools } = svc.importConnector({ kind: "openapi", name: "crm-wrong-tool", raw: OPENAPI, actor: "tester" });
+    const unpublished = tools.find((t) => t.canonicalName.includes("getcustomer"))!;
+    await expect(svc.execute({ toolId: unpublished.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" })).rejects.toMatchObject({ code: "UNPUBLISHED" });
+    svc.approveConnector(connector.id, "reviewer", "ok");
+    svc.publishConnector(connector.id, "paohub-admin", "reviewer");
+    const published = svc.listTools(connector.id).find((t) => t.canonicalName.includes("getcustomer"))!;
+    svc.disableConnector(connector.id, "reviewer");
+    await expect(svc.execute({ toolId: published.id, args: { id: "c1" }, actor: "tester", profile: "paohub-admin" })).rejects.toMatchObject({ code: "POLICY_DENIED" });
+  });
+
+  it("times out a hanging MCP tools/call instead of faking success", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/health") return new Response("ok");
+        return new Promise<Response>(() => {});
+      },
+    });
+    try {
+      const adapter = new AnythingMcpHttpAdapter(["http://127.0.0.1:" + server.port], { probeMs: 200, executeMs: 80 });
+      await expect(adapter.execute({ tool: "get_post", args: { id: 1 } })).rejects.toMatchObject({ code: "ADAPTER_UNAVAILABLE", httpStatus: 504 });
+    } finally {
+      server.stop(true);
+    }
+  });
 });

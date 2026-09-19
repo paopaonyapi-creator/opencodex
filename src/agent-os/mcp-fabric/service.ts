@@ -231,10 +231,14 @@ export class McpFabricService {
     const started = Date.now();
     const adapter = await this.pickAdapter();
     let payload: unknown;
+    let upstreamHttpStatus: number | undefined;
+    let upstreamDurationMs: number | undefined;
     try {
       const credentialHeader = this.resolveCredentialHeader(tool, correlationId, input.actor);
       const result = await adapter.execute({ tool: tool.upstreamName || tool.canonicalName, args: input.args, credentialHeader });
       payload = result.payload;
+      upstreamHttpStatus = result.httpStatus;
+      upstreamDurationMs = result.durationMs;
       circuit.set(tool.connectorId, { fails: 0, openUntil: 0 });
     } catch (err) {
       if (err instanceof McpFabricError) throw err;
@@ -261,6 +265,9 @@ export class McpFabricService {
       privacy: shaped.actions,
       result: visible,
       engine: adapter.id,
+      policy: "allow",
+      durationMs: Date.now() - started,
+      upstream: { httpStatus: upstreamHttpStatus ?? null, durationMs: upstreamDurationMs ?? null },
     };
   }
 

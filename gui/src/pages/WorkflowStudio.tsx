@@ -34,10 +34,10 @@ interface WorkflowDetail {
 }
 
 interface RunInspection {
-  run: { id: string; status: string; planHash: string; trigger: string; error: string | null };
-  nodes: Array<{ nodeId: string; nodeType: string; status: string; attempt: number; durationMs: number | null; outputJson: string | null; errorJson: string | null }>;
+  run: { id: string; status: string; planHash: string; trigger: string; error: string | null; costTotal: number; inputTokens: number; outputTokens: number };
+  nodes: Array<{ nodeId: string; nodeType: string; effectiveNodeType: string | null; status: string; attempt: number; maxAttempts: number; durationMs: number | null; outputJson: string | null; errorJson: string | null; costUsd: number | null; inputTokens: number | null; outputTokens: number | null }>;
   events: Array<{ type: string; nodeId: string | null; createdAt: string }>;
-  artifacts: Array<{ id: string; nodeId: string; name: string; sha256: string; sizeBytes: number }>;
+  artifacts: Array<{ id: string; nodeId: string; name: string; mimeType: string; sha256: string; sizeBytes: number }>;
   approvals: Array<{ id: string; nodeId: string; proposedAction: string; riskLevel: string; status: string }>;
 }
 
@@ -242,6 +242,7 @@ export function WorkflowStudio({ apiBase = "" }: Props) {
               <p>{n.type}</p>
               <p>{n.description}</p>
               {n.requiredCapabilities.length > 0 && <p>requires: {n.requiredCapabilities.join(", ")}</p>}
+              {n.sideEffect !== "none" && <p>side effect: {n.sideEffect}</p>}
             </div>
           ))}
         </div>
@@ -313,18 +314,26 @@ export function WorkflowStudio({ apiBase = "" }: Props) {
       {run && (
         <div className="ur-section">
           <h2>Run {run.run.id} — {run.run.status}</h2>
-          <p>plan {run.run.planHash.slice(0, 16)}… · trigger {run.run.trigger}{run.run.error ? ` · error: ${run.run.error}` : ""}</p>
+          <p>
+            plan {run.run.planHash.slice(0, 16)}… · trigger {run.run.trigger}
+            {` · cost $${(run.run.costTotal ?? 0).toFixed(4)} · tokens ${run.run.inputTokens ?? 0}/${run.run.outputTokens ?? 0}`}
+            {run.run.error ? ` · error: ${run.run.error}` : ""}
+          </p>
           <div className="ur-table-wrap">
             <table className="ur-table">
-              <thead><tr><th>Node</th><th>Type</th><th>Status</th><th>Attempt</th><th>ms</th><th>Detail</th></tr></thead>
+              <thead><tr><th>Node</th><th>Type</th><th>Status</th><th>Attempt</th><th>ms</th><th>Cost</th><th>Detail</th></tr></thead>
               <tbody>
                 {run.nodes.map((n) => (
                   <tr key={n.nodeId}>
                     <td>{n.nodeId}</td>
-                    <td>{n.nodeType}</td>
+                    <td title={n.effectiveNodeType && n.effectiveNodeType !== n.nodeType ? `failover: ${n.nodeType} → ${n.effectiveNodeType}` : n.nodeType}>
+                      {n.nodeType}
+                      {n.effectiveNodeType && n.effectiveNodeType !== n.nodeType && <span className="ur-pill warn">→ {n.effectiveNodeType}</span>}
+                    </td>
                     <td><span className={statusPill(n.status)}>{n.status}</span></td>
-                    <td>{n.attempt}</td>
+                    <td>{n.attempt}/{n.maxAttempts}</td>
                     <td>{n.durationMs ?? "—"}</td>
+                    <td>{n.costUsd ? `$${n.costUsd.toFixed(4)}` : "—"}</td>
                     <td title={n.errorJson ?? n.outputJson ?? ""}>{(n.errorJson ?? n.outputJson ?? "").slice(0, 90)}</td>
                   </tr>
                 ))}
@@ -336,7 +345,7 @@ export function WorkflowStudio({ apiBase = "" }: Props) {
               <h3>Artifacts</h3>
               {run.artifacts.map((a) => (
                 <div key={a.id} className="ur-card">
-                  <strong>{a.name}</strong>
+                  <strong>{a.name}</strong> <span className="ur-pill">{a.mimeType}</span>
                   <p>{a.sizeBytes} bytes · sha256 {a.sha256.slice(0, 16)}…</p>
                 </div>
               ))}

@@ -12,7 +12,7 @@ import { composeSkills } from "./composer";
 import { draftAgent } from "./factory";
 import { classifyIntent } from "./intent";
 import { distillLessons, searchLessons } from "./memory";
-import { routeModel } from "./models";
+import { completeViaOmniRoute, routeModel } from "./models";
 import { decidePolicy } from "./policy-plane";
 import { evidenceHash, runResearch } from "./research";
 import {
@@ -150,9 +150,35 @@ export class EnzoOrchestrator {
       if (this.requireRun(runId).status === "WAITING_FOR_APPROVAL") {
         return this.inspect(runId);
       }
-      if (run.mode === "chat") {
-        this.writeArtifact(runId, "chat", "response.md", "# Chat\n\n" + run.requestText + "\n\nRouted model: " + model.actualId + "\n");
-      }
+     if (run.mode === "chat") {
+        const completion = await completeViaOmniRoute({ prompt: run.requestText, actor, maxCostUsd: run.budget.maxCostUsd });
+        this.event(runId, completion.real ? "model.request.completed" : "model.fallback", actor, {
+          state: completion.state,
+          real: completion.real,
+          adapter: completion.adapter,
+          provider: completion.route.provider,
+          model: completion.route.actualId,
+          latencyMs: completion.latencyMs ?? null,
+          inputTokens: completion.inputTokens ?? null,
+          outputTokens: completion.outputTokens ?? null,
+          costUsd: completion.costUsd ?? null,
+          reason: completion.reason,
+          error: completion.error ?? null,
+        });
+        const body = [
+          "# Chat",
+          "",
+          run.requestText,
+          "",
+          "state: " + completion.state,
+          "real: " + String(completion.real),
+          "adapter: " + completion.adapter,
+          "model: " + completion.route.actualId,
+          "reason: " + completion.reason,
+          completion.output ? "\n" + completion.output : "",
+        ].join("\n");
+        this.writeArtifact(runId, "chat", "response.md", body);
+     }
 
       this.setStatus(runId, "VERIFYING");
       const outcome = "success";

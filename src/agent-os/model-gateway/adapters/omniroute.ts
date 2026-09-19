@@ -269,7 +269,7 @@ export class OmniRouteGatewayAdapter {
 
     // Protocol translation: format payload for the OmniRoute API
     const payload = {
-      model: model.modelName,
+      model: model.id,
       provider: model.providerId,
       messages: request.messages || [{ role: "user", content: request.prompt || "" }],
       temperature: request.runtime?.temperature ?? 0.2,

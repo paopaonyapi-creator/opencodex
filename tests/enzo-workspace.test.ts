@@ -322,7 +322,7 @@ describe("phase 20.94 — production vault + adapters", () => {
     }
     const sandbox = probes.find((p) => p.id === "sandbox")!;
     expect(sandbox.state).toBe("AVAILABLE");
-  });
+  }, 15_000);
 
   it("does not treat simulated direct adapter output as a live OmniRoute completion", async () => {
     const result = await completeViaOmniRoute({

@@ -2,6 +2,9 @@
 // Does not create a second router.
 
 import { getModelGateway } from "../model-gateway/gateway";
+import { OmniRouteGatewayAdapter } from "../model-gateway/adapters/omniroute";
+import { PolicyEnvelopeBuilder } from "../model-gateway/envelope";
+import { BudgetGovernanceEngine } from "../model-gateway/budget";
 import type { ModelDefinition, ProviderDefinition } from "../model-gateway/types";
 import type { ModelRecord, ModelRouteDecision, ModelRouteRequest } from "./types";
 
@@ -131,6 +134,30 @@ export function setProviderHealthForTests(providerId: string, healthStatus: Prov
   gw.registry.registerProvider({ ...existing, healthStatus });
 }
 
+function isLoopback(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "127.0.0.1" || host === "localhost" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+export async function probeOmniRouteBaseUrl(): Promise<{ baseUrl: string; reachable: boolean; healthStatus: number | null; latencyMs: number | null }> {
+  const candidates = [process.env.PAO_OMNIROUTE_BASE_URL, "http://127.0.0.1:20128", "http://127.0.0.1:9090"].filter((u): u is string => Boolean(u && u.trim()));
+  for (const raw of candidates) {
+    const baseUrl = raw.replace(/\/+$/, "");
+    const started = performance.now();
+    try {
+      const res = await fetch(baseUrl + "/healthz", { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return { baseUrl, reachable: true, healthStatus: res.status, latencyMs: Math.round(performance.now() - started) };
+    } catch {
+      // try next candidate
+    }
+  }
+  return { baseUrl: (candidates[0] ?? "http://127.0.0.1:9090").replace(/\/+$/, ""), reachable: false, healthStatus: null, latencyMs: null };
+}
+
 export type RuntimeState = "AVAILABLE" | "UNCONFIGURED" | "DEGRADED" | "FALLBACK" | "ERROR";
 
 export interface OmniRouteCompletion {
@@ -161,17 +188,28 @@ export async function completeViaOmniRoute(input: {
     tools: false,
     maxCostUsd: input.maxCostUsd,
   });
+  const probe = input.execute ? { baseUrl: "injected", reachable: true, healthStatus: 200, latencyMs: 0 } : await probeOmniRouteBaseUrl();
+  const apiKey = process.env.PAO_OMNIROUTE_API_KEY || process.env.OMNIROUTE_API_KEY || (probe.reachable && isLoopback(probe.baseUrl) ? "sk_omniroute" : "");
   const gw = getModelGateway();
-  let health: unknown;
+  let health: unknown = { omniroute: probe };
   try {
-    health = input.health ? await input.health() : await gw.health();
+    health = input.health ? await input.health() : { omniroute: probe };
   } catch (err) {
-    health = { error: err instanceof Error ? err.message : "health failed" };
+    health = { omniroute: probe, error: err instanceof Error ? err.message : "health failed" };
+  }
+  if (!input.execute && !probe.reachable) {
+    return {
+      state: "UNCONFIGURED",
+      real: false,
+      adapter: "none",
+      route,
+      health,
+      reason: "OmniRoute daemon is not reachable on PAO_OMNIROUTE_BASE_URL, :20128, or :9090",
+    };
   }
   const requestId = "enzo_" + Date.now().toString(36);
   try {
-    const execute = input.execute ?? ((req: import("../model-gateway/types").GatewayRequest) => gw.execute(req));
-    const response = await execute({
+    const request: import("../model-gateway/types").GatewayRequest = {
       requestId,
       actorId: input.actor ?? "enzo-workspace",
       taskType: "chat",
@@ -179,7 +217,9 @@ export async function completeViaOmniRoute(input: {
       capabilityRequirements: input.requirements ?? ["text.chat"],
       policy: { routeGroup: "fast-decision", unknownPriceBehavior: "allow" },
       budget: { maxCostUsd: input.maxCostUsd ?? 0.05, maxAttempts: 2 },
-    });
+    };
+    if (input.execute) {
+    const response = await input.execute(request);
     const adapter = response.gateway.adapter;
     const simulated = /^\[[^\]]+\] Response to:/.test(response.output || "") || /DirectAdapter/.test(response.output || "");
     const real = adapter === "omniroute" && !simulated;
@@ -201,9 +241,39 @@ export async function completeViaOmniRoute(input: {
       health,
       reason: real ? "live OmniRoute completion" : "direct adapter is in-process simulation",
     };
+    }
+    const envelope = new PolicyEnvelopeBuilder(gw.registry).build(request);
+    const omni = new OmniRouteGatewayAdapter(gw.registry, new BudgetGovernanceEngine(), {
+      baseUrl: probe.baseUrl,
+      apiKey,
+      timeoutMs: 15000,
+      fastFailOnUnreachable: false,
+    });
+    const candidate = gw.registry.getRouteGroup("fast-decision")?.candidates[0] ?? route.actualId;
+    const started = performance.now();
+    const result = await omni.executeCandidate(candidate, request, envelope);
+    const model = gw.registry.getModel(candidate);
+    return {
+      state: "AVAILABLE",
+      real: true,
+      adapter: "omniroute",
+      route: {
+        ...route,
+        actualId: candidate,
+        provider: model?.providerId ?? route.provider,
+        reason: "omniroute adapter completed via " + probe.baseUrl,
+      },
+      output: result.output?.slice(0, 500),
+      latencyMs: result.latencyMs ?? Math.round(performance.now() - started),
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      costUsd: result.actualCostUsd,
+      health,
+      reason: "live OmniRoute completion",
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const unconfigured = /401|403|api key|not set|unreachable|ECONNREFUSED|disabled/i.test(message);
+    const unconfigured = /401|403|api key|invalid_api_key|no active credentials|not set|unreachable|ECONNREFUSED|disabled/i.test(message);
     return {
       state: unconfigured ? "UNCONFIGURED" : "ERROR",
       real: false,

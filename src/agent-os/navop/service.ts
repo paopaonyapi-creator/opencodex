@@ -1,6 +1,7 @@
 // Phase Navop & 21.03 — Host-Authoritative Operations Runtime Service.
 
 import { NavopStore, newNavopId, nowIso } from "./store";
+import { createHash } from "node:crypto";
 import type {
   CcsProvider,
   CcsRuntime,
@@ -10,6 +11,7 @@ import type {
   CcsRouteCandidate,
   CcsRouteDecision,
   CcsUsageEvent,
+  CcsConfigProjection,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -432,6 +434,64 @@ export class NavopRuntimeService {
   listUsage(filter: { providerId?: string; projectId?: string; taskId?: string } = {}): CcsUsageEvent[] {
     this.assertEnabled();
     return this.store.listUsageEvents(filter);
+  }
+
+  previewConfigProjection(input: {
+    runtimeId: string;
+    targetPath: string;
+    currentText: string;
+    projectedText: string;
+  }): CcsConfigProjection {
+    this.assertEnabled();
+    const beforeHash = this.hashText(input.currentText);
+    const afterHash = this.hashText(input.projectedText);
+    const projection: CcsConfigProjection = {
+      id: newNavopId("ccproj"),
+      runtimeId: input.runtimeId,
+      targetPath: input.targetPath,
+      beforeHash,
+      afterHash,
+      beforeText: input.currentText,
+      afterText: input.projectedText,
+      drift: beforeHash !== afterHash,
+      status: "preview",
+      createdAt: nowIso(),
+    };
+    this.store.addConfigProjection(projection);
+    this.audit("SYSTEM", "SYSTEM", "config.preview", undefined, {
+      runtimeId: input.runtimeId,
+      targetPath: input.targetPath,
+      drift: projection.drift,
+    });
+    return projection;
+  }
+
+  restoreConfigProjection(runtimeId: string, targetPath: string): CcsConfigProjection {
+    this.assertEnabled();
+    const latest = this.store.latestConfigProjection(runtimeId, targetPath);
+    if (!latest) throw new Error("No config projection exists for that runtime and path");
+    const restored: CcsConfigProjection = {
+      ...latest,
+      id: newNavopId("ccproj"),
+      beforeText: latest.afterText,
+      afterText: latest.beforeText,
+      beforeHash: latest.afterHash,
+      afterHash: latest.beforeHash,
+      drift: false,
+      status: "restored",
+      createdAt: nowIso(),
+    };
+    this.store.addConfigProjection(restored);
+    this.audit("SYSTEM", "SYSTEM", "config.restore", undefined, {
+      runtimeId,
+      targetPath,
+      restoredFrom: latest.id,
+    });
+    return restored;
+  }
+
+  private hashText(value: string): string {
+    return createHash("sha256").update(value).digest("hex");
   }
 
   private freshCircuit(providerId: string): CcsCircuitBreaker {

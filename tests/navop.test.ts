@@ -31,6 +31,7 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
         "ccs_routes",
         "ccs_circuit_breakers",
         "ccs_usage_events",
+        "ccs_config_projections",
       ];
       for (const table of tables) {
         const row = db.query(`SELECT COUNT(*) as count FROM ${table}`).get() as any;
@@ -269,6 +270,24 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
       const closed = svc.recordProviderOutcome(provider.id, "success", now + 32_000);
       expect(closed.state).toBe("CLOSED");
       expect(closed.failureCount).toBe(0);
+    });
+
+    it("previews config drift and restores the captured original text", () => {
+      const svc = getNavopRuntimeService();
+      const preview = svc.previewConfigProjection({
+        runtimeId: "codex",
+        targetPath: "C:/Users/AD PAO/.codex/config.toml",
+        currentText: "model = \"old\"\n",
+        projectedText: "model = \"new\"\n",
+      });
+      expect(preview.drift).toBe(true);
+      expect(preview.status).toBe("preview");
+      expect(preview.beforeHash).not.toBe(preview.afterHash);
+
+      const restored = svc.restoreConfigProjection("codex", "C:/Users/AD PAO/.codex/config.toml");
+      expect(restored.status).toBe("restored");
+      expect(restored.afterText).toBe("model = \"old\"\n");
+      expect(restored.afterHash).toBe(preview.beforeHash);
     });
   });
 });

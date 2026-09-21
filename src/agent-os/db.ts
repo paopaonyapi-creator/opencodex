@@ -163,7 +163,8 @@ import { join } from "node:path";
 // v73: ccs_* Pao-hubPro × CC-Switch & navop_* Host-Authoritative Operations Runtime (Phase 21.03 & Navop Architecture)
 // v74: h3_* Pao-hubPro × MiniMax H3 Extender Video Execution Plane (Phase 21.02 H3)
 // v75: ccs_routes / ccs_circuit_breakers / ccs_usage_events — Phase 21.03 failover plane
-export const AGENT_OS_SCHEMA_VERSION = 75;
+// v76: ccs_config_projections — Phase 21.03 config diff, backup, restore
+export const AGENT_OS_SCHEMA_VERSION = 76;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -7421,6 +7422,20 @@ function migrate(db: Database): void {
       );
       CREATE INDEX IF NOT EXISTS idx_ccs_usage_provider ON ccs_usage_events(provider_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_ccs_usage_task ON ccs_usage_events(project_id, task_id);
+
+      CREATE TABLE IF NOT EXISTS ccs_config_projections (
+        id TEXT PRIMARY KEY,
+        runtime_id TEXT NOT NULL,
+        target_path TEXT NOT NULL,
+        before_hash TEXT NOT NULL,
+        after_hash TEXT NOT NULL,
+        before_text TEXT NOT NULL,
+        after_text TEXT NOT NULL,
+        drift INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'preview',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ccs_projection_runtime ON ccs_config_projections(runtime_id, created_at);
    `);
 
     // Incremental column upgrades for pre-v53 databases

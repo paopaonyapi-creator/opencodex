@@ -8,6 +8,7 @@ import type {
   CcsCircuitBreaker,
   CcsRoute,
   CcsUsageEvent,
+  CcsConfigProjection,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -558,6 +559,49 @@ export class NavopStore {
       halfOpenAt: r.half_open_at,
       lastFailureAt: r.last_failure_at,
       updatedAt: r.updated_at,
+    };
+  }
+
+  addConfigProjection(projection: CcsConfigProjection): void {
+    openAgentOsDb()
+      .query(`
+        INSERT INTO ccs_config_projections (
+          id, runtime_id, target_path, before_hash, after_hash, before_text, after_text, drift, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        projection.id,
+        projection.runtimeId,
+        projection.targetPath,
+        projection.beforeHash,
+        projection.afterHash,
+        projection.beforeText,
+        projection.afterText,
+        projection.drift ? 1 : 0,
+        projection.status,
+        projection.createdAt,
+      );
+  }
+
+  latestConfigProjection(runtimeId: string, targetPath: string): CcsConfigProjection | null {
+    const r = openAgentOsDb()
+      .query("SELECT * FROM ccs_config_projections WHERE runtime_id = ? AND target_path = ? ORDER BY created_at DESC LIMIT 1")
+      .get(runtimeId, targetPath) as any;
+    return r ? this.mapProjection(r) : null;
+  }
+
+  private mapProjection(r: any): CcsConfigProjection {
+    return {
+      id: r.id,
+      runtimeId: r.runtime_id,
+      targetPath: r.target_path,
+      beforeHash: r.before_hash,
+      afterHash: r.after_hash,
+      beforeText: r.before_text,
+      afterText: r.after_text,
+      drift: Boolean(r.drift),
+      status: r.status,
+      createdAt: r.created_at,
     };
   }
 }

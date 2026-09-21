@@ -191,3 +191,16 @@ export interface CcsRouteDecision {
   attempts: CcsRouteAttempt[];
   reason: string;
 }
+
+export interface CcsConfigProjection {
+  id: string;
+  runtimeId: string;
+  targetPath: string;
+  beforeHash: string;
+  afterHash: string;
+  beforeText: string;
+  afterText: string;
+  drift: boolean;
+  status: "preview" | "applied" | "restored";
+  createdAt: string;
+}

@@ -4,6 +4,12 @@ import { NavopStore, newNavopId, nowIso } from "./store";
 import type {
   CcsProvider,
   CcsRuntime,
+  CcsCircuitBreaker,
+  CcsRoute,
+  CcsRouteAttempt,
+  CcsRouteCandidate,
+  CcsRouteDecision,
+  CcsUsageEvent,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -14,6 +20,9 @@ import type {
   NavopToolInvocation,
 } from "./types";
 import { navopRuntimeEnabled, defaultPermissionProfile } from "./flags";
+
+const FAILURE_THRESHOLD = 3;
+const COOLDOWN_MS = 30_000;
 
 export class NavopRuntimeService {
   private store = new NavopStore();
@@ -233,6 +242,241 @@ export class NavopRuntimeService {
   listRuntimes(): CcsRuntime[] {
     this.assertEnabled();
     return this.store.listRuntimes();
+  }
+
+  // -------------------------------------------------------------------------
+  // Routing, circuit breaker, and safe failover (Phase 21.03.8–21.03.10)
+  // -------------------------------------------------------------------------
+  registerRoute(input: {
+    name: string;
+    runtimeId?: string | null;
+    routingMode?: CcsRoute["routingMode"];
+    candidates: CcsRouteCandidate[];
+    enabled?: boolean;
+  }): CcsRoute {
+    this.assertEnabled();
+    const candidates = [...input.candidates].sort((a, b) => a.priority - b.priority);
+    if (candidates.length === 0) throw new Error("A route needs at least one provider candidate");
+    for (const candidate of candidates) {
+      if (!this.store.getProvider(candidate.providerId)) {
+        throw new Error(`Provider ${candidate.providerId} is not registered`);
+      }
+    }
+    const existing = this.store.getRouteByName(input.name);
+    const route: CcsRoute = {
+      id: existing?.id ?? newNavopId("ccroute"),
+      name: input.name,
+      runtimeId: input.runtimeId ?? null,
+      routingMode: input.routingMode ?? "auto-failover",
+      candidates,
+      enabled: input.enabled !== false,
+      createdAt: existing?.createdAt ?? nowIso(),
+      updatedAt: nowIso(),
+    };
+    this.store.upsertRoute(route);
+    this.audit("SYSTEM", "SYSTEM", "route.register", undefined, {
+      route: route.name,
+      mode: route.routingMode,
+      candidates: route.candidates.map((c) => c.providerId),
+    });
+    return route;
+  }
+
+  listRoutes(): CcsRoute[] {
+    this.assertEnabled();
+    return this.store.listRoutes();
+  }
+
+  recordProviderOutcome(providerId: string, outcome: "success" | "failure", now = Date.now()): CcsCircuitBreaker {
+    this.assertEnabled();
+    const current = this.store.getCircuit(providerId) ?? this.freshCircuit(providerId);
+    const next = this.transitionCircuit(current, outcome, now);
+    this.store.upsertCircuit(next);
+    this.audit("SYSTEM", "SYSTEM", `circuit.${next.state.toLowerCase()}`, undefined, {
+      providerId,
+      outcome,
+      failureCount: next.failureCount,
+    });
+    return next;
+  }
+
+  getCircuit(providerId: string, now = Date.now()): CcsCircuitBreaker {
+    this.assertEnabled();
+    const current = this.store.getCircuit(providerId) ?? this.freshCircuit(providerId);
+    const cooled = this.applyCooldown(current, now);
+    if (cooled.state !== current.state || cooled.halfOpenAt !== current.halfOpenAt) {
+      this.store.upsertCircuit(cooled);
+    }
+    return cooled;
+  }
+
+  routeRequest(input: {
+    routeName: string;
+    requestClass: "idempotent" | "side_effecting";
+    projectId?: string;
+    taskId?: string;
+    probe: (candidate: CcsRouteCandidate) => { ok: boolean; errorCode?: string; inputTokens?: number; outputTokens?: number; estimatedCost?: number; latencyMs?: number };
+    now?: number;
+  }): CcsRouteDecision {
+    this.assertEnabled();
+    const route = this.store.getRouteByName(input.routeName);
+    if (!route || !route.enabled) throw new Error(`Route ${input.routeName} is not available`);
+    const now = input.now ?? Date.now();
+    const traceId = `trc_${now}_${crypto.randomUUID().slice(0, 8)}`;
+    const attempts: CcsRouteAttempt[] = [];
+    let selected: CcsRouteCandidate | null = null;
+    let replayed = false;
+
+    for (const candidate of route.candidates) {
+      const circuit = this.getCircuit(candidate.providerId, now);
+      if (circuit.state === "OPEN") {
+        attempts.push({ providerId: candidate.providerId, modelId: candidate.modelId, outcome: "skipped_open", errorCode: "circuit_open" });
+        this.recordUsage({
+          routeId: route.id,
+          providerId: candidate.providerId,
+          modelId: candidate.modelId,
+          projectId: input.projectId,
+          taskId: input.taskId,
+          requestClass: input.requestClass,
+          outcome: "blocked",
+          replayed: false,
+          errorCode: "circuit_open",
+          traceId,
+        });
+        continue;
+      }
+      if (attempts.some((a) => a.outcome === "failed") && input.requestClass === "side_effecting") {
+        attempts.push({ providerId: candidate.providerId, modelId: candidate.modelId, outcome: "blocked_unsafe_replay", errorCode: "unsafe_replay" });
+        this.recordUsage({
+          routeId: route.id,
+          providerId: candidate.providerId,
+          modelId: candidate.modelId,
+          projectId: input.projectId,
+          taskId: input.taskId,
+          requestClass: input.requestClass,
+          outcome: "blocked",
+          replayed: false,
+          errorCode: "unsafe_replay",
+          traceId,
+        });
+        break;
+      }
+      const probe = input.probe(candidate);
+      if (probe.ok) {
+        this.recordProviderOutcome(candidate.providerId, "success", now);
+        selected = candidate;
+        replayed = attempts.some((a) => a.outcome === "failed");
+        attempts.push({ providerId: candidate.providerId, modelId: candidate.modelId, outcome: "success" });
+        this.recordUsage({
+          routeId: route.id,
+          providerId: candidate.providerId,
+          modelId: candidate.modelId,
+          projectId: input.projectId,
+          taskId: input.taskId,
+          requestClass: input.requestClass,
+          outcome: replayed ? "failover" : "success",
+          replayed,
+          inputTokens: probe.inputTokens ?? 0,
+          outputTokens: probe.outputTokens ?? 0,
+          estimatedCost: probe.estimatedCost ?? 0,
+          latencyMs: probe.latencyMs,
+          traceId,
+        });
+        break;
+      }
+      this.recordProviderOutcome(candidate.providerId, "failure", now);
+      attempts.push({ providerId: candidate.providerId, modelId: candidate.modelId, outcome: "failed", errorCode: probe.errorCode ?? "upstream_failed" });
+      this.recordUsage({
+        routeId: route.id,
+        providerId: candidate.providerId,
+        modelId: candidate.modelId,
+        projectId: input.projectId,
+        taskId: input.taskId,
+        requestClass: input.requestClass,
+        outcome: "failed",
+        replayed: false,
+        inputTokens: probe.inputTokens ?? 0,
+        outputTokens: probe.outputTokens ?? 0,
+        estimatedCost: probe.estimatedCost ?? 0,
+        latencyMs: probe.latencyMs,
+        errorCode: probe.errorCode ?? "upstream_failed",
+        traceId,
+      });
+    }
+
+    const failoverCount = attempts.filter((a) => a.outcome === "failed").length;
+    const decision: CcsRouteDecision = {
+      routeId: route.id,
+      traceId,
+      selectedProviderId: selected?.providerId ?? null,
+      selectedModelId: selected?.modelId ?? null,
+      status: selected ? "completed" : attempts.some((a) => a.outcome === "blocked_unsafe_replay") ? "blocked" : "failed",
+      failoverCount,
+      replayed,
+      attempts,
+      reason: selected
+        ? replayed ? "failed_over" : "primary_selected"
+        : attempts.some((a) => a.outcome === "blocked_unsafe_replay")
+          ? "unsafe_side_effect_not_replayed"
+          : "no_eligible_provider",
+    };
+    this.audit("SYSTEM", "SYSTEM", `route.${decision.status}`, undefined, {
+      route: route.name,
+      reason: decision.reason,
+      selectedProviderId: decision.selectedProviderId,
+      failoverCount,
+    }, traceId);
+    return decision;
+  }
+
+  listUsage(filter: { providerId?: string; projectId?: string; taskId?: string } = {}): CcsUsageEvent[] {
+    this.assertEnabled();
+    return this.store.listUsageEvents(filter);
+  }
+
+  private freshCircuit(providerId: string): CcsCircuitBreaker {
+    return {
+      providerId,
+      state: "CLOSED",
+      failureCount: 0,
+      successCount: 0,
+      updatedAt: nowIso(),
+    };
+  }
+
+  private applyCooldown(circuit: CcsCircuitBreaker, now: number): CcsCircuitBreaker {
+    if (circuit.state !== "OPEN" || !circuit.openedAt) return circuit;
+    if (now - Date.parse(circuit.openedAt) < COOLDOWN_MS) return circuit;
+    return { ...circuit, state: "HALF_OPEN", halfOpenAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString() };
+  }
+
+  private transitionCircuit(circuit: CcsCircuitBreaker, outcome: "success" | "failure", now: number): CcsCircuitBreaker {
+    const cooled = this.applyCooldown(circuit, now);
+    const at = new Date(now).toISOString();
+    if (outcome === "success") {
+      return { ...cooled, state: "CLOSED", failureCount: 0, successCount: cooled.successCount + 1, openedAt: null, halfOpenAt: null, updatedAt: at };
+    }
+    const failureCount = cooled.failureCount + 1;
+    const open = cooled.state === "HALF_OPEN" || failureCount >= FAILURE_THRESHOLD;
+    return {
+      ...cooled,
+      state: open ? "OPEN" : "CLOSED",
+      failureCount,
+      lastFailureAt: at,
+      openedAt: open ? at : cooled.openedAt ?? null,
+      updatedAt: at,
+    };
+  }
+
+  private recordUsage(event: Omit<CcsUsageEvent, "id" | "createdAt" | "inputTokens" | "outputTokens" | "estimatedCost"> & Partial<Pick<CcsUsageEvent, "inputTokens" | "outputTokens" | "estimatedCost">>): void {
+    this.store.addUsageEvent({
+      id: newNavopId("ccuse"),
+      createdAt: nowIso(),
+      inputTokens: event.inputTokens ?? 0,
+      outputTokens: event.outputTokens ?? 0,
+      estimatedCost: event.estimatedCost ?? 0,
+      ...event,
+    });
   }
 
   // -------------------------------------------------------------------------

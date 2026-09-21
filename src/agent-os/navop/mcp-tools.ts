@@ -104,5 +104,12 @@ export function createNavopMcpTools(): NavopMcpToolDef[] {
         return { ok: true, approval: app };
       },
     },
+    {
+      name: "pao.routing.routes.list",
+      description: "List inspectable CC-Switch provider routes, including ordered failover candidates.",
+      parameters: { type: "object", properties: {} },
+      riskLevel: 0,
+      handler: async () => ({ ok: true, routes: svc.listRoutes() }),
+    },
   ];
 }

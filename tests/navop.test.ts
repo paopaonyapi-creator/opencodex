@@ -28,6 +28,9 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
         "ccs_providers",
         "ccs_provider_models",
         "ccs_runtimes",
+        "ccs_routes",
+        "ccs_circuit_breakers",
+        "ccs_usage_events",
       ];
       for (const table of tables) {
         const row = db.query(`SELECT COUNT(*) as count FROM ${table}`).get() as any;
@@ -175,13 +178,97 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
   describe("MCP Tools Integration", () => {
     it("registers pao.* tools and executes resources listing", async () => {
       const tools = createNavopMcpTools();
-      expect(tools.length).toBe(5);
+      expect(tools.length).toBe(6);
+      expect(tools.some((t) => t.name === "pao.routing.routes.list")).toBe(true);
 
       const listTool = tools.find((t) => t.name === "pao.resources.list");
       expect(listTool).toBeDefined();
       const res = await listTool!.handler({});
       expect(res.ok).toBe(true);
       expect(Array.isArray((res as any).resources)).toBe(true);
+    });
+  });
+
+  describe("Provider failover and circuit breaker", () => {
+    it("fails over an idempotent request and refuses to replay a side-effecting one", () => {
+      const svc = getNavopRuntimeService();
+      const primary = svc.registerProvider({
+        name: "Primary OpenAI",
+        providerFamily: "openai",
+        protocol: "openai",
+        trustClass: "trusted",
+        enabled: true,
+        metadata: {},
+      });
+      const fallback = svc.registerProvider({
+        name: "Local Fallback",
+        providerFamily: "ollama",
+        protocol: "openai-compatible",
+        trustClass: "local",
+        enabled: true,
+        metadata: {},
+      });
+      svc.registerRoute({
+        name: "coding-default",
+        routingMode: "auto-failover",
+        candidates: [
+          { providerId: primary.id, modelId: "model-a", priority: 1 },
+          { providerId: fallback.id, modelId: "local-model", priority: 2 },
+        ],
+      });
+
+      const failedOver = svc.routeRequest({
+        routeName: "coding-default",
+        requestClass: "idempotent",
+        projectId: "pao",
+        taskId: "task-1",
+        probe: (candidate) => candidate.providerId === primary.id
+          ? { ok: false, errorCode: "upstream_503", inputTokens: 10, outputTokens: 0 }
+          : { ok: true, inputTokens: 10, outputTokens: 4, estimatedCost: 0.01 },
+      });
+      expect(failedOver.status).toBe("completed");
+      expect(failedOver.selectedProviderId).toBe(fallback.id);
+      expect(failedOver.replayed).toBe(true);
+      expect(failedOver.failoverCount).toBe(1);
+
+      const blocked = svc.routeRequest({
+        routeName: "coding-default",
+        requestClass: "side_effecting",
+        projectId: "pao",
+        taskId: "task-2",
+        probe: (candidate) => candidate.providerId === primary.id
+          ? { ok: false, errorCode: "uncertain_timeout" }
+          : { ok: true },
+      });
+      expect(blocked.status).toBe("blocked");
+      expect(blocked.selectedProviderId).toBeNull();
+      expect(blocked.attempts.some((a) => a.outcome === "blocked_unsafe_replay")).toBe(true);
+      expect(svc.listUsage({ taskId: "task-1" }).some((e) => e.outcome === "failover")).toBe(true);
+    });
+
+    it("opens the circuit after repeated failures and recovers after cooldown", () => {
+      const svc = getNavopRuntimeService();
+      const provider = svc.registerProvider({
+        name: "Flaky Provider",
+        providerFamily: "openrouter",
+        protocol: "openai-compatible",
+        trustClass: "unclassified",
+        enabled: true,
+        metadata: {},
+      });
+      const now = Date.now();
+      svc.recordProviderOutcome(provider.id, "failure", now);
+      svc.recordProviderOutcome(provider.id, "failure", now + 1);
+      const opened = svc.recordProviderOutcome(provider.id, "failure", now + 2);
+      expect(opened.state).toBe("OPEN");
+
+      const stillOpen = svc.getCircuit(provider.id, now + 10_000);
+      expect(stillOpen.state).toBe("OPEN");
+      const halfOpen = svc.getCircuit(provider.id, now + 31_000);
+      expect(halfOpen.state).toBe("HALF_OPEN");
+      const closed = svc.recordProviderOutcome(provider.id, "success", now + 32_000);
+      expect(closed.state).toBe("CLOSED");
+      expect(closed.failureCount).toBe(0);
     });
   });
 });

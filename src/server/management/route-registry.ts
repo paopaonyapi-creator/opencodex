@@ -1057,6 +1057,9 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/agent-os/navop/providers", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/navop/runtimes", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/navop/audit", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/routes", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/navop/routes", module: "server/management/navop-routes", mutates: true, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/usage", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   // Phase 21.02: MiniMax H3 Extender Video Execution Plane
   { method: "GET", path: "/api/video/h3/projects", module: "server/management/h3-extender-routes", mutates: false, exempt: H3_EXTENDER_VERB_DEFERRAL },
   { method: "POST", path: "/api/video/h3/projects", module: "server/management/h3-extender-routes", mutates: true, exempt: H3_EXTENDER_VERB_DEFERRAL },

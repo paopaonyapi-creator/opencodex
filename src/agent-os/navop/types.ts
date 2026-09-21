@@ -123,3 +123,71 @@ export interface CcsRuntime {
   lastSeenAt?: string | null;
   metadata: Record<string, unknown>;
 }
+
+export type CcsCircuitState = "CLOSED" | "OPEN" | "HALF_OPEN";
+
+export interface CcsRouteCandidate {
+  providerId: string;
+  modelId?: string | null;
+  priority: number;
+}
+
+export interface CcsRoute {
+  id: string;
+  name: string;
+  runtimeId?: string | null;
+  routingMode: "direct" | "gateway" | "policy" | "auto-failover" | "local-only" | "offline";
+  candidates: CcsRouteCandidate[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CcsCircuitBreaker {
+  providerId: string;
+  state: CcsCircuitState;
+  failureCount: number;
+  successCount: number;
+  openedAt?: string | null;
+  halfOpenAt?: string | null;
+  lastFailureAt?: string | null;
+  updatedAt: string;
+}
+
+export interface CcsUsageEvent {
+  id: string;
+  routeId?: string | null;
+  providerId: string;
+  modelId?: string | null;
+  projectId?: string | null;
+  taskId?: string | null;
+  requestClass: "idempotent" | "side_effecting";
+  outcome: "success" | "failed" | "failover" | "blocked";
+  replayed: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCost: number;
+  latencyMs?: number | null;
+  errorCode?: string | null;
+  traceId?: string | null;
+  createdAt: string;
+}
+
+export interface CcsRouteAttempt {
+  providerId: string;
+  modelId?: string | null;
+  outcome: "success" | "failed" | "skipped_open" | "blocked_unsafe_replay";
+  errorCode?: string | null;
+}
+
+export interface CcsRouteDecision {
+  routeId: string;
+  traceId: string;
+  selectedProviderId?: string | null;
+  selectedModelId?: string | null;
+  status: "completed" | "failed" | "blocked";
+  failoverCount: number;
+  replayed: boolean;
+  attempts: CcsRouteAttempt[];
+  reason: string;
+}

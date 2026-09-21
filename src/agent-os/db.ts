@@ -162,7 +162,8 @@ import { join } from "node:path";
 // v72: mc_* Pao-hubPro Multi-Agent Mission Control (Phase 21.02) — fleet, runs, approvals, queues, dlq, incidents, audit.
 // v73: ccs_* Pao-hubPro × CC-Switch & navop_* Host-Authoritative Operations Runtime (Phase 21.03 & Navop Architecture)
 // v74: h3_* Pao-hubPro × MiniMax H3 Extender Video Execution Plane (Phase 21.02 H3)
-export const AGENT_OS_SCHEMA_VERSION = 74;
+// v75: ccs_routes / ccs_circuit_breakers / ccs_usage_events — Phase 21.03 failover plane
+export const AGENT_OS_SCHEMA_VERSION = 75;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -7376,6 +7377,50 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_h3_audit_proj ON h3_audit_events(project_id);
+
+      -- Phase 21.03.8–21.03.10: inspectable failover, circuit breaker, usage meter
+      CREATE TABLE IF NOT EXISTS ccs_routes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        runtime_id TEXT,
+        routing_mode TEXT NOT NULL DEFAULT 'auto-failover',
+        candidates_json TEXT NOT NULL DEFAULT '[]',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS ccs_circuit_breakers (
+        provider_id TEXT PRIMARY KEY REFERENCES ccs_providers(id) ON DELETE CASCADE,
+        state TEXT NOT NULL DEFAULT 'CLOSED',
+        failure_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        opened_at TEXT,
+        half_open_at TEXT,
+        last_failure_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS ccs_usage_events (
+        id TEXT PRIMARY KEY,
+        route_id TEXT,
+        provider_id TEXT NOT NULL,
+        model_id TEXT,
+        project_id TEXT,
+        task_id TEXT,
+        request_class TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        replayed INTEGER NOT NULL DEFAULT 0,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        estimated_cost REAL NOT NULL DEFAULT 0,
+        latency_ms INTEGER,
+        error_code TEXT,
+        trace_id TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ccs_usage_provider ON ccs_usage_events(provider_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_ccs_usage_task ON ccs_usage_events(project_id, task_id);
    `);
 
     // Incremental column upgrades for pre-v53 databases

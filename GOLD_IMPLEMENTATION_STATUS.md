@@ -211,11 +211,11 @@ After baseline test completes: execute W1 (typecheck repair, 5 files), re-run `b
 
 ## 16. Phase 21.03 & Navop Architecture — CLOSED (2026-09-22)
 
-**Final verdict: PRODUCTION-READY / CLOSED.** Host Authority Runtime PASS · Schema v73 PASS · Resource Registry PASS · Policy & Risk Classification (R0..R5) PASS · Human Approval Gate PASS · Path Traversal Protection PASS · CC-Switch Provider & Runtime Federation PASS · pao.* MCP Tools & REST Parity PASS.
+**Status: PARTIAL / NOT CLOSED.** Host runtime, registry, approval gate, and the failover slice pass. Still open: real CLI adapters, atomic projection/rollback, credential broker, MCP/skills/prompt/session federation, budget guard, and a real loopback gateway.
 
 - Architecture: Host-Authoritative Operations Platform ensuring agents request capabilities while Pao Runtime owns execution truth, policy decides, human retains final authority, and audit logs all actions. Absorbs CC-Switch cross-CLI provider/model/runtime synchronization and Navop host execution fabrics (host, files, terminal, database, SSH, git).
-- Evidence: 8/8 tests in `tests/navop.test.ts` pass; 9/9 in `tests/mission-control.test.ts` pass; 8/8 in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 132 pass / 0 fail. Clean `bun run typecheck`.
-- State Plane: Schema v73 with 9 `navop_*` and `ccs_*` tables (`navop_resources`, `navop_capabilities`, `navop_sessions`, `navop_tool_invocations`, `navop_approvals`, `navop_audit_events`, `ccs_providers`, `ccs_provider_models`, `ccs_runtimes`).
+- Evidence this slice: 10/10 tests in `tests/navop.test.ts` pass and `bun x tsc --noEmit` is clean. The earlier aggregate was not rerun for this slice.
+- State Plane: Schema v75. Added `ccs_routes`, `ccs_circuit_breakers`, and `ccs_usage_events` beside the existing navop and ccs provider/runtime tables.
 - Authoritative docs: `docs/PHASE_LATEST_PAO_HUBPRO_NAVOP_ARCHITECTURE.md`, `docs/Phase_21.03_Pao-hubPro_x_CC-Switch.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
 
 ## 17. Phase 21.02 MiniMax H3 Extender Video Execution Plane — CLOSED (2026-09-22)

@@ -91,6 +91,36 @@ export async function handleNavopRoutes(ctx: ManagementContext): Promise<Respons
       return jsonResponse({ ok: true, audit: svc.listAudit() }, 200, req, {});
     }
 
+    // GET /api/agent-os/navop/routes
+    if (req.method === "GET" && pathname === "/api/agent-os/navop/routes") {
+      return jsonResponse({ ok: true, routes: svc.listRoutes() }, 200, req, {});
+    }
+
+    // POST /api/agent-os/navop/routes
+    if (req.method === "POST" && pathname === "/api/agent-os/navop/routes") {
+      const body = await req.json().catch(() => ({})) as any;
+      const route = svc.registerRoute({
+        name: String(body.name),
+        runtimeId: body.runtimeId ? String(body.runtimeId) : null,
+        routingMode: body.routingMode,
+        candidates: Array.isArray(body.candidates) ? body.candidates : [],
+        enabled: body.enabled !== false,
+      });
+      return jsonResponse({ ok: true, route }, 201, req, {});
+    }
+
+    // GET /api/agent-os/navop/usage
+    if (req.method === "GET" && pathname === "/api/agent-os/navop/usage") {
+      return jsonResponse({
+        ok: true,
+        usage: svc.listUsage({
+          providerId: url.searchParams.get("providerId") || undefined,
+          projectId: url.searchParams.get("projectId") || undefined,
+          taskId: url.searchParams.get("taskId") || undefined,
+        }),
+      }, 200, req, {});
+    }
+
     return jsonResponse({ error: { code: "NOT_FOUND", message: "Unknown Navop route" } }, 404, req, {});
   } catch (err: any) {
     return jsonResponse({ error: { code: "INTERNAL_ERROR", message: err.message || String(err) } }, 500, req, {});

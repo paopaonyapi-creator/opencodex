@@ -5,6 +5,9 @@ import type {
   CcsProvider,
   CcsProviderModel,
   CcsRuntime,
+  CcsCircuitBreaker,
+  CcsRoute,
+  CcsUsageEvent,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -352,6 +355,23 @@ export class NavopStore {
     }));
   }
 
+  getProvider(id: string): CcsProvider | null {
+    const r = openAgentOsDb().query("SELECT * FROM ccs_providers WHERE id = ?").get(id) as any;
+    if (!r) return null;
+    return {
+      id: r.id,
+      name: r.name,
+      providerFamily: r.provider_family,
+      protocol: r.protocol,
+      baseUrl: r.base_url,
+      trustClass: r.trust_class,
+      enabled: Boolean(r.enabled),
+      metadata: JSON.parse(r.metadata_json || "{}"),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  }
+
   upsertRuntime(rt: CcsRuntime): void {
     openAgentOsDb()
       .query(`
@@ -382,5 +402,162 @@ export class NavopStore {
       lastSeenAt: r.last_seen_at,
       metadata: JSON.parse(r.metadata_json || "{}"),
     }));
+  }
+
+  upsertRoute(route: CcsRoute): void {
+    openAgentOsDb()
+      .query(`
+        INSERT INTO ccs_routes (id, name, runtime_id, routing_mode, candidates_json, enabled, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          runtime_id = excluded.runtime_id,
+          routing_mode = excluded.routing_mode,
+          candidates_json = excluded.candidates_json,
+          enabled = excluded.enabled,
+          updated_at = excluded.updated_at
+      `)
+      .run(
+        route.id,
+        route.name,
+        route.runtimeId ?? null,
+        route.routingMode,
+        JSON.stringify(route.candidates || []),
+        route.enabled ? 1 : 0,
+        route.createdAt,
+        route.updatedAt,
+      );
+  }
+
+  getRouteByName(name: string): CcsRoute | null {
+    const r = openAgentOsDb().query("SELECT * FROM ccs_routes WHERE name = ?").get(name) as any;
+    return r ? this.mapRoute(r) : null;
+  }
+
+  listRoutes(): CcsRoute[] {
+    const rows = openAgentOsDb().query("SELECT * FROM ccs_routes ORDER BY name ASC").all() as any[];
+    return rows.map((r) => this.mapRoute(r));
+  }
+
+  getCircuit(providerId: string): CcsCircuitBreaker | null {
+    const r = openAgentOsDb().query("SELECT * FROM ccs_circuit_breakers WHERE provider_id = ?").get(providerId) as any;
+    return r ? this.mapCircuit(r) : null;
+  }
+
+  upsertCircuit(circuit: CcsCircuitBreaker): void {
+    openAgentOsDb()
+      .query(`
+        INSERT INTO ccs_circuit_breakers (
+          provider_id, state, failure_count, success_count, opened_at, half_open_at, last_failure_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(provider_id) DO UPDATE SET
+          state = excluded.state,
+          failure_count = excluded.failure_count,
+          success_count = excluded.success_count,
+          opened_at = excluded.opened_at,
+          half_open_at = excluded.half_open_at,
+          last_failure_at = excluded.last_failure_at,
+          updated_at = excluded.updated_at
+      `)
+      .run(
+        circuit.providerId,
+        circuit.state,
+        circuit.failureCount,
+        circuit.successCount,
+        circuit.openedAt ?? null,
+        circuit.halfOpenAt ?? null,
+        circuit.lastFailureAt ?? null,
+        circuit.updatedAt,
+      );
+  }
+
+  addUsageEvent(event: CcsUsageEvent): void {
+    openAgentOsDb()
+      .query(`
+        INSERT INTO ccs_usage_events (
+          id, route_id, provider_id, model_id, project_id, task_id, request_class, outcome, replayed,
+          input_tokens, output_tokens, estimated_cost, latency_ms, error_code, trace_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        event.id,
+        event.routeId ?? null,
+        event.providerId,
+        event.modelId ?? null,
+        event.projectId ?? null,
+        event.taskId ?? null,
+        event.requestClass,
+        event.outcome,
+        event.replayed ? 1 : 0,
+        event.inputTokens,
+        event.outputTokens,
+        event.estimatedCost,
+        event.latencyMs ?? null,
+        event.errorCode ?? null,
+        event.traceId ?? null,
+        event.createdAt,
+      );
+  }
+
+  listUsageEvents(filter: { providerId?: string; projectId?: string; taskId?: string } = {}, limit = 100): CcsUsageEvent[] {
+    const where: string[] = [];
+    const args: Array<string | number> = [];
+    if (filter.providerId) {
+      where.push("provider_id = ?");
+      args.push(filter.providerId);
+    }
+    if (filter.projectId) {
+      where.push("project_id = ?");
+      args.push(filter.projectId);
+    }
+    if (filter.taskId) {
+      where.push("task_id = ?");
+      args.push(filter.taskId);
+    }
+    const sql = `SELECT * FROM ccs_usage_events${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT ?`;
+    const rows = openAgentOsDb().query(sql).all(...args, limit) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      routeId: r.route_id,
+      providerId: r.provider_id,
+      modelId: r.model_id,
+      projectId: r.project_id,
+      taskId: r.task_id,
+      requestClass: r.request_class,
+      outcome: r.outcome,
+      replayed: Boolean(r.replayed),
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      estimatedCost: r.estimated_cost,
+      latencyMs: r.latency_ms,
+      errorCode: r.error_code,
+      traceId: r.trace_id,
+      createdAt: r.created_at,
+    }));
+  }
+
+  private mapRoute(r: any): CcsRoute {
+    return {
+      id: r.id,
+      name: r.name,
+      runtimeId: r.runtime_id,
+      routingMode: r.routing_mode,
+      candidates: JSON.parse(r.candidates_json || "[]"),
+      enabled: Boolean(r.enabled),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  }
+
+  private mapCircuit(r: any): CcsCircuitBreaker {
+    return {
+      providerId: r.provider_id,
+      state: r.state,
+      failureCount: r.failure_count,
+      successCount: r.success_count,
+      openedAt: r.opened_at,
+      halfOpenAt: r.half_open_at,
+      lastFailureAt: r.last_failure_at,
+      updatedAt: r.updated_at,
+    };
   }
 }

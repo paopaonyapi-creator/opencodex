@@ -29,8 +29,8 @@ describe("Phase 21.01 — Parley Multi-Agent Work Room", () => {
   // 1. Schema & DB State Plane (§21)
   // -------------------------------------------------------------------------
   describe("Schema & DB State Plane", () => {
-    it("reports schema version 71", () => {
-      expect(AGENT_OS_SCHEMA_VERSION).toBe(71);
+    it("reports schema version at least 71", () => {
+      expect(AGENT_OS_SCHEMA_VERSION).toBeGreaterThanOrEqual(71);
     });
 
     it("verifies all parley_* tables exist and accept queries", () => {

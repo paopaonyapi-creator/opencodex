@@ -159,7 +159,8 @@ import { join } from "node:path";
 // v69: whip_* Pao-hubPro × Whip mobile agent operations plane (Phase 20.99) — host fabric, trusted keys, transcripts, queued intents, pairing.
 // v70: uap_* Pao-hubPro Unified Agent Operations Control Plane (Phase 21.00) — cross-host federation, central MCP & skill governance, durable jobs, audit stream.
 // v71: parley_* Pao-hubPro × Parley Multi-Agent Work Room (Phase 21.01) — rooms, runs, timeline, file/command events, handoffs.
-export const AGENT_OS_SCHEMA_VERSION = 71;
+// v72: mc_* Pao-hubPro Multi-Agent Mission Control (Phase 21.02) — fleet, runs, approvals, queues, dlq, incidents, audit.
+export const AGENT_OS_SCHEMA_VERSION = 72;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6924,6 +6925,167 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_parley_handoffs_room ON parley_handoffs(room_id);
+
+      -- Phase 21.02 — Multi-Agent Mission Control
+      CREATE TABLE IF NOT EXISTS mc_agents (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        agent_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'IDLE',
+        host_id TEXT,
+        provider TEXT,
+        model TEXT,
+        current_run_id TEXT,
+        last_heartbeat TEXT,
+        queue_depth INTEGER NOT NULL DEFAULT 0,
+        active_tools_json TEXT NOT NULL DEFAULT '[]',
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        skills_json TEXT NOT NULL DEFAULT '[]',
+        mcp_servers_json TEXT NOT NULL DEFAULT '[]',
+        allowed_providers_json TEXT NOT NULL DEFAULT '["*"]',
+        allowed_hosts_json TEXT NOT NULL DEFAULT '["*"]',
+        risk_ceiling TEXT NOT NULL DEFAULT 'HIGH',
+        takeover_state TEXT NOT NULL DEFAULT 'AUTONOMOUS',
+        total_tokens BIGINT NOT NULL DEFAULT 0,
+        estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_agents_status ON mc_agents(status);
+      CREATE INDEX IF NOT EXISTS idx_mc_agents_host ON mc_agents(host_id);
+
+      CREATE TABLE IF NOT EXISTS mc_runs (
+        id TEXT PRIMARY KEY,
+        workflow_id TEXT,
+        agent_id TEXT REFERENCES mc_agents(id) ON DELETE SET NULL,
+        parent_run_id TEXT,
+        status TEXT NOT NULL DEFAULT 'QUEUED',
+        priority INTEGER NOT NULL DEFAULT 100,
+        provider TEXT,
+        model TEXT,
+        host TEXT,
+        current_step TEXT,
+        input_tokens BIGINT NOT NULL DEFAULT 0,
+        output_tokens BIGINT NOT NULL DEFAULT 0,
+        cached_tokens BIGINT NOT NULL DEFAULT 0,
+        reasoning_tokens BIGINT NOT NULL DEFAULT 0,
+        estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        max_retries INTEGER NOT NULL DEFAULT 3,
+        approval_state TEXT,
+        execution_snapshot_json TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_runs_status ON mc_runs(status, priority DESC);
+      CREATE INDEX IF NOT EXISTS idx_mc_runs_agent ON mc_runs(agent_id);
+
+      CREATE TABLE IF NOT EXISTS mc_run_events (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES mc_runs(id) ON DELETE CASCADE,
+        agent_id TEXT,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_run_events_run ON mc_run_events(run_id);
+
+      CREATE TABLE IF NOT EXISTS mc_approvals (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES mc_runs(id) ON DELETE CASCADE,
+        agent_id TEXT REFERENCES mc_agents(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        policy_rule TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        requested_by TEXT,
+        requested_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT,
+        decision_reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_approvals_status ON mc_approvals(status);
+
+      CREATE TABLE IF NOT EXISTS mc_cost_usage (
+        id TEXT PRIMARY KEY,
+        run_id TEXT,
+        agent_id TEXT,
+        provider TEXT,
+        model TEXT,
+        input_tokens BIGINT NOT NULL DEFAULT 0,
+        output_tokens BIGINT NOT NULL DEFAULT 0,
+        cached_tokens BIGINT NOT NULL DEFAULT 0,
+        reasoning_tokens BIGINT NOT NULL DEFAULT 0,
+        cost_usd NUMERIC(12,6) NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_cost_usage_run ON mc_cost_usage(run_id);
+      CREATE INDEX IF NOT EXISTS idx_mc_cost_usage_agent ON mc_cost_usage(agent_id);
+
+      CREATE TABLE IF NOT EXISTS mc_incidents (
+        id TEXT PRIMARY KEY,
+        mode TEXT NOT NULL DEFAULT 'NORMAL',
+        title TEXT NOT NULL,
+        description TEXT,
+        trigger_reason TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        resolved_by TEXT,
+        resolved_at TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS mc_audit_logs (
+        id TEXT PRIMARY KEY,
+        actor TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        action TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        before_state TEXT,
+        after_state TEXT,
+        reason TEXT,
+        ip_address TEXT,
+        session_id TEXT,
+        correlation_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_audit_corr ON mc_audit_logs(correlation_id);
+      CREATE INDEX IF NOT EXISTS idx_mc_audit_resource ON mc_audit_logs(resource_type, resource_id);
+
+      CREATE TABLE IF NOT EXISTS mc_queues (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        priority INTEGER NOT NULL DEFAULT 100,
+        concurrency_limit INTEGER NOT NULL DEFAULT 5,
+        active_runs_count INTEGER NOT NULL DEFAULT 0,
+        paused_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS mc_dlq (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES mc_runs(id) ON DELETE CASCADE,
+        agent_id TEXT,
+        failure_reason TEXT NOT NULL,
+        stack_trace TEXT,
+        retry_count INTEGER NOT NULL,
+        last_provider TEXT,
+        last_model TEXT,
+        input_snapshot_json TEXT NOT NULL DEFAULT '{}',
+        tool_context_json TEXT NOT NULL DEFAULT '{}',
+        policy_context_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        resolved_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mc_dlq_status ON mc_dlq(status);
    `);
 
     // Incremental column upgrades for pre-v53 databases

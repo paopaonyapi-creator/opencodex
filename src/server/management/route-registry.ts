@@ -457,6 +457,13 @@ const PARLEY_VERB_DEFERRAL = {
   ownerDoc: "docs/Phase_21.01_Pao-hubPro_Parley_Multi-Agent_Work_Room.md",
 } as const;
 
+const MISSION_CONTROL_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 21.02 ships the Multi-Agent Mission Control operational console (fleet overview, run timeline, approval inbox, queues/DLQ, incident management, and emergency stop) first; dedicated CLI operations commands belong to follow-up tooling.",
+  owner: "Phase 21.02 Multi-Agent Mission Control",
+  ownerDoc: "docs/Phase_21.02_Pao-hubPro_Multi-Agent_Mission_Control.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -1007,6 +1014,25 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/parley/rooms/{id}/agents", module: "server/management/parley-routes", mutates: true, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/parley/rooms/{id}/export", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/parley/runs/{id}/inspector", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  // Phase 21.02: Multi-Agent Mission Control
+  { method: "GET", path: "/api/agent-os/mission-control/overview", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/agents", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/agents/{id}/pause", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/agents/{id}/resume", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/agents/{id}/quarantine", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/agents/{id}/takeover", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/runs", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/runs/{id}/timeline", module: "server/management/mission-control-routes", mutates: false, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/runs/{id}/pause", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/runs/{id}/resume", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/runs/{id}/cancel", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/runs/{id}/retry", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/approvals", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/approvals/{id}/resolve", module: "server/management/mission-control-routes", mutates: true, mechanism: "slice", exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/queues", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/dlq", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/mission-control/emergency-stop", module: "server/management/mission-control-routes", mutates: true, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/mission-control/audit", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

@@ -199,3 +199,12 @@ After baseline test completes: execute W1 (typecheck repair, 5 files), re-run `b
 - Evidence: 8/8 tests in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 115 pass / 0 fail. Clean `bun run typecheck`.
 - State Plane: Schema v71 with 8 `parley_*` tables (`parley_rooms`, `parley_room_agents`, `parley_messages`, `parley_runs`, `parley_tool_calls`, `parley_file_events`, `parley_command_events`, `parley_handoffs`).
 - Authoritative docs: `docs/Phase_21.01_Pao-hubPro_Parley_Multi-Agent_Work_Room.md`, `PHASE_21.01_COMPLETION_REPORT.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
+
+## 15. Phase 21.02 Pao-hubPro Multi-Agent Mission Control — CLOSED (2026-09-22)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** Fleet Overview PASS · Schema v72 PASS · Run State Machine & Timeline PASS · Dead Letter Queue (DLQ) PASS · Approval Inbox PASS · Emergency Stop & Lockdown PASS · Append-Only Audit Ledger PASS · REST & MCP Parity PASS.
+
+- Architecture: Operational Control Plane supervising Phase 20.98 (OpenHermit fleet runtime), Phase 20.99 (Whip mobile console), Phase 21.00 (Unified Control Plane), and Phase 21.01 (Parley work room). Supports fleet visibility, run pause/resume/cancel/retry, human takeover, DLQ routing, approval inbox, emergency lockdown, and comprehensive audit trail.
+- Evidence: 9/9 tests in `tests/mission-control.test.ts` pass; 8/8 in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 124 pass / 0 fail. Clean `bun run typecheck`.
+- State Plane: Schema v72 with 8 `mc_*` tables (`mc_agents`, `mc_runs`, `mc_run_events`, `mc_approvals`, `mc_cost_usage`, `mc_queues`, `mc_dlq`, `mc_incidents`, `mc_audit_logs`).
+- Authoritative docs: `docs/Phase_21.02_Pao-hubPro_Multi-Agent_Mission_Control.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.

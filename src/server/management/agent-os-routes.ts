@@ -367,6 +367,10 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     const { handleParleyRoutes } = await import("./parley-routes");
     return handleParleyRoutes(ctx);
   }
+  if (url.pathname.startsWith("/api/agent-os/mission-control") || url.pathname === "/api/agent-os/mission-control") {
+    const { handleMissionControlRoutes } = await import("./mission-control-routes");
+    return handleMissionControlRoutes(ctx);
+  }
 
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {

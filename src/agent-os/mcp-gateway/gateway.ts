@@ -547,6 +547,34 @@ export class McpToolGateway {
     } catch {
       // Parley DB may not be initialized in all environments.
     }
+
+    // Phase 21.02: register Multi-Agent Mission Control tools
+    this.registerServer({
+      id: "mission_control",
+      name: "Pao-hubPro Multi-Agent Mission Control (Phase 21.02)",
+      transport: "stdio",
+      trustScore: 95,
+      status: "active",
+    });
+
+    try {
+      const { createMissionControlMcpTools } = require("../mission-control/mcp-tools") as typeof import("../mission-control/mcp-tools");
+      const mcTools = createMissionControlMcpTools();
+      for (const tool of mcTools) {
+        const riskTier = ("R" + tool.riskLevel) as "R0" | "R1" | "R2" | "R3" | "R4";
+        this.registerTool({
+          name: tool.name,
+          serverId: "mission_control",
+          description: tool.description,
+          riskTier,
+          mutability: tool.riskLevel === 0 ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskLevel >= 2,
+          enabled: true,
+        });
+      }
+    } catch {
+      // Mission control DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

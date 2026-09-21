@@ -217,3 +217,12 @@ After baseline test completes: execute W1 (typecheck repair, 5 files), re-run `b
 - Evidence: 8/8 tests in `tests/navop.test.ts` pass; 9/9 in `tests/mission-control.test.ts` pass; 8/8 in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 132 pass / 0 fail. Clean `bun run typecheck`.
 - State Plane: Schema v73 with 9 `navop_*` and `ccs_*` tables (`navop_resources`, `navop_capabilities`, `navop_sessions`, `navop_tool_invocations`, `navop_approvals`, `navop_audit_events`, `ccs_providers`, `ccs_provider_models`, `ccs_runtimes`).
 - Authoritative docs: `docs/PHASE_LATEST_PAO_HUBPRO_NAVOP_ARCHITECTURE.md`, `docs/Phase_21.03_Pao-hubPro_x_CC-Switch.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
+
+## 17. Phase 21.02 MiniMax H3 Extender Video Execution Plane — CLOSED (2026-09-22)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** H3 Long-Form Video Sequencer PASS · Schema v74 PASS · Project & Clip Lifecycle PASS · Deterministic Generation Hash PASS · Attempt Tracking PASS · Validation & Invalidation Engine PASS · pao.video.h3.* MCP Tools & REST Parity PASS.
+
+- Architecture: Specialized video execution plane integrating ComfyUI MiniMax H3 Extender upstream. Manages persistent long-form video production projects as durable state machines with scene sequencing, prompt mutation invalidation, reference and LoRA binding, and human submission gates.
+- Evidence: 5/5 tests in `tests/h3-extender.test.ts` pass; 8/8 in `tests/navop.test.ts` pass; 9/9 in `tests/mission-control.test.ts` pass; 8/8 in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 137 pass / 0 fail. Clean `bun run typecheck`.
+- State Plane: Schema v74 with 10 `h3_*` tables (`h3_projects`, `h3_clips`, `h3_clip_attempts`, `h3_assets`, `h3_clip_references`, `h3_clip_loras`, `h3_clip_guides`, `h3_extender_jobs`, `h3_approvals`, `h3_audit_events`).
+- Authoritative docs: `docs/PHASE_21.02_PAO_HUBPRO_MINIMAX_H3_EXTENDER.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.

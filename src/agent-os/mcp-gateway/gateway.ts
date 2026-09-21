@@ -603,6 +603,34 @@ export class McpToolGateway {
     } catch {
       // Navop DB may not be initialized in all environments.
     }
+
+    // Phase 21.02: register MiniMax H3 Extender Video Execution Plane tools
+    this.registerServer({
+      id: "h3_extender",
+      name: "Pao-hubPro MiniMax H3 Extender (Phase 21.02 H3)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createH3McpTools } = require("../h3-extender/mcp-tools") as typeof import("../h3-extender/mcp-tools");
+      const h3Tools = createH3McpTools();
+      for (const tool of h3Tools) {
+        const riskTier = ("R" + tool.riskLevel) as "R0" | "R1" | "R2" | "R3" | "R4";
+        this.registerTool({
+          name: tool.name,
+          serverId: "h3_extender",
+          description: tool.description,
+          riskTier,
+          mutability: tool.riskLevel === 0 ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskLevel >= 2,
+          enabled: true,
+        });
+      }
+    } catch {
+      // H3 Extender DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

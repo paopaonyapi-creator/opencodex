@@ -161,7 +161,8 @@ import { join } from "node:path";
 // v71: parley_* Pao-hubPro × Parley Multi-Agent Work Room (Phase 21.01) — rooms, runs, timeline, file/command events, handoffs.
 // v72: mc_* Pao-hubPro Multi-Agent Mission Control (Phase 21.02) — fleet, runs, approvals, queues, dlq, incidents, audit.
 // v73: ccs_* Pao-hubPro × CC-Switch & navop_* Host-Authoritative Operations Runtime (Phase 21.03 & Navop Architecture)
-export const AGENT_OS_SCHEMA_VERSION = 73;
+// v74: h3_* Pao-hubPro × MiniMax H3 Extender Video Execution Plane (Phase 21.02 H3)
+export const AGENT_OS_SCHEMA_VERSION = 74;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -7213,6 +7214,168 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_navop_audit_trace ON navop_audit_events(trace_id);
+
+      -- Phase 21.02 — MiniMax H3 Extender Video Execution Plane
+      CREATE TABLE IF NOT EXISTS h3_projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft',
+        production_mode TEXT NOT NULL DEFAULT 'continuous', -- continuous | independent
+        workflow_template_id TEXT,
+        workflow_template_ver INTEGER NOT NULL DEFAULT 1,
+        upstream_version TEXT DEFAULT '2.8.1',
+        model_id TEXT,
+        budget_limit NUMERIC(12,6),
+        estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        actual_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        project_artifact_id TEXT,
+        created_by_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_projects_status ON h3_projects(status);
+
+      CREATE TABLE IF NOT EXISTS h3_clips (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES h3_projects(id) ON DELETE CASCADE,
+        sequence_index INTEGER NOT NULL,
+        name TEXT,
+        state TEXT NOT NULL DEFAULT 'draft', -- draft | queued | generating | preview_ready | validated | failed
+        mode TEXT NOT NULL DEFAULT 'continuous',
+        duration_seconds REAL DEFAULT 5.0,
+        prompt_structured_json TEXT NOT NULL DEFAULT '{}',
+        prompt_final TEXT,
+        seed TEXT,
+        model_id TEXT,
+        generation_hash TEXT,
+        validated_hash TEXT,
+        validated_at TEXT,
+        validated_by_id TEXT,
+        active_attempt_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(project_id, sequence_index)
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_clips_proj ON h3_clips(project_id);
+
+      CREATE TABLE IF NOT EXISTS h3_clip_attempts (
+        id TEXT PRIMARY KEY,
+        clip_id TEXT NOT NULL REFERENCES h3_clips(id) ON DELETE CASCADE,
+        attempt_number INTEGER NOT NULL,
+        generation_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', -- pending | running | success | failed
+        remote_prompt_id TEXT,
+        worker_id TEXT,
+        preview_asset_id TEXT,
+        output_asset_id TEXT,
+        failure_class TEXT,
+        failure_code TEXT,
+        failure_message TEXT,
+        estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        actual_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        started_at TEXT,
+        finished_at TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE(clip_id, attempt_number)
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_attempts_clip ON h3_clip_attempts(clip_id);
+
+      CREATE TABLE IF NOT EXISTS h3_assets (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES h3_projects(id) ON DELETE CASCADE,
+        type TEXT NOT NULL, -- video | audio | image | lora | guide
+        role TEXT, -- preview | final_clip | full_sequence | reference | guide
+        path TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        mime_type TEXT,
+        width INTEGER,
+        height INTEGER,
+        fps REAL,
+        duration_seconds REAL,
+        size_bytes BIGINT,
+        provenance_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_assets_proj ON h3_assets(project_id);
+
+      CREATE TABLE IF NOT EXISTS h3_clip_references (
+        id TEXT PRIMARY KEY,
+        clip_id TEXT NOT NULL REFERENCES h3_clips(id) ON DELETE CASCADE,
+        asset_id TEXT NOT NULL REFERENCES h3_assets(id) ON DELETE CASCADE,
+        scope TEXT NOT NULL DEFAULT 'clip', -- global | clip
+        kind TEXT NOT NULL DEFAULT 'visual', -- visual | character | style
+        slot INTEGER NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        UNIQUE(clip_id, kind, slot)
+      );
+
+      CREATE TABLE IF NOT EXISTS h3_clip_loras (
+        id TEXT PRIMARY KEY,
+        clip_id TEXT NOT NULL REFERENCES h3_clips(id) ON DELETE CASCADE,
+        lora_id TEXT NOT NULL,
+        lora_hash TEXT,
+        strength REAL NOT NULL DEFAULT 1.0,
+        order_index INTEGER NOT NULL DEFAULT 0,
+        purpose TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_loras_clip ON h3_clip_loras(clip_id);
+
+      CREATE TABLE IF NOT EXISTS h3_clip_guides (
+        id TEXT PRIMARY KEY,
+        clip_id TEXT NOT NULL REFERENCES h3_clips(id) ON DELETE CASCADE,
+        type TEXT NOT NULL, -- FL2VA | depth | pose
+        asset_id TEXT NOT NULL REFERENCES h3_assets(id) ON DELETE CASCADE,
+        frame_index INTEGER,
+        order_index INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_guides_clip ON h3_clip_guides(clip_id);
+
+      CREATE TABLE IF NOT EXISTS h3_extender_jobs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES h3_projects(id) ON DELETE CASCADE,
+        clip_id TEXT REFERENCES h3_clips(id) ON DELETE SET NULL,
+        type TEXT NOT NULL, -- generate | preflight | export | qc
+        state TEXT NOT NULL DEFAULT 'queued', -- queued | running | completed | failed | cancelled
+        worker_id TEXT,
+        remote_job_id TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        actual_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+        error_code TEXT,
+        error_message TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        started_at TEXT,
+        finished_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_ext_jobs_proj ON h3_extender_jobs(project_id);
+
+      CREATE TABLE IF NOT EXISTS h3_approvals (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES h3_projects(id) ON DELETE CASCADE,
+        clip_id TEXT REFERENCES h3_clips(id) ON DELETE SET NULL,
+        stage TEXT NOT NULL, -- preflight | clip_validation | export | stock_submission
+        decision TEXT NOT NULL, -- pending | approved | rejected
+        decided_by_id TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_approvals_proj ON h3_approvals(project_id);
+
+      CREATE TABLE IF NOT EXISTS h3_audit_events (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES h3_projects(id) ON DELETE CASCADE,
+        actor_id TEXT,
+        event_type TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        before_json TEXT,
+        after_json TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_h3_audit_proj ON h3_audit_events(project_id);
    `);
 
     // Incremental column upgrades for pre-v53 databases

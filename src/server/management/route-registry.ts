@@ -471,6 +471,13 @@ const NAVOP_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_LATEST_PAO_HUBPRO_NAVOP_ARCHITECTURE.md",
 } as const;
 
+const H3_EXTENDER_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 21.02 ships the MiniMax H3 Extender Video Execution Plane (projects, scene clips, attempts, generation hashes, validation, and MCP tools) first; advanced video timeline GUI and stock submission packaging belong to follow-up video releases.",
+  owner: "Phase 21.02 MiniMax H3 Extender",
+  ownerDoc: "docs/PHASE_21.02_PAO_HUBPRO_MINIMAX_H3_EXTENDER.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -1050,6 +1057,13 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/agent-os/navop/providers", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/navop/runtimes", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/navop/audit", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  // Phase 21.02: MiniMax H3 Extender Video Execution Plane
+  { method: "GET", path: "/api/video/h3/projects", module: "server/management/h3-extender-routes", mutates: false, exempt: H3_EXTENDER_VERB_DEFERRAL },
+  { method: "POST", path: "/api/video/h3/projects", module: "server/management/h3-extender-routes", mutates: true, exempt: H3_EXTENDER_VERB_DEFERRAL },
+  { method: "GET", path: "/api/video/h3/projects/{id}/clips", module: "server/management/h3-extender-routes", mutates: false, mechanism: "slice", exempt: H3_EXTENDER_VERB_DEFERRAL },
+  { method: "POST", path: "/api/video/h3/projects/{id}/clips", module: "server/management/h3-extender-routes", mutates: true, mechanism: "slice", exempt: H3_EXTENDER_VERB_DEFERRAL },
+  { method: "POST", path: "/api/video/h3/clips/{id}/generate", module: "server/management/h3-extender-routes", mutates: true, mechanism: "slice", exempt: H3_EXTENDER_VERB_DEFERRAL },
+  { method: "POST", path: "/api/video/h3/clips/{id}/validate", module: "server/management/h3-extender-routes", mutates: true, mechanism: "slice", exempt: H3_EXTENDER_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

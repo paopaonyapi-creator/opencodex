@@ -429,6 +429,34 @@ const MCP_FABRIC_VERB_DEFERRAL = {
   ownerDoc: "docs/PHASE_20.96_MCP_FABRIC.md",
 } as const;
 
+const OPENHERMIT_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.98 ships the OpenHermit durable multi-agent fleet runtime, state plane, sandbox fabric, SkillsGate/MCP governance sync, approval-gated deep research, and REST surface first; CLI fleet verbs belong to follow-up tooling.",
+  owner: "Phase 20.98 OpenHermit Fleet Runtime",
+  ownerDoc: "docs/Phase_20.98_Pao-hubPro_x_OpenHermit.md",
+} as const;
+
+const WHIP_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.99 ships the Mobile Agent Operations Plane, SSH/Tailscale host fabric, unified fleet, transcript projections, remote terminal/workspace, offline queue, QR pairing, and approval control plane first; native mobile application distribution belongs to downstream app packaging.",
+  owner: "Phase 20.99 Whip Mobile Operations Plane",
+  ownerDoc: "docs/Phase_20.99_Pao-hubPro_x_Whip.md",
+} as const;
+
+const UNIFIED_CONTROL_PLANE_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 21.00 ships the Unified Agent Operations Control Plane (federated agent/host registries, durable jobs, central MCP/skill governance, approval fabric, and audit stream) first; custom CLI verbs belong to downstream console integration.",
+  owner: "Phase 21.00 Unified Control Plane",
+  ownerDoc: "docs/Phase_21.00_Pao-hubPro_Unified_Agent_Operations_Control_Plane.md",
+} as const;
+
+const PARLEY_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 21.01 ships the Multi-Agent Work Room (explicit addressing, runtime identity badges, Run Inspector, 4-level tool policy, handoff timeline, and transcript exports) first; dedicated CLI workroom commands belong to follow-up tooling.",
+  owner: "Phase 21.01 Parley Multi-Agent Work Room",
+  ownerDoc: "docs/Phase_21.01_Pao-hubPro_Parley_Multi-Agent_Work_Room.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -915,6 +943,70 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "POST", path: "/api/agent-os/mcp-fabric/approvals/{id}/deny", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/mcp-fabric/skills/{id}/promote", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/mcp-fabric/tools/{id}/rollback", module: "server/management/mcp-fabric-routes", mutates: true, mechanism: "slice", exempt: MCP_FABRIC_VERB_DEFERRAL },
+  // Phase 20.98: OpenHermit Fleet Runtime
+  { method: "GET", path: "/api/agent-os/openhermit/health", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/compatibility", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/agents", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/agents", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/agents/{id}", module: "server/management/openhermit-routes", mutates: false, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/agents/{id}/start", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/agents/{id}/stop", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/agents/{id}/restart", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/agents/{id}/reconcile", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/agents/{id}/sessions", module: "server/management/openhermit-routes", mutates: false, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/agents/{id}/skills", module: "server/management/openhermit-routes", mutates: false, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/agents/{id}/mcp", module: "server/management/openhermit-routes", mutates: false, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/sessions", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/sessions/{id}/message", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/sessions/{id}/checkpoint", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/sessions/{id}/resume", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/sessions/{id}/close", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/approvals", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/approvals/{id}/approve", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/approvals/{id}/reject", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/fleet/impact", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/fleet/execute", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/research/create", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/research/{id}/approve", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/research/{id}/execute", module: "server/management/openhermit-routes", mutates: true, mechanism: "slice", exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/skills/assign", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/openhermit/mcp/assign", module: "server/management/openhermit-routes", mutates: true, exempt: OPENHERMIT_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/openhermit/events", module: "server/management/openhermit-routes", mutates: false, exempt: OPENHERMIT_VERB_DEFERRAL },
+  // Phase 20.99: Pao-hubPro × Whip Mobile Agent Operations Plane
+  { method: "GET", path: "/api/agent-os/whip/hosts", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/hosts", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/fleet", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/transcripts", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/transcripts/turn", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/terminals", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/terminals", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/pairing/create", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/pairing/complete", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/approvals", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/approvals/{id}/decide", module: "server/management/whip-routes", mutates: true, mechanism: "slice", exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/queue", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/whip/queue", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/whip/audit", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  // Phase 21.00: Unified Agent Operations Control Plane
+  { method: "GET", path: "/api/agent-os/unified/agents", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/unified/agents", module: "server/management/unified-control-plane-routes", mutates: true, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/unified/hosts", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/unified/hosts", module: "server/management/unified-control-plane-routes", mutates: true, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/unified/jobs", module: "server/management/unified-control-plane-routes", mutates: true, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/unified/approvals/{id}/decide", module: "server/management/unified-control-plane-routes", mutates: true, mechanism: "slice", exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/unified/mcp/tools", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/unified/skills", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/unified/audit", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
+  // Phase 21.01: Pao-hubPro × Parley Multi-Agent Work Room
+  { method: "GET", path: "/api/agent-os/parley/rooms", module: "server/management/parley-routes", mutates: false, exempt: PARLEY_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/parley/rooms", module: "server/management/parley-routes", mutates: true, exempt: PARLEY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/parley/rooms/{id}", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/parley/rooms/{id}/messages", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/parley/rooms/{id}/messages", module: "server/management/parley-routes", mutates: true, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/parley/rooms/{id}/agents", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/parley/rooms/{id}/agents", module: "server/management/parley-routes", mutates: true, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/parley/rooms/{id}/export", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/parley/runs/{id}/inspector", module: "server/management/parley-routes", mutates: false, mechanism: "slice", exempt: PARLEY_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

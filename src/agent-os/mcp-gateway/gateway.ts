@@ -439,6 +439,114 @@ export class McpToolGateway {
     } catch {
       // Fabric DB may not be initialized in all environments.
     }
+
+    // Phase 20.98: register OpenHermit fleet runtime control-plane tools
+    this.registerServer({
+      id: "openhermit",
+      name: "Pao-hubPro OpenHermit Fleet Runtime (Phase 20.98)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createOpenHermitMcpTools } = require("../openhermit/mcp-tools") as typeof import("../openhermit/mcp-tools");
+      const hermitTools = createOpenHermitMcpTools();
+      for (const tool of hermitTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "openhermit",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // OpenHermit DB may not be initialized in all environments.
+    }
+
+    // Phase 20.99: register Whip Mobile Operations Console tools
+    this.registerServer({
+      id: "whip",
+      name: "Pao-hubPro Whip Mobile Operations Console (Phase 20.99)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createWhipMcpTools } = require("../whip/mcp-tools") as typeof import("../whip/mcp-tools");
+      const whipTools = createWhipMcpTools();
+      for (const tool of whipTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "whip",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Whip DB may not be initialized in all environments.
+    }
+
+    // Phase 21.00: register Unified Control Plane tools
+    this.registerServer({
+      id: "unified_control_plane",
+      name: "Pao-hubPro Unified Agent Operations Control Plane (Phase 21.00)",
+      transport: "stdio",
+      trustScore: 95,
+      status: "active",
+    });
+
+    try {
+      const { createUnifiedControlPlaneMcpTools } = require("../control-plane/unified-mcp-tools") as typeof import("../control-plane/unified-mcp-tools");
+      const uapTools = createUnifiedControlPlaneMcpTools();
+      for (const tool of uapTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "unified_control_plane",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // UAP DB may not be initialized in all environments.
+    }
+
+    // Phase 21.01: register Parley Multi-Agent Work Room tools
+    this.registerServer({
+      id: "parley",
+      name: "Pao-hubPro Parley Multi-Agent Work Room (Phase 21.01)",
+      transport: "stdio",
+      trustScore: 90,
+      status: "active",
+    });
+
+    try {
+      const { createParleyMcpTools } = require("../parley/mcp-tools") as typeof import("../parley/mcp-tools");
+      const parleyTools = createParleyMcpTools();
+      for (const tool of parleyTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "parley",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" || tool.riskTier === "R1" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Parley DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

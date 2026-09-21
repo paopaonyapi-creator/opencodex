@@ -344,6 +344,30 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleMcpFabricRoutes(ctx);
   }
 
+  // Phase 20.98: OpenHermit durable multi-agent fleet runtime.
+  if (url.pathname.startsWith("/api/agent-os/openhermit") || url.pathname === "/api/agent-os/openhermit") {
+    const { handleOpenHermitRoutes } = await import("./openhermit-routes");
+    return handleOpenHermitRoutes(ctx);
+  }
+
+  // Phase 20.99: Pao-hubPro × Whip Mobile Agent Operations Plane.
+  if (url.pathname.startsWith("/api/agent-os/whip") || url.pathname === "/api/agent-os/whip") {
+    const { handleWhipRoutes } = await import("./whip-routes");
+    return handleWhipRoutes(ctx);
+  }
+
+  // Phase 21.00: Unified Agent Operations Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/unified") || url.pathname === "/api/agent-os/unified") {
+    const { handleUnifiedControlPlaneRoutes } = await import("./unified-control-plane-routes");
+    return handleUnifiedControlPlaneRoutes(ctx);
+  }
+
+  // Phase 21.01: Pao-hubPro × Parley Multi-Agent Work Room.
+  if (url.pathname.startsWith("/api/agent-os/parley") || url.pathname === "/api/agent-os/parley") {
+    const { handleParleyRoutes } = await import("./parley-routes");
+    return handleParleyRoutes(ctx);
+  }
+
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {
     const { getModelGateway } = await import("../../agent-os/model-gateway/gateway");

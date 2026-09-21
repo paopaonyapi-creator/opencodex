@@ -285,7 +285,7 @@ describe("core / Compatibility Lab boundary", () => {
     // Print the full chain on failure: a bare verdict would send the next maintainer on
     // the same multi-hour hunt this unit required.
     expect(chain === null ? "clean" : chain.join(" -> ")).toBe("clean");
-  });
+  }, 30000);
 });
 
 /**

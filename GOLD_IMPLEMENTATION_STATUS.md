@@ -161,3 +161,41 @@ After baseline test completes: execute W1 (typecheck repair, 5 files), re-run `b
 - Evidence: 162/162 focused backend tests, 12/12 gateway-doctor tests, 4/4 GUI contract tests; definitive full suite 18,838 pass / 282 fail / 64 skip with every failure in the pre-existing Windows EBUSY temp-dir class (stash-verified on clean HEAD) and zero in Phase 20.82 subsystems.
 - Authoritative docs: `docs/PHASE_20.82_AFT_SENSORIMOTOR_RUNTIME.md` (runbook + live-validation commands), `docs/REMAINING_GAPS.md` (DONE / ENVIRONMENTAL-EXTERNAL / REQUIRES-LIVE-PROVIDER / DEFERRED ledger), `PHASE_IMPLEMENTATION_MATRIX.md` (20.82/20.84/20.85 rows).
 - External prerequisites carried forward, honestly documented: OmniRoute daemon deployment (validate: `ocx gateway doctor --probe`) and TypeSafe Jev early-access schema + credentials (validate: staged readiness report).
+
+## 11. Phase 20.98 Pao-hubPro × OpenHermit Fleet Runtime — CLOSED (2026-09-20)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** Adapter Boundary PASS · Schema v68 PASS · Policy & Approvals PASS · Crash Recovery PASS · Deep Research PASS · Sandbox Fabric PASS · Skills/MCP Governance PASS · REST/MCP Parity PASS.
+
+- Architecture: OpenHermit integrated as replaceable `HermitRuntimeProvider` backend; Pao-hubPro remains sole platform authority (identity, policy, exact-action approvals, SkillsGate, MCP governance, credential leases).
+- Evidence: 36/36 tests in `tests/openhermit.test.ts` (28) and `tests/openhermit-resilience.test.ts` (8) pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass; clean `bun run typecheck`.
+- State Plane: Schema v68 with 14 `oh_*` tables (`oh_agents`, `oh_instances`, `oh_sessions`, `oh_operations`, `oh_approvals`, `oh_agent_skills`, `oh_agent_mcp`, `oh_research_runs`, `oh_research_sources`, `oh_research_claims`, `oh_research_evidence`, `oh_channels`, `oh_schedules`, `oh_events`). Stable Pao Agent IDs (`oha_*`) independent of runtime IDs.
+- Authoritative docs: `docs/Phase_20.98_Pao-hubPro_x_OpenHermit.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
+- Live Gateway Classification: LOCAL IMPLEMENTATION: COMPLETE · LIVE GATEWAY E2E: BLOCKED / NOT TESTED (no remote gateway in local environment).
+
+## 12. Phase 20.99 Pao-hubPro × Whip Mobile Operations Console — CLOSED (2026-09-20)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** Clean-Room AGPL Boundary PASS · Schema v69 PASS · Strict SSH Host Key Trust PASS · Generation Guard PASS · Unified Fleet PASS · Transcript Projection PASS · Terminal Gateway PASS · Atomic SFTP PASS · Offline Queue Recheck PASS · QR Device Pairing PASS · Policy-Governed Approvals PASS · REST/MCP Parity PASS.
+
+- Architecture: Clean-room adaptation of Whip patterns without copying AGPL source. Mobile app is a projection/approval surface; host runtime owns connection and execution truth.
+- Evidence: 17/17 tests in `tests/whip.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass; clean `bun run typecheck`.
+- State Plane: Schema v69 with 9 `whip_*` tables (`whip_hosts`, `whip_trusted_keys`, `whip_devices`, `whip_pairing_sessions`, `whip_transcripts`, `whip_terminals`, `whip_queued_intents`, `whip_approvals`, `whip_audit_events`).
+- Authoritative docs: `docs/Phase_20.99_Pao-hubPro_x_Whip.md`, `PHASE_20.99_COMPLETION_REPORT.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
+
+## 13. Phase 21.00 Pao-hubPro Unified Agent Operations Control Plane — CLOSED (2026-09-20)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** Cross-Host Federation PASS · Schema v70 PASS · Durable Jobs PASS · Central MCP & Skill Governance PASS · Human Approval Fabric PASS · Context Replay Safety PASS · Idempotency PASS · End-to-End Audit Correlation PASS · 18 Mandatory Security Invariants PASS · REST/MCP Parity PASS.
+
+- Architecture: Consolidates Phase 20.98 (OpenHermit durable runtime), Phase 20.99 (Whip mobile console & secure host fabric), and Pao-hubPro Core into one coherent operational, policy, approval, and audit platform.
+- Evidence: 24/24 tests across `tests/unified-control-plane.test.ts` (13) and `tests/unified-security-invariants.test.ts` (11); 17/17 in `tests/whip.test.ts`; 36/36 in `tests/openhermit*.test.ts`; 13/13 in `tests/management-route-registry.test.ts`; 17/17 in `tests/core-lab-boundary.test.ts`. Definite total: 107 pass / 0 fail. Clean `bun run typecheck`.
+- State Plane: Schema v70 with 9 `uap_*` tables (`uap_agents`, `uap_hosts`, `uap_jobs`, `uap_mcp_servers`, `uap_mcp_tools`, `uap_skills`, `uap_approvals`, `uap_audit_events`, `uap_idempotency_keys`).
+- Authoritative docs: `docs/Phase_21.00_Pao-hubPro_Unified_Agent_Operations_Control_Plane.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.
+- Exit Gate Status: ALL 18 FINAL VERIFICATION CRITERIA VERIFIED AND PASSED. Ready for Phase 21.01.
+
+## 14. Phase 21.01 Pao-hubPro × Parley Multi-Agent Work Room — CLOSED (2026-09-20)
+
+**Final verdict: PRODUCTION-READY / CLOSED.** Canonical Numbering Collision Resolved PASS · Schema v71 PASS · Multi-Agent Addressing PASS · Runtime Identity Badge PASS · Immutable Snapshot PASS · 4-Level Tool Policy PASS · Run Inspector Timeline PASS · Handoff Chain PASS · Markdown Export PASS · REST/MCP Parity PASS.
+
+- Architecture: Multi-Agent Work Room coordination surface where Pao-hubPro Runtime is the authoritative source of truth for providers, models, permissions, token costs, and tool execution. Explicit multi-agent addressing (@codex, @claude, @both, @all, @reviewers, @builders) and 4-level execution policies (L0 Safe, L1 Workspace, L2 Network, L3 Dangerous).
+- Evidence: 8/8 tests in `tests/parley.test.ts` pass; 11/11 in `tests/unified-security-invariants.test.ts` pass; 13/13 in `tests/unified-control-plane.test.ts` pass; 17/17 in `tests/whip.test.ts` pass; 36/36 in `tests/openhermit*.test.ts` pass; 13/13 in `tests/management-route-registry.test.ts` pass; 17/17 in `tests/core-lab-boundary.test.ts` pass. Definite total: 115 pass / 0 fail. Clean `bun run typecheck`.
+- State Plane: Schema v71 with 8 `parley_*` tables (`parley_rooms`, `parley_room_agents`, `parley_messages`, `parley_runs`, `parley_tool_calls`, `parley_file_events`, `parley_command_events`, `parley_handoffs`).
+- Authoritative docs: `docs/Phase_21.01_Pao-hubPro_Parley_Multi-Agent_Work_Room.md`, `PHASE_21.01_COMPLETION_REPORT.md`, `PHASE_IMPLEMENTATION_MATRIX.md`.

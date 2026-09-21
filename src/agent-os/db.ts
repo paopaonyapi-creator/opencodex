@@ -154,7 +154,12 @@ import { join } from "node:path";
 // v53: cr_sessions parent/revision lineage.
 // v54: gw_* Model Gateway (Phase 20.85 OmniRoute), dec_* Decision Runtime (Phase 20.84 TypeSafe Jev) & core_* Durable Persistence.
 // v55: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
-export const AGENT_OS_SCHEMA_VERSION = 67;
+// v56: sm_* Sensorimotor runtime (Phase 20.82 CortexKit AFT) — perception snapshots, actions, checkpoints.
+// v68: oh_* OpenHermit fleet runtime (Phase 20.98) — agents, sessions, operations, approvals, research ledgers.
+// v69: whip_* Pao-hubPro × Whip mobile agent operations plane (Phase 20.99) — host fabric, trusted keys, transcripts, queued intents, pairing.
+// v70: uap_* Pao-hubPro Unified Agent Operations Control Plane (Phase 21.00) — cross-host federation, central MCP & skill governance, durable jobs, audit stream.
+// v71: parley_* Pao-hubPro × Parley Multi-Agent Work Room (Phase 21.01) — rooms, runs, timeline, file/command events, handoffs.
+export const AGENT_OS_SCHEMA_VERSION = 71;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -6260,6 +6265,665 @@ function migrate(db: Database): void {
       CREATE TABLE IF NOT EXISTS amf_kg_candidates (id TEXT PRIMARY KEY, connector_id TEXT, tool_id TEXT, relation TEXT NOT NULL, confidence REAL NOT NULL, status TEXT NOT NULL, reviewer TEXT, created_at TEXT NOT NULL, decided_at TEXT);
       CREATE TABLE IF NOT EXISTS amf_skill_candidates (id TEXT PRIMARY KEY, title TEXT NOT NULL, workflow_json TEXT NOT NULL, status TEXT NOT NULL, actor TEXT, reviewer TEXT, created_at TEXT NOT NULL, decided_at TEXT);
       CREATE TABLE IF NOT EXISTS amf_events (id TEXT PRIMARY KEY, connector_id TEXT, tool_id TEXT, event_type TEXT NOT NULL, actor TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
+
+      -- v68: Phase 20.98 OpenHermit Fleet Runtime -------------------------
+      CREATE TABLE IF NOT EXISTS oh_agents (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        desired_state TEXT NOT NULL,
+        runtime_state TEXT NOT NULL,
+        runtime_provider TEXT,
+        runtime_agent_id TEXT,
+        runtime_instance_id TEXT,
+        blueprint_version INTEGER NOT NULL DEFAULT 1,
+        policy_profile TEXT NOT NULL DEFAULT 'default',
+        approval_profile TEXT NOT NULL DEFAULT 'default',
+        instruction_digest TEXT NOT NULL,
+        drift TEXT,
+        last_activity_at TEXT,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_agents_ws ON oh_agents(workspace_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_oh_agents_runtime ON oh_agents(runtime_provider, runtime_agent_id);
+
+      CREATE TABLE IF NOT EXISTS oh_instances (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        token_ref TEXT,
+        version TEXT,
+        health TEXT NOT NULL DEFAULT 'unknown',
+        required_missing_json TEXT NOT NULL DEFAULT '[]',
+        capabilities_json TEXT NOT NULL DEFAULT '{}',
+        registered_at TEXT NOT NULL,
+        last_checked_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS oh_sessions (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES oh_agents(id) ON DELETE CASCADE,
+        runtime_session_id TEXT,
+        status TEXT NOT NULL,
+        trace_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        checkpoint_json TEXT,
+        message_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        closed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_sessions_agent ON oh_sessions(agent_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_oh_sessions_runtime ON oh_sessions(runtime_session_id);
+
+      CREATE TABLE IF NOT EXISTS oh_operations (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT REFERENCES oh_agents(id) ON DELETE SET NULL,
+        session_id TEXT REFERENCES oh_sessions(id) ON DELETE SET NULL,
+        kind TEXT NOT NULL,
+        state TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        attempt INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        side_effect TEXT NOT NULL DEFAULT 'none',
+        checkpoint_json TEXT,
+        request_json TEXT NOT NULL,
+        result_json TEXT,
+        error_redacted TEXT,
+        approval_id TEXT,
+        trace_id TEXT NOT NULL,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_ops_state ON oh_operations(state, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_oh_ops_agent ON oh_operations(agent_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS oh_approvals (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT,
+        operation_id TEXT,
+        action TEXT NOT NULL,
+        target TEXT NOT NULL,
+        action_hash TEXT NOT NULL,
+        args_redacted_json TEXT NOT NULL,
+        risk TEXT NOT NULL,
+        ttl_ms INTEGER NOT NULL,
+        expires_at TEXT,
+        state TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT,
+        consumed_at TEXT,
+        superseded_by TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_appr_state ON oh_approvals(state, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_oh_appr_hash ON oh_approvals(action_hash, state);
+
+      CREATE TABLE IF NOT EXISTS oh_agent_skills (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES oh_agents(id) ON DELETE CASCADE,
+        skill_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        provenance_hash TEXT NOT NULL,
+        risk_class TEXT NOT NULL,
+        status TEXT NOT NULL,
+        assigned_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(agent_id, skill_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS oh_agent_mcp (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES oh_agents(id) ON DELETE CASCADE,
+        server_id TEXT NOT NULL,
+        tool_name TEXT,
+        capability_json TEXT NOT NULL,
+        risk_class TEXT NOT NULL,
+        status TEXT NOT NULL,
+        assigned_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_agent_mcp ON oh_agent_mcp(agent_id, server_id);
+
+      CREATE TABLE IF NOT EXISTS oh_research_runs (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT REFERENCES oh_agents(id) ON DELETE SET NULL,
+        question TEXT NOT NULL,
+        state TEXT NOT NULL,
+        plan_json TEXT,
+        plan_hash TEXT,
+        plan_approved_by TEXT,
+        budget_json TEXT NOT NULL,
+        spent_json TEXT NOT NULL,
+        report_json TEXT,
+        checkpoint_json TEXT,
+        council_json TEXT,
+        error_redacted TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_research_state ON oh_research_runs(state, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS oh_research_sources (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES oh_research_runs(id) ON DELETE CASCADE,
+        uri TEXT NOT NULL,
+        title TEXT,
+        content_hash TEXT NOT NULL,
+        excerpt TEXT NOT NULL,
+        status TEXT NOT NULL,
+        rejection_reason TEXT,
+        flagged INTEGER NOT NULL DEFAULT 0,
+        acquired_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_sources_run ON oh_research_sources(run_id, content_hash);
+
+      CREATE TABLE IF NOT EXISTS oh_research_claims (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES oh_research_runs(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_claims_run ON oh_research_claims(run_id);
+
+      CREATE TABLE IF NOT EXISTS oh_research_evidence (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES oh_research_runs(id) ON DELETE CASCADE,
+        source_id TEXT NOT NULL REFERENCES oh_research_sources(id) ON DELETE CASCADE,
+        claim_id TEXT REFERENCES oh_research_claims(id) ON DELETE SET NULL,
+        excerpt TEXT NOT NULL,
+        location TEXT NOT NULL,
+        support TEXT NOT NULL,
+        relevance REAL NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_evidence_claim ON oh_research_evidence(claim_id);
+      CREATE INDEX IF NOT EXISTS idx_oh_evidence_source ON oh_research_evidence(source_id);
+
+      CREATE TABLE IF NOT EXISTS oh_channels (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        channel_identity TEXT NOT NULL,
+        pao_identity TEXT NOT NULL,
+        agent_id TEXT REFERENCES oh_agents(id) ON DELETE SET NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(channel, channel_identity)
+      );
+
+      CREATE TABLE IF NOT EXISTS oh_schedules (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL REFERENCES oh_agents(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        interval_ms INTEGER,
+        next_due_ms INTEGER,
+        last_run_ms INTEGER,
+        status TEXT NOT NULL DEFAULT 'active',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_schedules_due ON oh_schedules(status, next_due_ms);
+
+      CREATE TABLE IF NOT EXISTS oh_events (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        agent_id TEXT,
+        session_id TEXT,
+        operation_id TEXT,
+        actor TEXT NOT NULL,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_oh_events_type ON oh_events(event_type, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_oh_events_agent ON oh_events(agent_id, created_at DESC);
+
+      -- v69: Phase 20.99 Pao-hubPro × Whip Mobile Agent Operations Plane ---
+      CREATE TABLE IF NOT EXISTS whip_hosts (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL DEFAULT 22,
+        username TEXT NOT NULL,
+        credential_ref TEXT,
+        jump_route_json TEXT NOT NULL DEFAULT '[]',
+        tailscale_ip TEXT,
+        status TEXT NOT NULL DEFAULT 'offline',
+        runtime_generation INTEGER NOT NULL DEFAULT 1,
+        last_connected_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_hosts_status ON whip_hosts(status);
+
+      CREATE TABLE IF NOT EXISTS whip_trusted_keys (
+        id TEXT PRIMARY KEY,
+        host_id TEXT NOT NULL REFERENCES whip_hosts(id) ON DELETE CASCADE,
+        hop_index INTEGER NOT NULL DEFAULT 0,
+        algorithm TEXT NOT NULL,
+        fingerprint_sha256 TEXT NOT NULL,
+        trust_status TEXT NOT NULL DEFAULT 'known_good', -- known_good | unknown | changed | revoked
+        approved_at TEXT NOT NULL,
+        approved_by TEXT NOT NULL,
+        UNIQUE(host_id, hop_index, fingerprint_sha256)
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_keys_host ON whip_trusted_keys(host_id);
+
+      CREATE TABLE IF NOT EXISTS whip_devices (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        public_key TEXT NOT NULL UNIQUE,
+        platform TEXT NOT NULL,
+        device_model_hint TEXT,
+        biometric_enabled INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active', -- active | revoked | pending
+        policy_scope_json TEXT NOT NULL DEFAULT '["*"]',
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT,
+        revoked_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS whip_pairing_sessions (
+        id TEXT PRIMARY KEY,
+        pairing_code TEXT NOT NULL UNIQUE,
+        verification_phrase TEXT NOT NULL,
+        host_hint TEXT NOT NULL,
+        port INTEGER NOT NULL DEFAULT 22,
+        ephemeral_public_key TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending', -- pending | paired | expired | revoked
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_pairing_state ON whip_pairing_sessions(state, expires_at);
+
+      CREATE TABLE IF NOT EXISTS whip_transcripts (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        runtime TEXT NOT NULL, -- codex | opencode | pao-native | openhermit
+        revision INTEGER NOT NULL DEFAULT 1,
+        source_state TEXT NOT NULL DEFAULT 'live',
+        turns_json TEXT NOT NULL DEFAULT '[]',
+        checkpoint TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE(agent_id, session_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_transcripts_session ON whip_transcripts(session_id);
+
+      CREATE TABLE IF NOT EXISTS whip_terminals (
+        id TEXT PRIMARY KEY,
+        host_id TEXT NOT NULL,
+        agent_id TEXT,
+        session_id TEXT,
+        pane_id TEXT,
+        cwd TEXT,
+        status TEXT NOT NULL DEFAULT 'active', -- active | disconnected | closed
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS whip_queued_intents (
+        id TEXT PRIMARY KEY,
+        host_id TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        target_ref_json TEXT NOT NULL,
+        semantic_action TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        encrypted_payload_ref TEXT NOT NULL,
+        context_revision INTEGER NOT NULL DEFAULT 1,
+        risk_class TEXT NOT NULL DEFAULT 'R1',
+        state TEXT NOT NULL DEFAULT 'queued_local', -- draft | queued_local | policy_recheck | sending | sent | needs_review | rejected | failed_policy
+        rejection_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_queue_state ON whip_queued_intents(state, created_at);
+
+      CREATE TABLE IF NOT EXISTS whip_approvals (
+        id TEXT PRIMARY KEY,
+        host_id TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        agent_id TEXT,
+        session_id TEXT,
+        action TEXT NOT NULL,
+        target TEXT NOT NULL,
+        human_summary TEXT NOT NULL,
+        exact_payload_hash TEXT NOT NULL,
+        risk TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | denied | expired | cancelled
+        biometric_verified INTEGER NOT NULL DEFAULT 0,
+        policy_version TEXT NOT NULL DEFAULT '2026-09-20.1',
+        expires_at TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_appr_state ON whip_approvals(status, expires_at);
+
+      CREATE TABLE IF NOT EXISTS whip_audit_events (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        host_id TEXT NOT NULL,
+        device_id TEXT,
+        agent_id TEXT,
+        session_id TEXT,
+        action TEXT NOT NULL,
+        risk TEXT NOT NULL,
+        approval_id TEXT,
+        policy_version TEXT,
+        payload_hash TEXT,
+        result TEXT NOT NULL,
+        correlation_id TEXT NOT NULL,
+        sanitized_payload_json TEXT NOT NULL DEFAULT '{}',
+        timestamp TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_whip_audit_corr ON whip_audit_events(correlation_id);
+      CREATE INDEX IF NOT EXISTS idx_whip_audit_ts ON whip_audit_events(timestamp DESC);
+
+      -- v70: Phase 21.00 Pao-hubPro Unified Agent Operations Control Plane ---
+      CREATE TABLE IF NOT EXISTS uap_agents (
+        agent_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        runtime_type TEXT NOT NULL, -- codex | opencode | openhermit | pao-native | custom
+        provider TEXT NOT NULL,
+        model TEXT,
+        host_id TEXT NOT NULL,
+        sandbox_id TEXT,
+        status TEXT NOT NULL DEFAULT 'registered', -- registered | starting | ready | busy | paused | degraded | offline | stopping | stopped | failed | quarantined
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        skill_bindings_json TEXT NOT NULL DEFAULT '[]',
+        mcp_bindings_json TEXT NOT NULL DEFAULT '[]',
+        policy_profile_id TEXT NOT NULL DEFAULT 'default',
+        credential_scope_id TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_agents_status ON uap_agents(status);
+      CREATE INDEX IF NOT EXISTS idx_uap_agents_host ON uap_agents(host_id);
+
+      CREATE TABLE IF NOT EXISTS uap_hosts (
+        host_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        host_type TEXT NOT NULL, -- local_pc | vps | runpod | browser | remote_linux | worker_node
+        os_family TEXT NOT NULL, -- linux | darwin | windows
+        architecture TEXT NOT NULL, -- x86_64 | arm64
+        connection_mode TEXT NOT NULL, -- direct | tailscale | ssh_jump | vpn
+        tailscale_identity TEXT,
+        ssh_profile_ref TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', -- pending | pairing | online | degraded | offline | revoked | quarantined
+        trust_level TEXT NOT NULL DEFAULT 'MANAGED_REMOTE', -- TRUSTED_LOCAL | TRUSTED_PRIVATE | MANAGED_REMOTE | EPHEMERAL_CLOUD | UNTRUSTED | QUARANTINED
+        capabilities_json TEXT NOT NULL DEFAULT '[]',
+        labels_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_hosts_status ON uap_hosts(status);
+      CREATE INDEX IF NOT EXISTS idx_uap_hosts_trust ON uap_hosts(trust_level);
+
+      CREATE TABLE IF NOT EXISTS uap_jobs (
+        job_id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        causation_id TEXT,
+        job_type TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        agent_id TEXT REFERENCES uap_agents(agent_id) ON DELETE SET NULL,
+        host_id TEXT NOT NULL REFERENCES uap_hosts(host_id) ON DELETE RESTRICT,
+        status TEXT NOT NULL DEFAULT 'queued', -- queued | awaiting_policy | awaiting_approval | approved | dispatching | running | paused | retry_wait | needs_review | succeeded | failed | cancelled | expired
+        priority INTEGER NOT NULL DEFAULT 5,
+        payload_ref TEXT,
+        policy_snapshot_id TEXT,
+        approval_id TEXT,
+        attempt INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        checkpoint_ref TEXT,
+        result_ref TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        updated_at TEXT NOT NULL,
+        finished_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_jobs_corr ON uap_jobs(correlation_id);
+      CREATE INDEX IF NOT EXISTS idx_uap_jobs_status ON uap_jobs(status, priority DESC);
+      CREATE INDEX IF NOT EXISTS idx_uap_jobs_agent ON uap_jobs(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_uap_jobs_host ON uap_jobs(host_id);
+
+      CREATE TABLE IF NOT EXISTS uap_mcp_servers (
+        mcp_server_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        transport TEXT NOT NULL, -- stdio | sse | http
+        endpoint_ref TEXT,
+        auth_ref TEXT,
+        trust_level TEXT NOT NULL DEFAULT 'standard',
+        environment TEXT NOT NULL DEFAULT 'production',
+        status TEXT NOT NULL DEFAULT 'active',
+        tool_count INTEGER NOT NULL DEFAULT 0,
+        policy_profile_id TEXT NOT NULL DEFAULT 'default',
+        source TEXT,
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_verified_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS uap_mcp_tools (
+        tool_id TEXT PRIMARY KEY,
+        mcp_server_id TEXT NOT NULL REFERENCES uap_mcp_servers(mcp_server_id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        risk_class TEXT NOT NULL, -- R0_READ_ONLY | R1_LOW_RISK | R2_CONTROLLED_WRITE | R3_SENSITIVE | R4_PRIVILEGED
+        requires_approval INTEGER NOT NULL DEFAULT 0,
+        allowed_agent_classes_json TEXT NOT NULL DEFAULT '["*"]',
+        allowed_host_classes_json TEXT NOT NULL DEFAULT '["*"]',
+        input_schema_hash TEXT NOT NULL,
+        output_schema_hash TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(mcp_server_id, name)
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_mcp_tools_risk ON uap_mcp_tools(risk_class);
+
+      CREATE TABLE IF NOT EXISTS uap_skills (
+        skill_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        version TEXT NOT NULL,
+        source TEXT NOT NULL,
+        runtime TEXT NOT NULL,
+        entrypoint TEXT NOT NULL,
+        capability_tags_json TEXT NOT NULL DEFAULT '[]',
+        risk_class TEXT NOT NULL,
+        required_tools_json TEXT NOT NULL DEFAULT '[]',
+        required_credentials_json TEXT NOT NULL DEFAULT '[]',
+        allowed_agents_json TEXT NOT NULL DEFAULT '["*"]',
+        allowed_hosts_json TEXT NOT NULL DEFAULT '["*"]',
+        policy_profile_id TEXT NOT NULL DEFAULT 'default',
+        status TEXT NOT NULL DEFAULT 'verified', -- discovered | pending_review | verified | enabled | disabled | deprecated | quarantined
+        checksum TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS uap_approvals (
+        approval_id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        request_type TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        risk_class TEXT NOT NULL,
+        requested_by TEXT NOT NULL,
+        context_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected | expired | revoked | consumed
+        decided_by TEXT,
+        decided_at TEXT,
+        decision_reason TEXT,
+        policy_snapshot_id TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_appr_state ON uap_approvals(status, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_uap_appr_corr ON uap_approvals(correlation_id);
+
+      CREATE TABLE IF NOT EXISTS uap_audit_events (
+        event_id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        causation_id TEXT,
+        event_type TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        agent_id TEXT,
+        host_id TEXT,
+        job_id TEXT,
+        approval_id TEXT,
+        resource_type TEXT,
+        resource_id TEXT,
+        risk_class TEXT,
+        policy_id TEXT,
+        policy_version TEXT,
+        outcome TEXT NOT NULL, -- success | denied | failed | cancelled
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_uap_audit_corr ON uap_audit_events(correlation_id);
+      CREATE INDEX IF NOT EXISTS idx_uap_audit_ts ON uap_audit_events(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS uap_idempotency_keys (
+        key TEXT PRIMARY KEY,
+        operation_fingerprint TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      -- v71: Phase 21.01 Pao-hubPro × Parley Multi-Agent Work Room ---------
+      CREATE TABLE IF NOT EXISTS parley_rooms (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'WORK', -- TALK | WORK | REVIEW | RESEARCH | AUTOPILOT
+        workspace_path TEXT NOT NULL,
+        permission_profile TEXT NOT NULL DEFAULT 'workspace-write', -- read-only | workspace-write | reviewer | admin-approved
+        auto_turns_limit INTEGER NOT NULL DEFAULT 4,
+        budget_limit_usd REAL NOT NULL DEFAULT 3.00,
+        budget_spent_usd REAL NOT NULL DEFAULT 0.00,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_rooms_mode ON parley_rooms(mode);
+
+      CREATE TABLE IF NOT EXISTS parley_room_agents (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES parley_rooms(id) ON DELETE CASCADE,
+        agent_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'builder',
+        provider TEXT NOT NULL,
+        actual_model_id TEXT NOT NULL,
+        endpoint_profile TEXT NOT NULL DEFAULT 'default',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        priority INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        UNIQUE(room_id, agent_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_room_agents_room ON parley_room_agents(room_id);
+
+      CREATE TABLE IF NOT EXISTS parley_messages (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES parley_rooms(id) ON DELETE CASCADE,
+        sender_type TEXT NOT NULL, -- user | agent | system
+        sender_id TEXT NOT NULL,
+        sender_display_name TEXT NOT NULL,
+        addressed_to TEXT, -- @codex | @claude | @both | @all
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_messages_room ON parley_messages(room_id, created_at ASC);
+
+      CREATE TABLE IF NOT EXISTS parley_runs (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES parley_rooms(id) ON DELETE CASCADE,
+        agent_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        actual_model_id TEXT NOT NULL,
+        endpoint_profile TEXT NOT NULL,
+        permission_profile TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued', -- queued | routing | running | awaiting_approval | paused | retrying | completed | failed | cancelled
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        duration_ms INTEGER,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_tokens INTEGER NOT NULL DEFAULT 0,
+        estimated_cost_usd REAL NOT NULL DEFAULT 0.00,
+        runtime_snapshot_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_runs_room ON parley_runs(room_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS parley_tool_calls (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES parley_runs(id) ON DELETE CASCADE,
+        tool_name TEXT NOT NULL,
+        action TEXT NOT NULL,
+        risk_level INTEGER NOT NULL DEFAULT 0, -- 0: Safe, 1: Workspace, 2: Network, 3: Dangerous
+        input_redacted_json TEXT NOT NULL DEFAULT '{}',
+        output_summary TEXT,
+        status TEXT NOT NULL DEFAULT 'completed', -- completed | failed | blocked
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_tool_calls_run ON parley_tool_calls(run_id);
+
+      CREATE TABLE IF NOT EXISTS parley_file_events (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES parley_runs(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        operation TEXT NOT NULL, -- read | create | modify | delete
+        diff_patch TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_file_events_run ON parley_file_events(run_id);
+
+      CREATE TABLE IF NOT EXISTS parley_command_events (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES parley_runs(id) ON DELETE CASCADE,
+        command_redacted TEXT NOT NULL,
+        cwd TEXT NOT NULL,
+        exit_code INTEGER NOT NULL DEFAULT 0,
+        stdout_summary TEXT,
+        stderr_summary TEXT,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_command_events_run ON parley_command_events(run_id);
+
+      CREATE TABLE IF NOT EXISTS parley_handoffs (
+        id TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL REFERENCES parley_rooms(id) ON DELETE CASCADE,
+        from_run_id TEXT NOT NULL,
+        from_agent_id TEXT NOT NULL,
+        to_agent_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        artifacts_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_parley_handoffs_room ON parley_handoffs(room_id);
    `);
 
     // Incremental column upgrades for pre-v53 databases

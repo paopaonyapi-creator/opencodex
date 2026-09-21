@@ -204,3 +204,21 @@ export interface CcsConfigProjection {
   status: "preview" | "applied" | "restored";
   createdAt: string;
 }
+
+export interface CcsRuntimeConfigView {
+  runtimeType: "codex" | "claude";
+  targetPath: string;
+  exists: boolean;
+  model?: string | null;
+  baseUrl?: string | null;
+  drift: boolean;
+  projectedText: string;
+}
+
+export interface CcsCredentialRef {
+  id: string;
+  providerId: string;
+  secretRef: string;
+  envelope: Record<string, unknown>;
+  createdAt: string;
+}

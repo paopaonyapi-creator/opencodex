@@ -1,6 +1,10 @@
 // Phase Navop & 21.03 — Host-Authoritative Operations Runtime test suite.
 
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { openAgentOsDb, AGENT_OS_SCHEMA_VERSION } from "../src/agent-os/db";
 import {
   getNavopRuntimeService,
@@ -32,6 +36,7 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
         "ccs_circuit_breakers",
         "ccs_usage_events",
         "ccs_config_projections",
+        "ccs_credential_refs",
       ];
       for (const table of tables) {
         const row = db.query(`SELECT COUNT(*) as count FROM ${table}`).get() as any;
@@ -288,6 +293,51 @@ describe("Phase Navop & 21.03 — Host-Authoritative Operations Runtime", () => 
       expect(restored.status).toBe("restored");
       expect(restored.afterText).toBe("model = \"old\"\n");
       expect(restored.afterHash).toBe(preview.beforeHash);
+    });
+
+    it("inspects Codex and Claude configs without writing them", () => {
+      const root = mkdtempSync(join(tmpdir(), "ccs-runtime-"));
+      const previousCodex = process.env.CODEX_HOME;
+      const previousClaude = process.env.CLAUDE_CONFIG_DIR;
+      process.env.CODEX_HOME = join(root, "codex");
+      process.env.CLAUDE_CONFIG_DIR = join(root, "claude");
+      mkdirSync(join(root, "codex"));
+      mkdirSync(join(root, "claude"));
+      writeFileSync(join(root, "codex", "config.toml"), "model = \"xai/grok-4.7\"\nopenai_base_url = \"http://127.0.0.1:10100/v1\"\n");
+      writeFileSync(join(root, "claude", "settings.json"), "{\n  \"model\": \"opus[1m]\"\n}\n");
+      const svc = getNavopRuntimeService();
+      try {
+        const codex = svc.inspectRuntimeConfig("codex", "xai/grok-4.7", "http://127.0.0.1:10100/v1");
+        const claude = svc.inspectRuntimeConfig("claude", "opus[1m]");
+        expect(codex.exists).toBe(true);
+        expect(claude.exists).toBe(true);
+        expect(codex.drift).toBe(false);
+        expect(claude.drift).toBe(false);
+        const changed = svc.inspectRuntimeConfig("codex", "openai/gpt-5", "http://127.0.0.1:10100/v1");
+        expect(changed.drift).toBe(true);
+        expect(changed.projectedText).toContain("openai/gpt-5");
+      } finally {
+        if (previousCodex === undefined) delete process.env.CODEX_HOME;
+        else process.env.CODEX_HOME = previousCodex;
+        if (previousClaude === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+        else process.env.CLAUDE_CONFIG_DIR = previousClaude;
+      }
+    });
+
+    it("stores a credential reference as an encrypted envelope and resolves it", () => {
+      const svc = getNavopRuntimeService();
+      const provider = svc.registerProvider({
+        name: "Credential Broker Provider",
+        providerFamily: "openai",
+        protocol: "openai",
+        trustClass: "trusted",
+        enabled: true,
+        metadata: {},
+      });
+      const stored = svc.storeCredentialRef(provider.id, "openai/main", "sk-test-secret");
+      expect(stored.secretRef).toBe("credential://openai/main");
+      expect(JSON.stringify(stored.envelope)).not.toContain("sk-test-secret");
+      expect(svc.resolveCredential(stored.secretRef)).toBe("sk-test-secret");
     });
   });
 });

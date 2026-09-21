@@ -164,7 +164,8 @@ import { join } from "node:path";
 // v74: h3_* Pao-hubPro × MiniMax H3 Extender Video Execution Plane (Phase 21.02 H3)
 // v75: ccs_routes / ccs_circuit_breakers / ccs_usage_events — Phase 21.03 failover plane
 // v76: ccs_config_projections — Phase 21.03 config diff, backup, restore
-export const AGENT_OS_SCHEMA_VERSION = 76;
+// v77: ccs_credential_refs — Phase 21.03 credential references, encrypted envelope only
+export const AGENT_OS_SCHEMA_VERSION = 77;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -7436,6 +7437,15 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_ccs_projection_runtime ON ccs_config_projections(runtime_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS ccs_credential_refs (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        secret_ref TEXT NOT NULL UNIQUE,
+        envelope_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ccs_credential_provider ON ccs_credential_refs(provider_id);
    `);
 
     // Incremental column upgrades for pre-v53 databases

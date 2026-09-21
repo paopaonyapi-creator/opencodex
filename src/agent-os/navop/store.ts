@@ -9,6 +9,7 @@ import type {
   CcsRoute,
   CcsUsageEvent,
   CcsConfigProjection,
+  CcsCredentialRef,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -601,6 +602,27 @@ export class NavopStore {
       afterText: r.after_text,
       drift: Boolean(r.drift),
       status: r.status,
+      createdAt: r.created_at,
+    };
+  }
+
+  addCredentialRef(ref: CcsCredentialRef): void {
+    openAgentOsDb()
+      .query(`
+        INSERT INTO ccs_credential_refs (id, provider_id, secret_ref, envelope_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      .run(ref.id, ref.providerId, ref.secretRef, JSON.stringify(ref.envelope), ref.createdAt);
+  }
+
+  getCredentialRef(secretRef: string): CcsCredentialRef | null {
+    const r = openAgentOsDb().query("SELECT * FROM ccs_credential_refs WHERE secret_ref = ?").get(secretRef) as any;
+    if (!r) return null;
+    return {
+      id: r.id,
+      providerId: r.provider_id,
+      secretRef: r.secret_ref,
+      envelope: JSON.parse(r.envelope_json || "{}"),
       createdAt: r.created_at,
     };
   }

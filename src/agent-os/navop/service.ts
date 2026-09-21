@@ -2,6 +2,10 @@
 
 import { NavopStore, newNavopId, nowIso } from "./store";
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { createVault } from "../../credentials/vault";
 import type {
   CcsProvider,
   CcsRuntime,
@@ -12,6 +16,8 @@ import type {
   CcsRouteDecision,
   CcsUsageEvent,
   CcsConfigProjection,
+  CcsCredentialRef,
+  CcsRuntimeConfigView,
   NavopApproval,
   NavopAuditEvent,
   NavopCapability,
@@ -492,6 +498,79 @@ export class NavopRuntimeService {
 
   private hashText(value: string): string {
     return createHash("sha256").update(value).digest("hex");
+  }
+
+  inspectRuntimeConfig(runtimeType: "codex" | "claude", desiredModel: string, desiredBaseUrl?: string): CcsRuntimeConfigView {
+    this.assertEnabled();
+    const targetPath = runtimeType === "codex"
+      ? join(process.env.CODEX_HOME?.trim() || join(homedir(), ".codex"), "config.toml")
+      : join(process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), ".claude"), "settings.json");
+    const exists = existsSync(targetPath);
+    const current = exists ? readFileSync(targetPath, "utf8") : "";
+    const model = runtimeType === "codex" ? this.tomlValue(current, "model") : this.jsonString(current, "model");
+    const baseUrl = runtimeType === "codex" ? this.tomlValue(current, "openai_base_url") : null;
+    const projectedText = runtimeType === "codex"
+      ? this.projectToml(current, { model: desiredModel, ...(desiredBaseUrl ? { openai_base_url: desiredBaseUrl } : {}) })
+      : this.projectJson(current, { model: desiredModel });
+    return {
+      runtimeType,
+      targetPath,
+      exists,
+      model,
+      baseUrl,
+      drift: this.hashText(current) !== this.hashText(projectedText),
+      projectedText,
+    };
+  }
+
+  storeCredentialRef(providerId: string, label: string, secret: string): CcsCredentialRef {
+    this.assertEnabled();
+    if (!this.store.getProvider(providerId)) throw new Error("Provider is not registered");
+    const vault = createVault();
+    const envelope = vault.write(secret);
+    const ref: CcsCredentialRef = {
+      id: newNavopId("cccred"),
+      providerId,
+      secretRef: `credential://${label}`,
+      envelope: envelope as unknown as Record<string, unknown>,
+      createdAt: nowIso(),
+    };
+    this.store.addCredentialRef(ref);
+    this.audit("SYSTEM", "SYSTEM", "credential.store", undefined, { providerId, secretRef: ref.secretRef });
+    return { ...ref, envelope: { stored: true } };
+  }
+
+  resolveCredential(secretRef: string): string {
+    this.assertEnabled();
+    const ref = this.store.getCredentialRef(secretRef);
+    if (!ref) throw new Error("Credential reference was not found");
+    return createVault().read(ref.envelope as any);
+  }
+
+  private tomlValue(text: string, key: string): string | null {
+    const match = text.match(new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, "m"));
+    return match?.[1] ?? null;
+  }
+
+  private projectToml(text: string, values: Record<string, string>): string {
+    let next = text;
+    for (const [key, value] of Object.entries(values)) {
+      const line = `${key} = "${value}"`;
+      const pattern = new RegExp(`^\\s*${key}\\s*=.*$`, "m");
+      next = pattern.test(next) ? next.replace(pattern, line) : `${next.trimEnd()}\n${line}\n`;
+    }
+    return next;
+  }
+
+  private jsonString(text: string, key: string): string | null {
+    if (!text) return null;
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    return typeof parsed[key] === "string" ? parsed[key] : null;
+  }
+
+  private projectJson(text: string, values: Record<string, string>): string {
+    const parsed = text ? JSON.parse(text) as Record<string, unknown> : {};
+    return `${JSON.stringify({ ...parsed, ...values }, null, 2)}\n`;
   }
 
   private freshCircuit(providerId: string): CcsCircuitBreaker {

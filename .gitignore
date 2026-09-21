@@ -76,3 +76,6 @@ docs/.mimosa/
 
 # Runtime workspace stores (user attachments, session artifacts)
 workspace/
+runtime/
+.zcodeignore
+nul

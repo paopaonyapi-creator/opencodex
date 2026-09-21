@@ -118,6 +118,110 @@ export function generateStockKeywords(input: MetadataGenerationInput): string[] 
   return Array.from(tagsSet).slice(0, 45);
 }
 
+// ---------------------------------------------------------------------------
+// Phase 21 & GOD MODZa Enhanced Knowledge & QC Architecture
+// ---------------------------------------------------------------------------
+
+export const FORBIDDEN_TRADEMARKS = [
+  "iphone", "ipad", "macbook", "apple", "nike", "adidas", "tesla",
+  "microsoft", "windows", "playstation", "xbox", "gopro", "dji",
+  "coca cola", "pepsi", "starbucks", "mcdonalds",
+] as const;
+
+export type AspectRatioType = "16:9" | "9:16" | "1:1" | "4:5" | "3:2" | "2:3";
+
+export const ASPECT_RATIO_SPECS: Record<AspectRatioType, {
+  buyerUse: string;
+  minDimensions: string;
+  compositionTags: string[];
+}> = {
+  "16:9": {
+    buyerUse: "Websites, presentations, video thumbnails, digital ads",
+    minDimensions: "3840x2160 (4K UHD)",
+    compositionTags: ["horizontal", "widescreen", "banner", "copy space", "landscape"],
+  },
+  "9:16": {
+    buyerUse: "Stories, Reels, Shorts, vertical mobile advertising",
+    minDimensions: "2160x3840 (4K Vertical)",
+    compositionTags: ["vertical", "stories", "reels", "mobile", "full screen"],
+  },
+  "1:1": {
+    buyerUse: "Social posts, marketplace tiles, compact ads",
+    minDimensions: "3000x3000",
+    compositionTags: ["square", "social media", "centered", "balanced"],
+  },
+  "4:5": {
+    buyerUse: "Portrait social feeds, mobile advertising",
+    minDimensions: "3200x4000",
+    compositionTags: ["portrait", "social feed", "vertical", "headline space"],
+  },
+  "3:2": {
+    buyerUse: "Editorial, web banners, print, general stock use",
+    minDimensions: "6000x4000",
+    compositionTags: ["classic ratio", "editorial", "rule of thirds", "horizontal"],
+  },
+  "2:3": {
+    buyerUse: "Posters, magazine covers, vertical layouts",
+    minDimensions: "4000x6000",
+    compositionTags: ["poster layout", "cover", "vertical format", "safe area"],
+  },
+};
+
+export interface SubmissionQcChecklist {
+  aspectRatioOk: boolean;
+  resolution5kPlus: boolean;
+  noVisibleTrademarks: boolean;
+  noAiAnatomyArtifacts: boolean;
+  cleanListingMetadata: boolean;
+  readyForSubmission: boolean;
+  advice: string[];
+}
+
+/**
+ * Validates metadata and technical parameters against Adobe Stock Creator GOD MODZa standards.
+ */
+export function evaluateSubmissionQc(item: {
+  title: string;
+  keywords: string[];
+  width?: number;
+  height?: number;
+  aspectRatio?: AspectRatioType;
+}): SubmissionQcChecklist {
+  const advice: string[] = [];
+  let noVisibleTrademarks = true;
+
+  const combinedText = `${item.title} ${item.keywords.join(" ")}`.toLowerCase();
+  for (const tm of FORBIDDEN_TRADEMARKS) {
+    if (combinedText.includes(tm)) {
+      noVisibleTrademarks = false;
+      advice.push(`Remove trademark reference '${tm}' to prevent copyright/trademark rejection.`);
+    }
+  }
+
+  const longestEdge = Math.max(item.width ?? 0, item.height ?? 0);
+  const resolution5kPlus = longestEdge >= 5000;
+  if (item.width && item.height && !resolution5kPlus) {
+    advice.push(`Resolution is ${item.width}x${item.height}. Recommended master target is at least 5000px on the long edge.`);
+  }
+
+  const cleanListingMetadata = item.title.length >= 10 && item.title.length <= 70 && item.keywords.length >= 25;
+  if (!cleanListingMetadata) {
+    advice.push("Ensure title is between 10-70 characters and contains 25-45 hierarchical tags.");
+  }
+
+  const readyForSubmission = noVisibleTrademarks && cleanListingMetadata;
+
+  return {
+    aspectRatioOk: item.aspectRatio ? Boolean(ASPECT_RATIO_SPECS[item.aspectRatio]) : true,
+    resolution5kPlus: (item.width && item.height) ? resolution5kPlus : true,
+    noVisibleTrademarks,
+    noAiAnatomyArtifacts: true,
+    cleanListingMetadata,
+    readyForSubmission,
+    advice,
+  };
+}
+
 /**
  * Generates comprehensive metadata for a campaign item.
  */

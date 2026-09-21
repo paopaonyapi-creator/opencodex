@@ -160,7 +160,8 @@ import { join } from "node:path";
 // v70: uap_* Pao-hubPro Unified Agent Operations Control Plane (Phase 21.00) — cross-host federation, central MCP & skill governance, durable jobs, audit stream.
 // v71: parley_* Pao-hubPro × Parley Multi-Agent Work Room (Phase 21.01) — rooms, runs, timeline, file/command events, handoffs.
 // v72: mc_* Pao-hubPro Multi-Agent Mission Control (Phase 21.02) — fleet, runs, approvals, queues, dlq, incidents, audit.
-export const AGENT_OS_SCHEMA_VERSION = 72;
+// v73: ccs_* Pao-hubPro × CC-Switch & navop_* Host-Authoritative Operations Runtime (Phase 21.03 & Navop Architecture)
+export const AGENT_OS_SCHEMA_VERSION = 73;
 
 let dbHandle: Database | null = null;
 let dbFile = "";
@@ -7086,6 +7087,132 @@ function migrate(db: Database): void {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_mc_dlq_status ON mc_dlq(status);
+
+      -- Phase 21.03 — Pao-hubPro × CC Switch & Navop Host-Authoritative Operations Runtime
+      CREATE TABLE IF NOT EXISTS ccs_providers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        provider_family TEXT NOT NULL,
+        protocol TEXT NOT NULL,
+        base_url TEXT,
+        trust_class TEXT NOT NULL DEFAULT 'unclassified',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS ccs_provider_models (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL REFERENCES ccs_providers(id) ON DELETE CASCADE,
+        upstream_model_id TEXT NOT NULL,
+        display_name TEXT,
+        capability_json TEXT NOT NULL DEFAULT '[]',
+        context_window INTEGER,
+        active INTEGER NOT NULL DEFAULT 1,
+        UNIQUE(provider_id, upstream_model_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_ccs_models_provider ON ccs_provider_models(provider_id);
+
+      CREATE TABLE IF NOT EXISTS ccs_runtimes (
+        id TEXT PRIMARY KEY,
+        runtime_type TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        executable_path TEXT,
+        config_path TEXT,
+        detected_version TEXT,
+        status TEXT NOT NULL DEFAULT 'detected',
+        last_seen_at TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE TABLE IF NOT EXISTS navop_resources (
+        id TEXT PRIMARY KEY,
+        resource_uri TEXT NOT NULL UNIQUE,
+        resource_type TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        adapter_type TEXT NOT NULL,
+        credential_ref TEXT,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        labels_json TEXT NOT NULL DEFAULT '{}',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_navop_resources_type ON navop_resources(resource_type);
+
+      CREATE TABLE IF NOT EXISTS navop_capabilities (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        adapter_type TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        mutates INTEGER NOT NULL DEFAULT 0,
+        supports_dry_run INTEGER NOT NULL DEFAULT 0,
+        input_schema_json TEXT NOT NULL DEFAULT '{}',
+        output_schema_json TEXT NOT NULL DEFAULT '{}',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_navop_cap_risk ON navop_capabilities(risk_level);
+
+      CREATE TABLE IF NOT EXISTS navop_sessions (
+        id TEXT PRIMARY KEY,
+        session_type TEXT NOT NULL,
+        agent_key TEXT NOT NULL,
+        project_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        policy_profile TEXT NOT NULL DEFAULT 'guarded',
+        started_at TEXT NOT NULL,
+        expires_at TEXT,
+        ended_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS navop_tool_invocations (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT NOT NULL UNIQUE,
+        session_id TEXT REFERENCES navop_sessions(id) ON DELETE SET NULL,
+        capability_name TEXT NOT NULL,
+        resource_uri TEXT,
+        input_redacted_json TEXT NOT NULL DEFAULT '{}',
+        risk_level TEXT NOT NULL,
+        policy_decision TEXT NOT NULL,
+        approval_id TEXT,
+        status TEXT NOT NULL DEFAULT 'started',
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        result_summary_json TEXT,
+        error_code TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_navop_invocations_trace ON navop_tool_invocations(trace_id);
+
+      CREATE TABLE IF NOT EXISTS navop_approvals (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT NOT NULL,
+        session_id TEXT REFERENCES navop_sessions(id) ON DELETE SET NULL,
+        action_summary TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        request_payload_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        decision_by TEXT,
+        decision_note TEXT,
+        requested_at TEXT NOT NULL,
+        expires_at TEXT,
+        decided_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_navop_approvals_status ON navop_approvals(status);
+
+      CREATE TABLE IF NOT EXISTS navop_audit_events (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT,
+        event_type TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        resource_uri TEXT,
+        payload_redacted_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_navop_audit_trace ON navop_audit_events(trace_id);
    `);
 
     // Incremental column upgrades for pre-v53 databases

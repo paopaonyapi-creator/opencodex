@@ -575,6 +575,34 @@ export class McpToolGateway {
     } catch {
       // Mission control DB may not be initialized in all environments.
     }
+
+    // Phase Navop & 21.03: register Host-Authoritative Operations Runtime tools
+    this.registerServer({
+      id: "navop",
+      name: "Pao-hubPro Navop Host Runtime (Phase 21.03 & Navop)",
+      transport: "stdio",
+      trustScore: 95,
+      status: "active",
+    });
+
+    try {
+      const { createNavopMcpTools } = require("../navop/mcp-tools") as typeof import("../navop/mcp-tools");
+      const navopTools = createNavopMcpTools();
+      for (const tool of navopTools) {
+        const riskTier = ("R" + tool.riskLevel) as "R0" | "R1" | "R2" | "R3" | "R4";
+        this.registerTool({
+          name: tool.name,
+          serverId: "navop",
+          description: tool.description,
+          riskTier,
+          mutability: tool.riskLevel === 0 ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskLevel >= 2,
+          enabled: true,
+        });
+      }
+    } catch {
+      // Navop DB may not be initialized in all environments.
+    }
   }
 
   private recordAudit(

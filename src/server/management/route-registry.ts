@@ -464,6 +464,13 @@ const MISSION_CONTROL_VERB_DEFERRAL = {
   ownerDoc: "docs/Phase_21.02_Pao-hubPro_Multi-Agent_Mission_Control.md",
 } as const;
 
+const NAVOP_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase Navop & 21.03 ship the Host-Authoritative Operations Runtime & CC-Switch Provider Control Plane (resources, capabilities, session brokering, approvals, execution routing, and audit) first; thin CLI tool integrations belong to follow-up tooling.",
+  owner: "Phase Navop Host Runtime",
+  ownerDoc: "docs/PHASE_LATEST_PAO_HUBPRO_NAVOP_ARCHITECTURE.md",
+} as const;
+
 /** Every reachable management route. */
 export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   // server/management-api
@@ -1033,6 +1040,16 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/agent-os/mission-control/dlq", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/mission-control/emergency-stop", module: "server/management/mission-control-routes", mutates: true, exempt: MISSION_CONTROL_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/mission-control/audit", module: "server/management/mission-control-routes", mutates: false, exempt: MISSION_CONTROL_VERB_DEFERRAL },
+  // Phase Navop & 21.03: Host-Authoritative Operations & CC-Switch Runtime
+  { method: "GET", path: "/api/agent-os/navop/resources", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/navop/resources", module: "server/management/navop-routes", mutates: true, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/capabilities", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/navop/sessions", module: "server/management/navop-routes", mutates: true, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/navop/execute", module: "server/management/navop-routes", mutates: true, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/navop/approvals/{id}/resolve", module: "server/management/navop-routes", mutates: true, mechanism: "slice", exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/providers", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/runtimes", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/navop/audit", module: "server/management/navop-routes", mutates: false, exempt: NAVOP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/providers", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/ops", module: "server/management/video-studio-routes", mutates: false, exempt: VIDEO_STUDIO_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/video-studio/batch/{batchId}", module: "server/management/video-studio-routes", mutates: false, mechanism: "slice", exempt: VIDEO_STUDIO_VERB_DEFERRAL },

@@ -371,6 +371,10 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     const { handleMissionControlRoutes } = await import("./mission-control-routes");
     return handleMissionControlRoutes(ctx);
   }
+  if (url.pathname.startsWith("/api/agent-os/navop") || url.pathname === "/api/agent-os/navop") {
+    const { handleNavopRoutes } = await import("./navop-routes");
+    return handleNavopRoutes(ctx);
+  }
 
   // Phase 20.85: OmniRoute Unified Model Gateway
   if (url.pathname.startsWith("/api/agent-os/model-gateway") || url.pathname === "/api/agent-os/model-gateway") {

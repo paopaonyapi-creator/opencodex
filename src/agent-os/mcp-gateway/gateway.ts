@@ -712,6 +712,33 @@ export class McpToolGateway {
     } catch {
       // Transfer module fallback
     }
+
+    // Phase 20.88: register Remotion AI Video Runtime tools
+    this.registerServer({
+      id: "remotion_video_runtime",
+      name: "Pao-hubPro × Remotion AI Video Runtime (Phase 20.88)",
+      transport: "stdio",
+      trustScore: 94,
+      status: "active",
+    });
+
+    try {
+      const { createVideoMcpTools } = require("../video-runtime/mcp-tools") as typeof import("../video-runtime/mcp-tools");
+      const videoTools = createVideoMcpTools();
+      for (const tool of videoTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "remotion_video_runtime",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Video runtime module fallback
+    }
   }
 
   private recordAudit(

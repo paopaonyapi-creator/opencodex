@@ -685,6 +685,33 @@ export class McpToolGateway {
     } catch {
       // Browser control module fallback
     }
+
+    // Phase 20.87: register P2P Artifact Transfer tools
+    this.registerServer({
+      id: "artifact_transfer",
+      name: "Pao-hubPro × FileSync P2P Artifact Transfer Fabric (Phase 20.87)",
+      transport: "stdio",
+      trustScore: 94,
+      status: "active",
+    });
+
+    try {
+      const { createTransferMcpTools } = require("../transfer/mcp-tools") as typeof import("../transfer/mcp-tools");
+      const transferTools = createTransferMcpTools();
+      for (const tool of transferTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "artifact_transfer",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Transfer module fallback
+    }
   }
 
   private recordAudit(

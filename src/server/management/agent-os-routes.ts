@@ -356,6 +356,18 @@ export async function handleAgentOsRoutes(ctx: ManagementContext): Promise<Respo
     return handleWhipRoutes(ctx);
   }
 
+  // Phase 20.100: Pao-hubPro × ZCode Agent-Native Workspace Runtime.
+  if (url.pathname.startsWith("/api/agent-os/zcode") || url.pathname === "/api/agent-os/zcode") {
+    const { handleZCodeRoutes } = await import("./zcode-routes");
+    return handleZCodeRoutes(ctx);
+  }
+
+  // Phase 20.101: Pao-hubPro Universal AI Browser Control Plane.
+  if (url.pathname.startsWith("/api/agent-os/browser-control") || url.pathname === "/api/agent-os/browser-control") {
+    const { handleBrowserControlRoutes } = await import("./browser-control-routes");
+    return handleBrowserControlRoutes(ctx);
+  }
+
   // Phase 21.00: Unified Agent Operations Control Plane.
   if (url.pathname.startsWith("/api/agent-os/unified") || url.pathname === "/api/agent-os/unified") {
     const { handleUnifiedControlPlaneRoutes } = await import("./unified-control-plane-routes");

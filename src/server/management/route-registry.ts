@@ -443,6 +443,20 @@ const WHIP_VERB_DEFERRAL = {
   ownerDoc: "docs/Phase_20.99_Pao-hubPro_x_Whip.md",
 } as const;
 
+const ZCODE_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.100 ships the ZCode Agent-Native Workspace Runtime, provider leases, 10-stage permission bridge, workflow event journal, deterministic replay, and Reviewer Council gates first; dedicated desktop UI bindings belong to downstream app packaging.",
+  owner: "Phase 20.100 ZCode Runtime",
+  ownerDoc: "docs/Phase_20.100_Pao-hubPro_x_ZCode.md",
+} as const;
+
+const BROWSER_CONTROL_VERB_DEFERRAL = {
+  reason: "deferred-verb",
+  why: "Phase 20.101 ships the Universal AI Browser Control Plane, Local Chrome and Oya adapters, browser router, encrypted persona vault, record-to-playbook replay, drift repair, and human takeover first; rich visual console belongs to downstream dashboard integration.",
+  owner: "Phase 20.101 Universal Browser Control Plane",
+  ownerDoc: "docs/Phase_20.101_Pao-hubPro_x_Oya_Browser.md",
+} as const;
+
 const UNIFIED_CONTROL_PLANE_VERB_DEFERRAL = {
   reason: "deferred-verb",
   why: "Phase 21.00 ships the Unified Agent Operations Control Plane (federated agent/host registries, durable jobs, central MCP/skill governance, approval fabric, and audit stream) first; custom CLI verbs belong to downstream console integration.",
@@ -1008,6 +1022,16 @@ export const MANAGEMENT_ROUTES: readonly ManagementRoute[] = [
   { method: "GET", path: "/api/agent-os/whip/queue", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/whip/queue", module: "server/management/whip-routes", mutates: true, exempt: WHIP_VERB_DEFERRAL },
   { method: "GET", path: "/api/agent-os/whip/audit", module: "server/management/whip-routes", mutates: false, exempt: WHIP_VERB_DEFERRAL },
+  // Phase 20.100: Pao-hubPro × ZCode Agent Workspace Runtime
+  { method: "GET", path: "/api/agent-os/zcode/health", module: "server/management/zcode-routes", mutates: false, exempt: ZCODE_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/zcode/runtimes", module: "server/management/zcode-routes", mutates: true, exempt: ZCODE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/zcode/tools", module: "server/management/zcode-routes", mutates: false, exempt: ZCODE_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/zcode/approvals", module: "server/management/zcode-routes", mutates: false, exempt: ZCODE_VERB_DEFERRAL },
+  // Phase 20.101: Pao-hubPro Universal AI Browser Control Plane
+  { method: "GET", path: "/api/agent-os/browser-control/fleet", module: "server/management/browser-control-routes", mutates: false, exempt: BROWSER_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/browser-control/lease", module: "server/management/browser-control-routes", mutates: true, exempt: BROWSER_CONTROL_VERB_DEFERRAL },
+  { method: "GET", path: "/api/agent-os/browser-control/personas", module: "server/management/browser-control-routes", mutates: false, exempt: BROWSER_CONTROL_VERB_DEFERRAL },
+  { method: "POST", path: "/api/agent-os/browser-control/personas", module: "server/management/browser-control-routes", mutates: true, exempt: BROWSER_CONTROL_VERB_DEFERRAL },
   // Phase 21.00: Unified Agent Operations Control Plane
   { method: "GET", path: "/api/agent-os/unified/agents", module: "server/management/unified-control-plane-routes", mutates: false, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },
   { method: "POST", path: "/api/agent-os/unified/agents", module: "server/management/unified-control-plane-routes", mutates: true, exempt: UNIFIED_CONTROL_PLANE_VERB_DEFERRAL },

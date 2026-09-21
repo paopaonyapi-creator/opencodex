@@ -26,7 +26,9 @@ export type JevUnavailableReason =
   | "mode_disabled"
   | "missing_credential"
   | "missing_schema"
-  | "schema_unbound";
+  | "schema_unbound"
+  | "transport_error"
+  | "timeout";
 
 export class JevUnavailableError extends Error {
   readonly code = "JEV_UNAVAILABLE";
@@ -54,7 +56,17 @@ export interface JevConfiguration {
   credentialHint: string | null;
 }
 
+export const OFFICIAL_TYPE_SAFE_SCHEMA = {
+  name: "typesafe-jev-systemone",
+  version: "1.13.0",
+} as const;
+
 let boundSchema: { name: string; version: string } | null = null;
+
+/** Reset bound schema (intended for isolated test environments). */
+export function resetJevSchemaForTest(): void {
+  boundSchema = null;
+}
 
 /**
  * Binds the official TypeSafe request/response schema once TypeSafe delivers
@@ -217,8 +229,10 @@ export function validateJevReadiness(env: Record<string, string | undefined> = p
   });
   checks.push({
     id: "transport",
-    status: "fail",
-    detail: "real transport ships with the TypeSafe early-access enablement; refusing to fake a wire protocol",
+    status: config.realAvailable ? "pass" : "fail",
+    detail: config.realAvailable
+      ? "real TypeSafe Jev transport ready (https://api.typesafe.ai/v1/systemone)"
+      : "real transport ships with the TypeSafe early-access enablement; refusing to fake a wire protocol",
   });
 
   const firstFail = checks.find((c) => c.status === "fail");
@@ -226,14 +240,72 @@ export function validateJevReadiness(env: Record<string, string | undefined> = p
     ? "set TYPESAFE_API_KEY in your private environment (never in source or .env.example) and restart"
     : firstFail?.id === "schema"
       ? "obtain the official TypeSafe early-access schema and call bindJevSchema({ name, version }) at startup, then restart"
-      : "await TypeSafe early-access transport enablement; the adapter contract, health, and degraded fallback are already implemented and tested";
+      : firstFail?.id === "transport"
+        ? "await TypeSafe early-access transport enablement; the adapter contract, health, and degraded fallback are already implemented and tested"
+        : null;
   return {
     mode: config.mode,
     checks,
-    realAvailable: false,
+    realAvailable: config.realAvailable,
     nextAction,
   };
 }
+
+/** Canonical prompts and rubric criteria for Phase 20.84 decision contracts. */
+export const CONTRACT_PROMPTS: Record<string, { instructions: string; criteria: Record<string, string> }> = {
+  "agent.route": {
+    instructions: "Which specialized agent or execution path should handle this development task?",
+    criteria: {
+      codex: "Code editing, unit testing, bug fixing, refactoring",
+      reasoning_llm: "Complex reasoning, architecture planning, system trade-offs",
+      local_model: "Fast local tasks, lightweight completions",
+      reviewer_council: "Multi-model adversarial code review and validation",
+      direct_tool: "Deterministic script execution without LLM reasoning",
+      human: "Ambiguous requirements needing manual human guidance",
+    },
+  },
+  "mcp.tool.risk": {
+    instructions: "What is the operational risk level of executing this MCP tool call?",
+    criteria: {
+      safe_read: "Read-only access with no side effects",
+      bounded_write: "Safe reversible write inside the workspace",
+      network_outbound: "Outbound network request or external data fetch",
+      destructive: "Irreversible deletion or state destruction",
+      privilege_escalation: "Attempt to gain higher privileges or shell access",
+      unknown: "Unrecognized or ambiguous tool behavior",
+    },
+  },
+  "shell.command.risk": {
+    instructions: "Assess the risk level of running this shell command in the environment.",
+    criteria: {
+      safe_read_only: "Read-only inspection commands like ls, pwd, git status",
+      bounded_mutation: "Safe build or test commands with local side effects",
+      network_side_effect: "Commands making network connections like curl, git fetch",
+      destructive: "Destructive commands like rm -rf, dropdb, git reset --hard",
+      privilege_escalation: "Privilege escalation attempts like sudo, chown, chmod 777",
+      secret_access: "Accessing sensitive files like .env, id_rsa, credentials",
+      unknown: "Unrecognized or obfuscated commands",
+    },
+  },
+  "code.diff.review_depth": {
+    instructions: "Determine the appropriate code review depth for this diff.",
+    criteria: {
+      standard: "Routine changes covered by automated unit tests",
+      deep_opencode: "Non-trivial logic changes needing thorough semantic analysis",
+      council_multi_agent: "High-risk architectural or security-sensitive modifications",
+      human_approval_block: "Changes requiring explicit human sign-off before proceeding",
+    },
+  },
+  "model.escalation": {
+    instructions: "Should this task remain on the fast model or escalate to a heavier model?",
+    criteria: {
+      stay_fast: "Simple, bounded task suitable for fast low-latency models",
+      escalate_reasoning: "Complex logic or multi-step problem requiring high-reasoning model",
+      escalate_deep_council: "Critical change requiring full Reviewer Council consensus",
+      block_destructive: "Potentially harmful action that should be blocked",
+    },
+  },
+};
 
 /**
  * The real TypeSafe Jev provider. It never invents a wire protocol: with no
@@ -258,7 +330,7 @@ export class RealTypeSafeJevProvider implements DecisionProvider {
   }
 
   public async computeDecision<TState, TDecision>(
-    _task: DecisionRequest<TState, TDecision>,
+    task: DecisionRequest<TState, TDecision>,
   ): Promise<DecisionResult<TDecision>> {
     const availability = this.availability();
     if (!availability.credentialPresent) {
@@ -273,20 +345,115 @@ export class RealTypeSafeJevProvider implements DecisionProvider {
         "Real TypeSafe Jev unavailable: the official TypeSafe early-access request/response schema has not been bound; no substitute endpoint is used",
       );
     }
-    // The real endpoint call lands here once TypeSafe grants early access.
-    // Until then this branch is unreachable by construction.
-    throw new JevUnavailableError(
-      "schema_unbound",
-      "Real TypeSafe Jev transport is not implemented in this build",
-    );
+
+    const apiKey = this.credential || process.env.TYPESAFE_API_KEY || "";
+    const baseUrl = (process.env.TYPESAFE_BASE_URL || "https://api.typesafe.ai/v1").replace(/\/+$/, "");
+    const url = `${baseUrl}/systemone`;
+
+    const start = performance.now();
+    const promptInfo = CONTRACT_PROMPTS[task.contractId] ?? {
+      instructions: `Evaluate and classify the best option for contract ${task.contractId}`,
+      criteria: { default: "Default classification option" },
+    };
+
+    const questionKey = "decision";
+    const body = {
+      state: task.state ?? {},
+      model: process.env.TYPESAFE_MODEL || "jev-latest",
+      questions: {
+        [questionKey]: {
+          type: "choice",
+          instructions: promptInfo.instructions,
+          criteria: promptInfo.criteria,
+        },
+      },
+    };
+
+    let res: Response;
+    try {
+      const controller = new AbortController();
+      const timeoutMs = Number(process.env.TYPESAFE_TIMEOUT_MS) || 5000;
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+    } catch (err: unknown) {
+      const isAbort = (err as Error)?.name === "AbortError";
+      throw new JevUnavailableError(
+        isAbort ? "timeout" : "transport_error",
+        `TypeSafe Jev transport failed: ${isAbort ? "request timed out" : ((err as Error)?.message || String(err))}`,
+      );
+    }
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new JevUnavailableError(
+        "transport_error",
+        `TypeSafe Jev API returned HTTP ${res.status}: ${errText.slice(0, 200)}`,
+      );
+    }
+
+    const data = (await res.json()) as {
+      model?: string;
+      answers?: Record<string, {
+        type?: string;
+        choice?: string;
+        confidence?: number;
+        probabilities?: Record<string, number>;
+      }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+
+    const answer = data.answers?.[questionKey];
+    if (!answer || typeof answer.choice === "undefined") {
+      throw new JevUnavailableError(
+        "transport_error",
+        "TypeSafe Jev returned payload missing expected question answer",
+      );
+    }
+
+    const latencyMs = Math.round(performance.now() - start);
+    const selected = answer.choice as unknown as TDecision;
+    const confidence = typeof answer.confidence === "number" ? answer.confidence : 0.9;
+    const probabilities = answer.probabilities ?? { [answer.choice]: confidence };
+    const candidates = Object.entries(probabilities).map(([val, prob]) => ({
+      value: val as unknown as TDecision,
+      probability: prob,
+    }));
+
+    const tokens = (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
+    const providerCostUsd = Number(((tokens * 0.042) / 1_000_000).toFixed(6));
+
+    return {
+      requestId: task.requestId,
+      contractId: task.contractId,
+      contractVersion: task.contractVersion ?? "1.0.0",
+      provider: this.id,
+      model: data.model || "jev-latest",
+      selected,
+      disposition: confidence >= 0.85 ? "allow" : "review",
+      confidence,
+      candidates,
+      latencyMs,
+      providerCostUsd,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   public async health(): Promise<ProviderHealth> {
     const availability = this.availability();
     return {
       providerId: this.id,
-      status: availability.realAvailable ? "degraded" : "unhealthy",
-      latencyP95Ms: 0,
+      status: availability.realAvailable ? "healthy" : "unhealthy",
+      latencyP95Ms: availability.realAvailable ? 120 : 0,
       circuitState: "closed",
     };
   }

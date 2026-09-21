@@ -631,6 +631,60 @@ export class McpToolGateway {
     } catch {
       // H3 Extender DB may not be initialized in all environments.
     }
+
+    // Phase 20.100: register ZCode Agent Workspace Runtime tools
+    this.registerServer({
+      id: "zcode_runtime",
+      name: "Pao-hubPro × ZCode Agent Workspace Runtime (Phase 20.100)",
+      transport: "stdio",
+      trustScore: 92,
+      status: "active",
+    });
+
+    try {
+      const { createZCodeMcpTools } = require("../zcode/mcp-skills-bridge") as typeof import("../zcode/mcp-skills-bridge");
+      const zcodeTools = createZCodeMcpTools();
+      for (const tool of zcodeTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "zcode_runtime",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: "read_only",
+          approvalRequired: false,
+          enabled: true,
+        });
+      }
+    } catch {
+      // ZCode module fallback
+    }
+
+    // Phase 20.101: register Universal AI Browser Control Plane tools
+    this.registerServer({
+      id: "browser_control",
+      name: "Pao-hubPro Universal AI Browser Control Plane (Phase 20.101 Oya)",
+      transport: "stdio",
+      trustScore: 95,
+      status: "active",
+    });
+
+    try {
+      const { createBrowserMcpTools } = require("../browser-control/mcp-tools") as typeof import("../browser-control/mcp-tools");
+      const browserTools = createBrowserMcpTools();
+      for (const tool of browserTools) {
+        this.registerTool({
+          name: tool.name,
+          serverId: "browser_control",
+          description: tool.description,
+          riskTier: tool.riskTier,
+          mutability: tool.riskTier === "R0" ? "read_only" : "idempotent_write",
+          approvalRequired: tool.riskTier === "R3" || tool.riskTier === "R4",
+          enabled: true,
+        });
+      }
+    } catch {
+      // Browser control module fallback
+    }
   }
 
   private recordAudit(

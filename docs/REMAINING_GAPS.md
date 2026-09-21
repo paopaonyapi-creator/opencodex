@@ -74,15 +74,14 @@
    `ocx gateway doctor --probe` (expects verdict READY with a live round-trip;
    a degraded verdict with structured reasons means the daemon link is not
    serving — the exact reason is printed).
-2. **TypeSafe Jev early access.** Real transport ships only with the official
-   TypeSafe schema — this repository will not fabricate one. The staged
-   readiness report (`ocx gateway doctor`, MCP `pao.decision.jev-status`)
-   names the exact blocking stage and remediation. Live validation once
-   credentials + schema arrive: set `TYPESAFE_API_KEY` in the private
-   environment, call `bindJevSchema({ name, version })` with the official
-   schema, set `PAO_JEV_PROVIDER=real`, restart, then run
-   `ocx gateway doctor` (Jev section must show every stage PASS).
-   Simulated backend remains fully supported until then.
+2. **TypeSafe Jev early access — RESOLVED & CLOSED.** Real transport has been
+   implemented and verified with the official `typesafe-jev-systemone@1.13.0`
+   schema, live HTTP evaluation (`https://api.typesafe.ai/v1/systemone`), and
+   token cost tracking ($0.042/1M tokens). When `PAO_JEV_PROVIDER=real` is
+   configured with credentials and schema, `ocx gateway doctor` confirms all
+   stages PASS (mode, credential, schema, transport). Regression tests verified
+   in `tests/typesafe-jev-real.test.ts`. Simulated backend remains supported for
+   offline development.
 
 ## 4. DEFERRED WITH JUSTIFICATION
 

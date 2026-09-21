@@ -29,6 +29,11 @@ const ADOBE_STOCK_CATEGORIES: Record<string, { id: number; name: string }> = {
   agritech: { id: 1, name: "Agriculture" },
   biotech: { id: 11, name: "Science" },
   fintech: { id: 3, name: "Business" },
+  shoppable_ugc: { id: 3, name: "Business" },
+  holiday_decisions: { id: 8, name: "Holidays" },
+  lifestyle_routine: { id: 10, name: "Lifestyle" },
+  sensory_tactile: { id: 7, name: "Technology" },
+  episodic_vertical: { id: 4, name: "Entertainment" },
   general: { id: 3, name: "Business" },
 };
 
@@ -40,6 +45,11 @@ const CATEGORY_DEFAULT_TAGS: Record<string, string[]> = {
   agritech: ["farming", "agriculture", "smart farm", "greenhouse", "crops", "botanical", "hydroponics", "cultivation", "horticulture", "agribusiness"],
   biotech: ["laboratory", "science", "genetics", "medical", "research", "biology", "pharmaceutical", "scientific", "microscope", "healthcare"],
   fintech: ["finance", "banking", "payment", "digital money", "investment", "commerce", "transaction", "currency", "cashless", "fintech"],
+  shoppable_ugc: ["ugc", "user generated content", "product review", "unboxing", "comparison", "demonstration", "authentic", "customer", "ecommerce", "recommendation"],
+  holiday_decisions: ["holiday", "christmas", "gift guide", "black friday", "celebration", "shopping", "festive", "presents", "discount", "seasonal"],
+  lifestyle_routine: ["morning routine", "wellness", "self care", "daily habits", "reset", "mindfulness", "healthy living", "home life", "productivity", "cozy"],
+  sensory_tactile: ["asmr", "sensory", "texture", "macro", "satisfying", "close up", "tactile", "details", "audio visual", "immersive"],
+  episodic_vertical: ["short drama", "vertical video", "storytelling", "episodic", "reels", "shorts", "micro series", "cinematic", "narrative", "cliffhanger"],
   general: ["corporate", "workplace", "background", "lifestyle", "commercial stock", "contemporary", "creative", "bright", "copyspace", "horizontal"],
 };
 

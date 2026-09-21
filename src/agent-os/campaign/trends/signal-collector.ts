@@ -20,6 +20,62 @@ export interface TrendSeed {
 }
 
 export const COMMERCIAL_TREND_SEEDS: TrendSeed[] = [
+  // 2026 U.S. Visual & Video Market Opportunities (Evidence Economy & Q4 Trends)
+  {
+    keyword: "shoppable ugc authentic comparison review",
+    category: "shoppable_ugc",
+    source: "us_market_report_2026_q4",
+    metrics: {
+      commercialIntent: 0.96,
+      searchVelocity: 0.94,
+      saturationIndex: 0.25,
+      ipRiskPenalty: 0.05,
+    },
+  },
+  {
+    keyword: "holiday gift guide decision shortlist",
+    category: "holiday_decisions",
+    source: "us_market_report_2026_q4",
+    metrics: {
+      commercialIntent: 0.93,
+      searchVelocity: 0.91,
+      saturationIndex: 0.28,
+      ipRiskPenalty: 0.04,
+    },
+  },
+  {
+    keyword: "aesthetic morning routine wellness reset",
+    category: "lifestyle_routine",
+    source: "us_market_report_2026_q4",
+    metrics: {
+      commercialIntent: 0.90,
+      searchVelocity: 0.88,
+      saturationIndex: 0.32,
+      ipRiskPenalty: 0.03,
+    },
+  },
+  {
+    keyword: "tactile asmr texture satisfying close up",
+    category: "sensory_tactile",
+    source: "us_market_report_2026_q4",
+    metrics: {
+      commercialIntent: 0.83,
+      searchVelocity: 0.82,
+      saturationIndex: 0.26,
+      ipRiskPenalty: 0.02,
+    },
+  },
+  {
+    keyword: "vertical episodic micro drama cinematic clip",
+    category: "episodic_vertical",
+    source: "us_market_report_2026_q4",
+    metrics: {
+      commercialIntent: 0.74,
+      searchVelocity: 0.79,
+      saturationIndex: 0.20,
+      ipRiskPenalty: 0.06,
+    },
+  },
   {
     keyword: "green hydrogen fuel cell logistics",
     category: "clean_tech",

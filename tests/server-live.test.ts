@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { closeAgentOsDbForTests } from "../src/agent-os/db";
 import { saveCodexAccountCredential } from "../src/codex/account-store";
 import { clearAccountNeedsReauth, clearAccountQuota } from "../src/codex/auth-api";
 import { clearCodexUpstreamHealth, clearThreadAccountMap } from "../src/codex/routing";
@@ -34,6 +35,12 @@ let isolatedCodexHome: IsolatedCodexHome | null = null;
 const DIRECT_CHATGPT_TOKEN = fakeChatGptJwt({ chatgpt_account_id: "acct-123" });
 
 beforeEach(() => {
+  // startServer wires the generation orchestrator, whose storage lazily opens the
+  // process-global agent-os SQLite handle against this test's OPENCODEX_HOME. On
+  // Windows an open WAL handle makes the rmSync below fail with EBUSY (Linux
+  // silently unlinks, which is why CI never saw this). Release any handle left by
+  // an earlier file in this shared process before touching the tree.
+  closeAgentOsDbForTests();
   if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
   mkdirSync(TEST_DIR, { recursive: true });
   process.env.OPENCODEX_HOME = TEST_DIR;
@@ -58,6 +65,9 @@ afterEach(() => {
   clearThreadAccountMap();
   clearAccountNeedsReauth("pool-a");
   clearAccountQuota();
+  // Same Windows EBUSY as the beforeEach guard: every started server here opened
+  // the agent-os WAL handle, and rmSync cannot delete the tree while it is held.
+  closeAgentOsDbForTests();
   if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
 });
 

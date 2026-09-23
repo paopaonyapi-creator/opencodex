@@ -77,10 +77,16 @@ describe("phase 20.15 — fidelity markers (source spec §42)", () => {
     expect(registry.requiresDocker("quantumledger")).toBe(true);
   });
 
-  test("partial-fidelity services keep PARTIAL even with Docker available", () => {
-    expect(registry.effectiveFidelity("eventbridge", true)).toBe("PARTIAL");
+  test("services upstream documents as in-process carry that marker", () => {
+    // Corrected against the upstream service table rather than assumed: EventBridge and API
+    // Gateway REST are in-process, so marking them PARTIAL would force a §43 production retest
+    // that the emulator does not need. Step Functions stays PARTIAL because upstream states
+    // nothing about it, and an unverified fidelity claim is the exact error §42 forbids.
+    expect(registry.effectiveFidelity("eventbridge", true)).toBe("IN_PROCESS");
+    expect(registry.effectiveFidelity("apigateway", true)).toBe("IN_PROCESS");
     expect(registry.effectiveFidelity("stepfunctions", true)).toBe("PARTIAL");
-    expect(registry.effectiveFidelity("apigateway", true)).toBe("PARTIAL");
+    expect(registry.requiresDocker("eventbridge")).toBe(false);
+    expect(registry.requiresDocker("apigateway")).toBe(false);
   });
 });
 

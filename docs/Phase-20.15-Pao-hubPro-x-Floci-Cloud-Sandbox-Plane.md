@@ -397,7 +397,37 @@ Source spec §1.1/§34 อ้าง Floci เป็น emulator ที่มี 
   จริงของ shell และ process อื่นทั้งหมด ฝั่งเราต้อง inject ต่อเมื่อ inside isolated runner
   เท่านั้น (ตรงกับ §14 `env.inherit: false`)
 
-**Resolution:**
+### 10.2 Verified Floci configuration surface (README @ HEAD, 2026-09-23)
+
+ทุกอย่างในตารางนี้อ่านจาก upstream README โดยตรง ไม่ใช่อนุมิจจาก LocalStack — `adapters/floci-config.ts`
+map ตรงกับรายการนี้และ test ผูกไว้
+
+| Var | Default | ใช้ทำอะไรในเฟสนี้ |
+|---|---|---|
+| `FLOCI_PORT` | `4566` | **มีอยู่จริง** ⇒ per-sandbox instance แยก port ได้ (§11.2 isolation) — ประโยคนี้คือสิ่งที่ปลดล็อกทั้ง M2 |
+| `FLOCI_STORAGE_MODE` | `memory` | `memory\|persistent\|hybrid\|wal` — ยืนยัน map ใน §1.4 ตรงเป๊ะ |
+| `FLOCI_STORAGE_PERSISTENT_PATH` | `./data` | ต้อง override เป็นต่อ sandbox เสมอ ไม่งั้นสอง sandbox ที่ persistent แชร์ state กันเงียบ ๆ |
+| `FLOCI_BASE_URL` / `FLOCI_HOSTNAME` | `http://localhost:4566` / unset | ให้ URL ที่ Floci คืน ชี้ที่ runner ไม่ใช่ host |
+| `FLOCI_DEFAULT_REGION` / `FLOCI_DEFAULT_ACCOUNT_ID` | `us-east-1` / `000000000000` | account id จริงไม่ใช่ `test` |
+| `FLOCI_SERVICES_UI_ENABLED` | `true` | **เราตั้ง false** — console เป็น sidecar ที่ pull image ตัวเอง (`floci/floci-ui`) = เส้นทาง image ที่ไม่ได้ approve |
+| `FLOCI_SERVICES_*_DEFAULT_IMAGE` | per service | คำตอบของคำถาม §74 "image allowlist อยู่ที่ไหน": RDS→`postgres:16-alpine`/`mysql:8.0`/`mariadb:11`, EKS→`rancher/k3s`, MSK→`redpanda`, Neptune→`tinkerpop/gremlin-server`, ECR registry→`registry:2`, Lambda→`public.ecr.aws/lambda/*` |
+
+**Pinned image:** `floci/floci@sha256:f5aa8c18302cedb4f2385f5c4e455b3efc77fee6bf7b6e5d1712b2817ba102db`
+(multi-arch index 4 manifests, resolved 2026-09-23) — pin ตัวนี้เพราะ channel ที่ publish มีแค่
+`latest` กับ `nightly-MMDDYYYY` ไม่มี stable semver (§10.1)
+
+**Fidelity ที่ upstream ระบุเอง** (แก้ `capability-registry.ts` ตามแล้ว): S3, SQS, SNS, DynamoDB,
+API Gateway REST, EventBridge, SWF, ELB = **In-process**; Lambda, RDS, Neptune, ElastiCache, MSK,
+ECS, EC2, EKS, OpenSearch, CodeBuild, Managed Flink = **Real Docker**; ECR = in-process พร้อม registry จริง
+Step Functions **ไม่ถูกระบุ** → คง `PARTIAL` เพราะการเดา fidelity คือสิ่งที่ §42 ห้ามโดยตรง
+
+**สองอย่างที่ README ไม่ระบุ และเราไม่ invent:** health endpoint ของ core (มีแค่ `/api/health` ของ
+console sidecar) และ API listing resource state → `FlociAwsAdapter.health()` จึงเป็น *reachability
+probe* (ทุก HTTP response นับว่า gateway ตื่น, transport error ไม่นับ) และ
+`listResources()` **throw `RESOURCE_DISCOVERY_FAILED`** แทนที่จะคืน array ว่าง — inventory จะได้จาก
+Terraform state ใน M3 ไม่ใช่จาก endpoint ลับ
+
+### 10.3 Resolution — brokered Docker control port
 
 ```ts
 export interface DockerControlPort {

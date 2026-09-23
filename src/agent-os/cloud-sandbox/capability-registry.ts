@@ -103,7 +103,9 @@ const SERVICE_DEFINITIONS: readonly CloudServiceDefinition[] = [
   },
   {
     service: "eventbridge",
-    baselineFidelity: "PARTIAL",
+    // Upstream lists EventBridge as in-process with custom buses, rules and SQS/SNS/Lambda
+    // targets, so the marker is IN_PROCESS rather than a defensive PARTIAL.
+    baselineFidelity: "IN_PROCESS",
     requiresDocker: false,
     risk: "medium",
     approvalMode: "none",
@@ -121,7 +123,10 @@ const SERVICE_DEFINITIONS: readonly CloudServiceDefinition[] = [
   },
   {
     service: "apigateway",
-    baselineFidelity: "PARTIAL",
+    // API Gateway REST is documented in-process, including Lambda proxy and MOCK
+    // integrations. Step Functions is left PARTIAL because upstream documentation does not
+    // state its execution class, and an unverified claim here would be worse than a cautious one.
+    baselineFidelity: "IN_PROCESS",
     requiresDocker: false,
     risk: "medium",
     approvalMode: "none",

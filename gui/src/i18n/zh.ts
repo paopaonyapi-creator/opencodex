@@ -2645,6 +2645,7 @@ export const zh: Record<TKey, string> = {
   "aiStudio.settingsHint": "Runtime configuration comes from PAO_* environment variables. Validation reports live subsystem status without crashing the proxy.",
   "aiStudio.runValidate": "Run validation",
   "nav.sdlc": "SDLC Command Center",
+  "nav.browser": "浏览器工作台",
   "nav.mobile": "Mobile Gateway",
   "nav.aiGateway": "AI 网关",
   "nav.changeControl": "变更控制",

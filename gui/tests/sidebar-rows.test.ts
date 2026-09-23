@@ -27,11 +27,16 @@ test("every row maps one-to-one onto a page", () => {
   const navBlock = src.slice(src.indexOf("const NAV: NavEntry[] = ["), src.indexOf("];", src.indexOf("const NAV: NavEntry[] = [")));
   const ids = [...navBlock.matchAll(/\{ id: "([^"]+)"/g)].map(m => m[1]);
 
-  // The exact twelve, in order. A count alone would pass if a row were swapped for
-  // another, and Routing folding into Models is precisely that kind of change.
+  // The exact twenty-five, in order. A count alone would pass if a row were swapped for
+  // another, and Routing folding into Models is precisely that kind of change. Extended from
+  // twelve when the Phase 20.x-25 subsystems each added a row; the list had not been touched
+  // since, so this assertion had been failing on every branch rather than guarding anything.
   expect(ids).toEqual([
     "dashboard", "codex-set", "providers", "models", "subagents",
-    "logs", "usage", "storage", "integrations", "brain", "seo", "demo",
+    "logs", "usage", "storage", "integrations", "brain", "seo",
+    "ai-studio", "agency", "desktop-agent", "browser", "mobile",
+    "ai-gateway", "change-control", "operations", "economy", "security",
+    "video-intelligence", "media-memory", "sdlc", "demo",
   ]);
   // No two rows share a page id, which is what made the correction helper necessary.
   expect(new Set(ids).size).toBe(ids.length);

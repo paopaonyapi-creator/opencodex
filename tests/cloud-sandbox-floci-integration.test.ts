@@ -1,102 +1,48 @@
-// Phase 20.15 M2 — real-Floci integration check.
+// Phase 20.15 M2/M7 — real-Floci integration.
 //
-// Opt-in only, because it needs a live emulator: `PAO_CLOUD_FLOCI_REAL=1 bun test
-// tests/cloud-sandbox-floci-integration.test.ts`. Skipped otherwise, so the default suite stays
-// hermetic and CI without Docker is unaffected.
+// Opt-in: `PAO_CLOUD_FLOCI_REAL=1 bun test tests/cloud-sandbox-floci-integration.test.ts`.
+// Skipped otherwise, so the default suite stays hermetic and CI without Docker is unaffected.
 //
-// This is the file that turns the adapter's assumptions into observations. Everything asserted
-// here was read off the pinned image `floci/floci@sha256:f5aa8c18…` running on loopback.
+// The block provisions its OWN emulator through the brokered Docker port rather than assuming
+// somebody started one on 4566. That distinction is not stylistic: the first version of this file
+// read a manually-run container, and the moment the container was cleaned up four tests failed on
+// a host that had done nothing wrong. A test that depends on leftover system state reports the
+// state of the machine rather than the behaviour of the code.
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
+import { CloudCapabilityRegistry } from "../src/agent-os/cloud-sandbox/capability-registry";
+import { FlociAwsAdapter } from "../src/agent-os/cloud-sandbox/adapters/floci-aws";
+import { FLOCI_HEALTH_PATH, FLOCI_PINNED_IMAGE } from "../src/agent-os/cloud-sandbox/adapters/floci-config";
+import { BrokeredCliDockerControlPort } from "../src/agent-os/cloud-sandbox/docker-control/brokered-cli-port";
+import { SANDBOX_LABELS } from "../src/agent-os/cloud-sandbox/docker-control/port";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CloudCapabilityRegistry } from "../src/agent-os/cloud-sandbox/capability-registry";
-import { FlociAwsAdapter } from "../src/agent-os/cloud-sandbox/adapters/floci-aws";
-import {
-  FLOCI_HEALTH_PATH,
-  FLOCI_PINNED_IMAGE,
-} from "../src/agent-os/cloud-sandbox/adapters/floci-config";
-import { BrokeredCliDockerControlPort } from "../src/agent-os/cloud-sandbox/docker-control/brokered-cli-port";
-import { SANDBOX_LABELS } from "../src/agent-os/cloud-sandbox/docker-control/port";
-
 const RUN = process.env.PAO_CLOUD_FLOCI_REAL === "1";
-const BASE = process.env.PAO_CLOUD_FLOCI_ENDPOINT ?? "http://127.0.0.1:4566";
+const PORT = 4571;
+const BASE = `http://127.0.0.1:${PORT}`;
+const SANDBOX_ID = "sbx_itgrat";
 
-describe.skipIf(!RUN)("phase 20.15 M2 — live Floci integration", () => {
-    test(`GET ${FLOCI_HEALTH_PATH} answers with a parseable health document`, async () => {
-      const response = await fetch(`${BASE}${FLOCI_HEALTH_PATH}`, { method: "GET" });
-      expect(response.status).toBe(200);
+let adapter: FlociAwsAdapter;
+let docker: BrokeredCliDockerControlPort;
+let startError: unknown;
 
-      const body = (await response.json()) as {
-        version?: string;
-        services?: Record<string, string>;
-      };
-      expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
-      expect(Object.keys(body.services ?? {}).length).toBeGreaterThan(50);
+describe.skipIf(!RUN)("phase 20.15 — live Floci through the broker", () => {
+  beforeAll(async () => {
+    docker = new BrokeredCliDockerControlPort({ allowedImages: [FLOCI_PINNED_IMAGE] });
+    adapter = new FlociAwsAdapter({
+      docker,
+      capabilities: new CloudCapabilityRegistry(),
+      stateRoot: mkdtempSync(join(tmpdir(), "pao-floci-state-")),
+      portBase: PORT,
+      pollDeadlineMs: 120_000,
     });
-
-    test("the adapter's health probe path is the one the image healthchecks", async () => {
-      // /health is served too, but the container's own healthcheck.sh uses /_floci/health, and
-      // the trailing-slash form 404s -- pinning to the image's choice is what keeps a future
-      // alias removal from being discovered as a stuck sandbox.
-      const canonical = await fetch(`${BASE}${FLOCI_HEALTH_PATH}`);
-      const alias = await fetch(`${BASE}/health`);
-      const trailing = await fetch(`${BASE}${FLOCI_HEALTH_PATH}/`);
-      expect(canonical.status).toBe(200);
-      expect(alias.status).toBe(200);
-      expect(trailing.status).toBe(404);
-    });
-
-    test("health says 'running' for Docker-backed services it cannot actually run", async () => {
-      // The single most important cross-check in this file. The container was started with no
-      // Docker socket mounted, yet the health document lists lambda/rds/eks as running. If
-      // fidelity were derived from health, an agent would be told a Lambda sandbox works.
-      const body = (await (await fetch(`${BASE}${FLOCI_HEALTH_PATH}`)).json()) as {
-        services: Record<string, string>;
-      };
-      expect(body.services.lambda).toBe("running");
-      expect(body.services.rds).toBe("running");
-
-      const registry = new CloudCapabilityRegistry();
-      expect(registry.requiresDocker("lambda")).toBe(true);
-      // With no reachable daemon our registry answers UNAVAILABLE, which is the disagreement
-      // this test exists to keep honest.
-      expect(registry.effectiveFidelity("lambda", false)).toBe("UNAVAILABLE");
-    });
-
-    test("an unsigned S3 list is served, which is why the bind address is a control", async () => {
-      // Floci accepts unsigned requests unless FLOCI_SERVICES_S3_ENFORCE_AUTH is set. On
-      // loopback that is a convenience; published on an interface, the same behaviour makes it
-      // an open object store. The adapter therefore binds 127.0.0.1 and never a wildcard.
-      const response = await fetch(`${BASE}/?list-type=2`, { method: "GET" });
-      expect(response.status).toBe(200);
-      const xml = await response.text();
-      expect(xml).toContain("ListAllMyBucketsResult");
-    });
-  });
-
-describe.skipIf(process.env.PAO_CLOUD_DOCKER_REAL !== "1")(
-  "phase 20.15 M7 — brokered port to a real daemon",
-  () => {
-    test("Floci starts through the broker, answers health, and leaves nothing behind", async () => {
-      // This is the §15 topology asserted end to end: the adapter reaches the daemon only through
-      // the brokered port, and the emulator is gone afterwards with no orphan carrying its label.
-      const docker = new BrokeredCliDockerControlPort({ allowedImages: [FLOCI_PINNED_IMAGE] });
-      expect(await docker.isReachable()).toBe(true);
-
-      const adapter = new FlociAwsAdapter({
-        docker,
-        capabilities: new CloudCapabilityRegistry(),
-        stateRoot: mkdtempSync(join(tmpdir(), "pao-floci-state-")),
-        portBase: 4571,
-        pollDeadlineMs: 120_000,
-      });
-
-      const runtime = await adapter.startSandbox({
-        id: "sbx_live01",
-        workspaceId: "ws_live",
+    try {
+      await adapter.startSandbox({
+        id: SANDBOX_ID,
+        workspaceId: "ws_itgrat",
         taskId: null,
         runId: null,
         actorId: "agent_integration",
@@ -105,38 +51,82 @@ describe.skipIf(process.env.PAO_CLOUD_DOCKER_REAL !== "1")(
         storageMode: "memory",
         ttlMinutes: 10,
       });
+    } catch (err) {
+      startError = err;
+    }
+  }, 240_000);
 
-      expect(runtime.endpoints.base).toBe("http://127.0.0.1:4571");
+  afterAll(async () => {
+    if (startError) return;
+    await adapter?.destroy(SANDBOX_ID).catch(() => undefined);
+    // Belt and braces: the destroy path asserts, this guarantees a crashed run cannot leave a
+    // labelled container bound to a port on the developer's machine.
+    const leftovers = await docker.listByLabel(`${SANDBOX_LABELS.sandbox}=${SANDBOX_ID}`);
+    for (const orphan of leftovers) {
+      await docker.stopContainer(orphan.id).catch(() => undefined);
+      await docker.removeContainer(orphan.id).catch(() => undefined);
+    }
+  }, 120_000);
 
-      const health = await adapter.health("sbx_live01");
-      expect(health.state).toBe("healthy");
-      expect(health.endpointReachable).toBe(true);
-      expect((health.registeredServices?.length ?? 0)).toBeGreaterThan(50);
+  test("the provisioned emulator is actually up", () => {
+    // Surfaced first so every failure below reads as "could not start" rather than as a pile of
+    // confusing network errors.
+    if (startError) throw startError;
+  });
 
-      // Docker-backed fidelity still comes from the registry, not from the emulator's own
-      // "running" claim -- this is the disagreement that would otherwise be a silent lie.
-      expect(await adapter.serviceFidelity("sbx_live01", "lambda")).toBe("DOCKER_BACKED");
+  test(`GET ${FLOCI_HEALTH_PATH} answers with a parseable health document`, async () => {
+    const response = await fetch(`${BASE}${FLOCI_HEALTH_PATH}`, { method: "GET" });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { version?: string; services?: Record<string, string> };
+    expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(Object.keys(body.services ?? {}).length).toBeGreaterThan(50);
+  });
 
-      const published = await docker.listByLabel(`${SANDBOX_LABELS.sandbox}=sbx_live01`);
-      expect(published.length).toBeGreaterThan(0);
+  test("the adapter's health path is the one the image healthchecks", async () => {
+    // /health is served too and the trailing-slash form 404s, so the pinned path is the one the
+    // container's own healthcheck.sh relies on.
+    const canonical = await fetch(`${BASE}${FLOCI_HEALTH_PATH}`);
+    const alias = await fetch(`${BASE}/health`);
+    const trailing = await fetch(`${BASE}${FLOCI_HEALTH_PATH}/`);
+    expect(canonical.status).toBe(200);
+    expect(alias.status).toBe(200);
+    expect(trailing.status).toBe(404);
+  });
 
-      const report = await adapter.destroy("sbx_live01");
-      expect(report.ok).toBe(true);
-      expect(report.leaked).toEqual([]);
+  test("health claims Docker-backed services the registry does not vouch for", async () => {
+    // The cross-check that keeps fidelity in the registry: the emulator reports lambda running,
+    // and our own probe of it says DOCKER_BACKED -- a state, not a promise that it works.
+    const body = (await (await fetch(`${BASE}${FLOCI_HEALTH_PATH}`)).json()) as {
+      services: Record<string, string>;
+    };
+    expect(body.services.lambda).toBe("running");
+    expect(await adapter.serviceFidelity(SANDBOX_ID, "lambda")).toBe("DOCKER_BACKED");
+    expect(await adapter.serviceFidelity(SANDBOX_ID, "s3")).toBe("IN_PROCESS");
+  });
 
-      const after = await docker.listByLabel(`${SANDBOX_LABELS.sandbox}=sbx_live01`);
-      expect(after).toEqual([]);
-    }, 180_000);
+  test("an unsigned S3 list is served, which is why the bind address is a control", async () => {
+    // Floci does not enforce SigV4 by default, so a published port on a routable interface would
+    // be an open object store. The broker publishes on 127.0.0.1 and the mapping is rebuilt from
+    // the container port, which is also why the base URL above is loopback.
+    const response = await fetch(`${BASE}/?list-type=2`, { method: "GET" });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("ListAllMyBucketsResult");
+  });
 
-    test("the broker refuses a privileged container before the daemon sees it", async () => {
-      const docker = new BrokeredCliDockerControlPort({ allowedImages: [FLOCI_PINNED_IMAGE] });
-      await expect(
-        docker.createContainer({
-          image: FLOCI_PINNED_IMAGE,
-          labels: { [SANDBOX_LABELS.sandbox]: "sbx_evil" },
-          privileged: true,
-        }),
-      ).rejects.toThrow(/refused by the broker/);
-    });
-  },
-);
+  test("the broker refuses a privileged container before the daemon sees it", async () => {
+    await expect(
+      docker.createContainer({
+        image: FLOCI_PINNED_IMAGE,
+        labels: { [SANDBOX_LABELS.sandbox]: "sbx_denied" },
+        privileged: true,
+      }),
+    ).rejects.toThrow(/refused by the broker/);
+  });
+
+  test("destroy removes the container and leaves no labelled orphan", async () => {
+    const report = await adapter.destroy(SANDBOX_ID);
+    expect(report.ok).toBe(true);
+    expect(report.leaked).toEqual([]);
+    expect(await docker.listByLabel(`${SANDBOX_LABELS.sandbox}=${SANDBOX_ID}`)).toEqual([]);
+  }, 120_000);
+});

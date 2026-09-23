@@ -65,7 +65,12 @@ tests/.tmp-*
 # `git add` three separate times and reached `dev` once — see
 # tests/repo-hygiene.test.ts, which fails if any path here becomes tracked again.
 go/
-# Local runtime SQLite database and exports
-data/
-export/
-scratch/
+# Local runtime SQLite database and exports. All three are written at the repository root:
+# `export-package-builder.ts` defaults its output to `join(process.cwd(), "export", jobId)`.
+# Anchored on purpose -- unanchored, `export/` also matched `src/agent-os/video/export/` and
+# kept a real source file out of the index, where it compiled on every machine that wrote it
+# and failed `bun run typecheck` only on a fresh clone. See tests/repo-hygiene.test.ts and
+# issue #3. `go/` above stays unanchored deliberately: that tree is retired at every depth.
+/data/
+/export/
+/scratch/

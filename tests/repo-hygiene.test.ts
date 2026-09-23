@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -262,4 +263,70 @@ describe("devlog is tracked, with no submodule left behind", () => {
     const missing = relative.filter((asset) => !isShipped(asset));
     expect(missing).toEqual([]);
   });
+});
+
+/**
+ * Runtime import specifiers, `import type` excluded because it is erased and costs nothing.
+ *
+ * Covers static imports, side-effect imports, runtime re-exports and dynamic `import()` --
+ * a lazy import is still a real dependency for the file that carries it, and the management
+ * routes load every subsystem through one. Same shape as the walker in
+ * tests/core-lab-boundary.test.ts, for the same reason: an earlier version of that guard
+ * missed dynamic import and reported clean while pulling modules in at runtime.
+ */
+const RUNTIME_IMPORT_RE = /^\s*import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']|^\s*import\s+["']([^"']+)["']|^\s*export\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/gm;
+
+function relativeImportsOf(source: string): string[] {
+  const specs: string[] = [];
+  RUNTIME_IMPORT_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = RUNTIME_IMPORT_RE.exec(source)) !== null) {
+    const spec = match[1] ?? match[2] ?? match[3] ?? match[4];
+    if (spec?.startsWith(".")) specs.push(spec);
+  }
+  return specs;
+}
+
+/**
+ * An unanchored `.gitignore` pattern matches at every depth, so `export/` -- written for one
+ * root-level runtime output directory -- also swallows any source directory named `export`.
+ *
+ * That failure mode is unusually well hidden. The file compiles on every machine that created
+ * it, `git add <path>` is a silent no-op unless forced, and the error only surfaces on a fresh
+ * clone as `TS2307: Cannot find module` in CI. This is how `src/agent-os/video/export/` reached
+ * a state where two tracked modules imported a file that git had never seen; see issue #3.
+ *
+ * Asserting trackedness rather than file existence is the whole point: `.gitignore` cannot
+ * protect against this, because the rule is what causes it, and the file on a developer disk
+ * looks exactly like the file in the repository.
+ */
+describe("no tracked module imports an untracked file", () => {
+  const root = resolve(repoRoot);
+  // "" for an extensionless target, the suffixes Bun resolves for a bare specifier, and
+  // "/index.ts" for a directory import such as `import "../cloud-sandbox"`.
+  const MODULE_SUFFIXES = ["", ".ts", ".tsx", ".js", ".json", "/index.ts"];
+
+  // Computed once. Deriving the tracked set per source file spawned one `git ls-files`
+  // subprocess per module and turned a cheap assertion into a minutes-long crawl.
+  const tracked = new Set(trackedFiles());
+
+  test.each(trackedFiles().filter((path) => path.startsWith("src/") && path.endsWith(".ts")))(
+    "%s resolves every relative import to a tracked file",
+    (file) => {
+      const fullPath = join(root, file);
+      if (!existsSync(fullPath)) return; // absent in this checkout: not this test's concern
+
+      const dangling: string[] = [];
+
+      for (const spec of relativeImportsOf(readFileSync(fullPath, "utf8"))) {
+        const base = resolve(dirname(fullPath), spec);
+        const resolves = MODULE_SUFFIXES.some((suffix) =>
+          tracked.has(`${base}${suffix}`.slice(root.length + 1).replaceAll("\\", "/")),
+        );
+        if (!resolves) dangling.push(spec);
+      }
+
+      expect(dangling).toEqual([]);
+    },
+  );
 });

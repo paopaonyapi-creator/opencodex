@@ -12,7 +12,13 @@ export type Capability =
   | "net.fetch"
   | "shell.exec"
   | "git.push"
-  | "deploy";
+  | "deploy"
+  // Phase 20.15 Cloud Sandbox Plane. Additive: a new capability has no policy row until one
+  // is written, and this module is deny-by-default, so all four start out denied.
+  | "cloud.sandbox"
+  | "cloud.iac.local"
+  | "cloud.staging.apply"
+  | "cloud.production.apply";
 
 /** Capabilities that can never be granted by policy alone — approval required. */
 const APPROVAL_REQUIRED: ReadonlySet<Capability> = new Set<Capability>([
@@ -20,6 +26,11 @@ const APPROVAL_REQUIRED: ReadonlySet<Capability> = new Set<Capability>([
   "shell.exec",
   "git.push",
   "deploy",
+  // A local sandbox is disposable by design, so policy alone may grant it. Anything that
+  // crosses out of the local trust zone cannot be: source spec §5.6 treats staging and
+  // production as a different trust zone, and §50 forbids a default auto-approve there.
+  "cloud.staging.apply",
+  "cloud.production.apply",
 ]);
 
 export interface PolicyDecision {

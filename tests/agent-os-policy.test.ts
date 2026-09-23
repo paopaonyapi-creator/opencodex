@@ -54,3 +54,47 @@ describe("phase 05 — deny-by-default capability policy", () => {
     expect(evaluateCapability("agent", "agent_other", "net.fetch")).toEqual({ allowed: true, reason: "policy_allow" });
   });
 });
+
+describe("phase 20.15 — cloud sandbox capabilities", () => {
+  test("a brand-new cloud capability is denied until someone writes a policy row", () => {
+    openFreshDb();
+    // The whole plane is additive: shipping four new capabilities must not widen what any
+    // existing subject can do, so each one has to start at default_deny.
+    expect(evaluateCapability("agent", "agent_x", "cloud.sandbox")).toEqual({ allowed: false, reason: "default_deny" });
+    expect(evaluateCapability("agent", "agent_x", "cloud.iac.local")).toEqual({ allowed: false, reason: "default_deny" });
+    expect(evaluateCapability("agent", "agent_x", "cloud.staging.apply")).toEqual({ allowed: false, reason: "default_deny" });
+    expect(evaluateCapability("agent", "agent_x", "cloud.production.apply")).toEqual({ allowed: false, reason: "default_deny" });
+  });
+
+  test("local sandbox and local IaC are grantable by policy alone", () => {
+    openFreshDb();
+    addPolicy({ subjectType: "agent", subjectId: "agent_x", capability: "cloud.sandbox", effect: "allow" });
+    addPolicy({ subjectType: "agent", subjectId: "agent_x", capability: "cloud.iac.local", effect: "allow" });
+    expect(evaluateCapability("agent", "agent_x", "cloud.sandbox")).toEqual({ allowed: true, reason: "policy_allow" });
+    expect(evaluateCapability("agent", "agent_x", "cloud.iac.local")).toEqual({ allowed: true, reason: "policy_allow" });
+  });
+
+  test("leaving the local trust zone needs a human approval even with an allow policy", () => {
+    openFreshDb();
+    addPolicy({ subjectType: "agent", subjectId: "agent_x", capability: "cloud.staging.apply", effect: "allow" });
+    addPolicy({ subjectType: "agent", subjectId: "agent_x", capability: "cloud.production.apply", effect: "allow" });
+    // Source spec §50: no default auto-approve for staging or production, and §5.6 treats
+    // both as a different trust zone from the local emulator.
+    expect(evaluateCapability("agent", "agent_x", "cloud.staging.apply")).toEqual({
+      allowed: false,
+      reason: "approval_required",
+    });
+    expect(evaluateCapability("agent", "agent_x", "cloud.production.apply")).toEqual({
+      allowed: false,
+      reason: "approval_required",
+    });
+  });
+
+  test("a global cloud allow applies to every subject, and a subject deny still overrides it", () => {
+    openFreshDb();
+    addPolicy({ subjectType: "global", capability: "cloud.sandbox", effect: "allow" });
+    expect(evaluateCapability("agent", "agent_any", "cloud.sandbox")).toEqual({ allowed: true, reason: "policy_allow" });
+    addPolicy({ subjectType: "agent", subjectId: "agent_locked", capability: "cloud.sandbox", effect: "deny" });
+    expect(evaluateCapability("agent", "agent_locked", "cloud.sandbox")).toEqual({ allowed: false, reason: "policy_deny" });
+  });
+});

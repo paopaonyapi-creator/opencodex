@@ -554,6 +554,32 @@ against `dev` — see `AGENTS.md` and `MAINTAINERS.md`.
 
 ---
 
+### 12.2 M7 started early — brokered Docker control, proven against a live daemon
+
+`BrokeredCliDockerControlPort` landed ahead of its milestone because M2's adapter could not be
+verified any other way. **It is not the §15.1 socket proxy** — the transport is the operator's own
+`docker` CLI, invoked as an argument array with no shell. The property §15 actually requires holds
+either way: the agent has no transport to the daemon, only five verbs through a broker that
+validates every container spec before it spawns anything. Trade-off recorded as
+`DEBT-20260923-002`.
+
+Two things that went wrong in ways worth keeping on record:
+
+1. **The M1 guard caught me repeating issue #3.** `index.ts` imported the new brokered port while
+   that file was still untracked, and `no tracked module imports an untracked file` failed exactly
+   as designed. The test I wrote to stop other people shipping this bug caught me shipping it.
+2. **The first live integration block assumed a manually-started emulator** and reported four
+   failures the moment that container was cleaned up. A test that depends on leftover system state
+   asserts the state of the machine, not the behaviour of the code. The block now provisions its
+   own emulator through the broker in `beforeAll` and tears it down in `afterAll`, with a
+   label-scoped sweep that cannot leave anything bound on a developer's port.
+
+Verified live (`PAO_CLOUD_FLOCI_REAL=1`): 7 pass / 0 fail — Floci started by our own broker,
+`/_floci/health` parseable, unsigned S3 list served on loopback, `lambda` reported `running` by the
+emulator while our registry says `DOCKER_BACKED`, privileged spec refused before the daemon saw it,
+destroy left no labelled orphan. Independently confirmed against the daemon with
+`docker ps -a --filter label=pao.sandbox.id` → empty, not just trusted to the test's own assertion.
+
 ## 13. Decisions — resolved 2026-09-23
 
 1. **`src/agent-os/control-plane/`** — **ไม่แตะ, ไม่ใช้** เป็นโฟลเดอร์เปล่า untracked

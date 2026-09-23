@@ -55,11 +55,11 @@
 
 - Date: 2026-09-23
 - Area: cloud-sandbox
-- Shortcut: Docker is reachable only through NullDockerControlPort, which refuses every mutation; the socket-backed port is deferred to milestone M7.
-- Reason: The repository has no Docker client and runs on win32, where Docker Desktop exposes a named pipe and must be started by hand. Shipping a Docker-dependent Wave-1 anyway would force the adapter to fake success, which source spec 42 forbids, so fidelity reports UNAVAILABLE instead.
+- Shortcut: Docker control is brokered through the operator's docker CLI (BrokeredCliDockerControlPort), not the request-filtering socket proxy that source spec 15.1 describes.
+- Reason: The CLI is already installed, works on win32 where the daemon is a named pipe rather than a unix socket, and cannot bypass validateContainerSpec because every verb funnels through one run() that refuses before spawning. A raw socket proxy is platform-specific work that buys nothing the broker does not already enforce.
 - Risk: medium
-- Trigger to revisit: M7, or as soon as CI gains a Docker daemon. Withheld services: lambda, rds, opensearch, ec2, ecs, eks, msk.
-- Related files: src/agent-os/cloud-sandbox/docker-control/port.ts, src/agent-os/cloud-sandbox/docker-control/null-port.ts, src/agent-os/cloud-sandbox/capability-registry.ts
+- Trigger to revisit: When a milestone needs Docker API surface the CLI cannot reach, or when the daemon must be used without spawning a process. Still open regardless: CI has no Docker daemon, so every path below is unverified in repository CI. Withheld services: lambda, rds, opensearch, ec2, ecs, eks, msk.
+- Related files: src/agent-os/cloud-sandbox/docker-control/brokered-cli-port.ts, src/agent-os/cloud-sandbox/docker-control/port.ts, tests/cloud-sandbox-docker-port.test.ts
 - Owner: Pao-hubPro
 - Status: open
 

@@ -300,4 +300,33 @@ describe("phase 20.15 — adapter registry and activation seam", () => {
     resetCloudSandboxForTests();
     expect(activateCloudSandboxPlane().list()).toHaveLength(1);
   });
+
+  test("the real adapter is registered only when Docker is enabled AND the image is pinned", () => {
+    // Three states, all of which have to be right: flag off, flag on with a floating image, and
+    // flag on with a digest. The middle one is the tempting failure -- enabling Docker control
+    // while leaving `:latest` configured would start an unpinned privileged runtime.
+    const withEnv = (extra: Record<string, string>) => {
+      resetCloudSandboxForTests();
+      Object.assign(process.env, { PAO_CLOUD_SANDBOX_ENABLED: "1", ...extra });
+      return activateCloudSandboxPlane().list().map((adapter) => adapter.id);
+    };
+
+    try {
+      expect(withEnv({})).toEqual(["mock-aws"]);
+      expect(withEnv({ PAO_CLOUD_DOCKER_CONTROL_ENABLED: "1" })).toEqual(["mock-aws"]);
+      expect(
+        withEnv({ PAO_CLOUD_DOCKER_CONTROL_ENABLED: "1", PAO_CLOUD_FLOCI_IMAGE: "floci/floci:latest" }),
+      ).toEqual(["mock-aws"]);
+      expect(
+        withEnv({
+          PAO_CLOUD_DOCKER_CONTROL_ENABLED: "1",
+          PAO_CLOUD_FLOCI_IMAGE: "floci/floci@sha256:f5aa8c18302cedb4f2385f5c4e455b3efc77fee6bf7b6e5d1712b2817ba102db",
+        }),
+      ).toEqual(["floci-aws", "mock-aws"]);
+    } finally {
+      delete process.env.PAO_CLOUD_DOCKER_CONTROL_ENABLED;
+      delete process.env.PAO_CLOUD_FLOCI_IMAGE;
+      resetCloudSandboxForTests();
+    }
+  });
 });

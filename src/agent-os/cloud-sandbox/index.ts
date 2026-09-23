@@ -77,11 +77,17 @@ export {
   type CloudGateCapability,
 } from "./policy-gate";
 
+import { join } from "node:path";
+import { getConfigDir } from "../../config";
 import { CloudEmulatorAdapterRegistry } from "./adapter-spi";
 import { CloudSandboxDbStore } from "./db-store";
+import type { DockerControlPort } from "./docker-control/port";
 import { getNullDockerControlPort } from "./docker-control/null-port";
+import { BrokeredCliDockerControlPort } from "./docker-control/brokered-cli-port";
 import { MockCloudEmulatorAdapter } from "./adapters/mock";
-import { readCloudSandboxFlags, type CloudSandboxFlags } from "./flags";
+import { FlociAwsAdapter } from "./adapters/floci-aws";
+import { readCloudSandboxFlags, validatePinnedImage, type CloudSandboxFlags } from "./flags";
+import { getCloudCapabilityRegistry } from "./capability-registry";
 
 let flagsSingleton: CloudSandboxFlags | null = null;
 let dbSingleton: CloudSandboxDbStore | null = null;
@@ -117,16 +123,31 @@ export function getCloudEmulatorAdapterRegistry(): CloudEmulatorAdapterRegistry 
 /**
  * Activation seam for docs/Phase-20.15 §4.1.
  *
- * Registers the mock adapter and wires the Docker port it uses. A real Floci adapter
- * registers here in M2; until then the mock is the only implementation, and registering it
- * explicitly (rather than at import time) keeps an inactive process free of both.
+ * Registration is chosen by configuration, never by assumption about the host: with the Docker
+ * control flag off, or no pinned image named, the plane registers only the mock, so a process
+ * that set nothing pays nothing and a host without a daemon gets an honest refusal instead of a
+ * half-working emulator. `docker` is injectable for tests; nothing in this function spawns
+ * anything by itself.
  */
-export function activateCloudSandboxPlane(): CloudEmulatorAdapterRegistry {
+export function activateCloudSandboxPlane(overrides: { docker?: DockerControlPort } = {}): CloudEmulatorAdapterRegistry {
   const registry = getCloudEmulatorAdapterRegistry();
+  const flags = getCloudSandboxFlags();
+
+  const imageVerdict = validatePinnedImage(flags.flociImage);
+  if (flags.dockerControlEnabled && imageVerdict.ok) {
+    if (!registry.get("floci-aws")) {
+      registry.register(
+        new FlociAwsAdapter({
+          docker: overrides.docker ?? new BrokeredCliDockerControlPort({ allowedImages: [flags.flociImage!] }),
+          capabilities: getCloudCapabilityRegistry(),
+          stateRoot: join(getConfigDir(), "cloud", "sandboxes"),
+        }),
+      );
+    }
+  }
+
   if (!registry.get("mock-aws")) {
-    registry.register(
-      new MockCloudEmulatorAdapter({ docker: getNullDockerControlPort() }),
-    );
+    registry.register(new MockCloudEmulatorAdapter({ docker: overrides.docker ?? getNullDockerControlPort() }));
   }
   return registry;
 }

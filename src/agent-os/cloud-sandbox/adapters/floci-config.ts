@@ -22,6 +22,14 @@ import type { SandboxProfile, StorageMode } from "../types";
 
 /** Upstream default. Kept explicit so a drift in the pinned image is visible in a diff. */
 export const FLOCI_DEFAULT_PORT = 4566;
+
+/**
+ * Health route, read out of the pinned image itself rather than guessed: its
+ * `/usr/local/bin/healthcheck.sh` issues `GET /_floci/health` over a raw TCP socket and accepts
+ * only HTTP 200. `/health` is served as an alias with an identical body, and the trailing-slash
+ * form 404s, so the canonical path is the one the image itself relies on.
+ */
+export const FLOCI_HEALTH_PATH = "/_floci/health";
 export const FLOCI_DEFAULT_REGION = "us-east-1";
 export const FLOCI_DEFAULT_ACCOUNT_ID = "000000000000";
 export const FLOCI_IMAGE_REPOSITORY = "floci/floci";

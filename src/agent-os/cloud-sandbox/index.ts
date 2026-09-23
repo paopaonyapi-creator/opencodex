@@ -51,11 +51,12 @@ export {
 } from "./docker-control/port";
 export { NullDockerControlPort, getNullDockerControlPort } from "./docker-control/null-port";
 export { MockCloudEmulatorAdapter, type MockAdapterOptions } from "./adapters/mock";
-export { FlociAwsAdapter, type FlociAdapterOptions } from "./adapters/floci-aws";
+export { FlociAwsAdapter, type FlociAdapterOptions, type FlociHealthProbe } from "./adapters/floci-aws";
 export {
   FLOCI_DEFAULT_ACCOUNT_ID,
   FLOCI_DEFAULT_PORT,
   FLOCI_DEFAULT_REGION,
+  FLOCI_HEALTH_PATH,
   FLOCI_IMAGE_REPOSITORY,
   FLOCI_PINNED_IMAGE,
   flociClientEnvironment,

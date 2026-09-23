@@ -139,10 +139,23 @@ describe("phase 20.15 M2 — floci launch plan", () => {
   });
 });
 
+/** Shape captured from the real pinned image, not invented: see docs/Phase-20.15 §10.2. */
+const HEALTH_BODY = JSON.stringify({
+  version: "2.1.0",
+  original_edition: "floci-always-free",
+  edition: "community",
+  services: { s3: "running", dynamodb: "running", sqs: "running", lambda: "running", rds: "running" },
+});
+
+const okProbe = async () => ({ status: 200, body: HEALTH_BODY });
+
 describe("phase 20.15 M2 — floci adapter availability", () => {
   const capabilities = new CloudCapabilityRegistry();
 
-  function adapterWith(docker: DockerControlPort, probe = async () => ({ status: 200 })) {
+  function adapterWith(
+    docker: DockerControlPort,
+    probe: (url: string) => Promise<{ status: number; body?: string }> = okProbe,
+  ) {
     return new FlociAwsAdapter({ docker, capabilities, stateRoot: "/tmp/pao-cloud", probe, pollDeadlineMs: 30 });
   }
 
@@ -234,12 +247,17 @@ describe("phase 20.15 M2 — floci adapter availability", () => {
       pollDeadlineMs: 10,
       probe: async () => {
         if (!answering) throw new Error("connection refused");
-        return { status: 200 };
+        return { status: 200, body: HEALTH_BODY };
       },
     });
 
     await adapter.startSandbox(baseInput({ id: "sbx_gone" }));
-    expect((await adapter.health("sbx_gone")).state).toBe("healthy");
+    const alive = await adapter.health("sbx_gone");
+    expect(alive.state).toBe("healthy");
+    // The registry listing is carried but kept distinct from capability: the emulator says
+    // lambda and rds are "running" here even with no Docker socket mounted at all.
+    expect(alive.registeredServices).toContain("lambda");
+    expect(alive.readyServices).toEqual(["s3", "dynamodb"]);
 
     answering = false;
     const report = await adapter.health("sbx_gone");
@@ -249,6 +267,22 @@ describe("phase 20.15 M2 — floci adapter availability", () => {
     expect(report.endpointReachable).toBe(false);
     expect(report.detail).toContain("connection refused");
     expect(report.dockerRequired).toBe(true);
+  });
+
+  test("a 200 with an unparseable body is unreachable, not healthy", async () => {
+    // The earlier rule was "any HTTP response means alive", which a captive proxy returning
+    // 200-with-html would have satisfied. Parsing the health document is what makes this a
+    // claim about Floci rather than about something answering on the port.
+    const adapter = new FlociAwsAdapter({
+      docker: new FakeDockerPort(),
+      capabilities,
+      stateRoot: "/tmp/pao-cloud",
+      pollDeadlineMs: 20,
+      probe: async () => ({ status: 200, body: "<html>stub</html>" }),
+    });
+    await expect(adapter.startSandbox(baseInput({ id: "sbx_bad" }))).rejects.toMatchObject({
+      code: "SANDBOX_NOT_READY",
+    });
   });
 
   test("resource inventory refuses instead of reporting an empty sandbox", async () => {

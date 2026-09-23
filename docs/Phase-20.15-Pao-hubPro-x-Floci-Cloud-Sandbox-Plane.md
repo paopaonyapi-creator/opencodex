@@ -421,11 +421,27 @@ API Gateway REST, EventBridge, SWF, ELB = **In-process**; Lambda, RDS, Neptune, 
 ECS, EC2, EKS, OpenSearch, CodeBuild, Managed Flink = **Real Docker**; ECR = in-process พร้อม registry จริง
 Step Functions **ไม่ถูกระบุ** → คง `PARTIAL` เพราะการเดา fidelity คือสิ่งที่ §42 ห้ามโดยตรง
 
-**สองอย่างที่ README ไม่ระบุ และเราไม่ invent:** health endpoint ของ core (มีแค่ `/api/health` ของ
-console sidecar) และ API listing resource state → `FlociAwsAdapter.health()` จึงเป็น *reachability
-probe* (ทุก HTTP response นับว่า gateway ตื่น, transport error ไม่นับ) และ
-`listResources()` **throw `RESOURCE_DISCOVERY_FAILED`** แทนที่จะคืน array ว่าง — inventory จะได้จาก
-Terraform state ใน M3 ไม่ใช่จาก endpoint ลับ
+**ข้อที่ §10.2 เคยสรุปผิด และแก้แล้วหลังรัน image จริง:** ข้อความเดิมเขียนว่า "upstream ไม่ระบุ health
+endpoint ของ core" — **ไม่จริง** path มีอยู่และ image ใช้มันเอง `/_floci/health` (จาก
+`/usr/local/bin/healthcheck.sh` ใน image, `GET` ผ่าน raw TCP แล้วรับเฉพาะ 200), `/health` เป็น
+alias ที่ body เหมือนกัน, รูปแบบ trailing slash **404** → adapter ชี้ไปที่ path ที่ image itself
+ไว้วางใจ
+
+ตอบกลับ: `{version, original_edition, edition, services}` โดย `services` ลงทะเบียน **121 ตัว**
+และทั้งหมดเป็น `"running"` **แม้ container นั้นไม่มี Docker socket เลย** — นี่คือเหตุผลที่
+`registeredServices` แยกจาก `readyServices` ใน `HealthReport` และ fidelity ยังคงมาจาก
+capability registry เท่านั้น
+
+**ข้อที่สองที่เปลี่ยน security posture:** `GET /?list-type=2` แบบ **ไม่ signed** คืน
+`ListAllMyBucketsResult` ตัวจริง (HTTP 200) เพราะ `FLOCI_SERVICES_S3_ENFORCE_AUTH` default `false`
+แปลว่า loopback binding **ไม่ใช่เรื่องสไตล์** — ถ้า port ever ถูก publish ออก interface อื่น
+emulator จะกลายเป็น object store เปิด ทันที (`tests/cloud-sandbox-floci-integration.test.ts`
+ผูกข้อนี้ไว้เป็น assertion)
+
+**วิธีรัน:** `docker run -d -p 127.0.0.1:4566:4566 -e FLOCI_STORAGE_MODE=memory <pinned-digest>`
+แล้ว `PAO_CLOUD_FLOCI_REAL=1 bun test tests/cloud-sandbox-floci-integration.test.ts`
+— โดย default test ทั้ง 4 จะ **skip** เพื่อให้ suite ปกติยัง hermetic และ CI ที่ไม่มี Docker ไม่กระทบ
+**ไม่ mount docker.sock เข้า container** ตาม §15
 
 ### 10.3 Resolution — brokered Docker control port
 

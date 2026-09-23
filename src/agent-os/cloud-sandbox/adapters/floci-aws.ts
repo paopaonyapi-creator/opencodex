@@ -10,17 +10,24 @@
 // upstream does not document, but from Terraform state and plan in M3. `listResources` therefore
 // fails loudly rather than returning an empty list that would read as "the sandbox is empty".
 //
-// Health is a reachability probe, not a documented status endpoint: upstream publishes no core
-// `/health` route (only the console sidecar's `/api/health`, which is a different thing and is off
-// by default). Any HTTP response -- including a 4xx from an unsigned AWS request -- proves the
-// gateway is listening; a transport error does not.
+// Health uses the emulator's own document, read from the pinned image rather than guessed:
+// `/usr/local/bin/healthcheck.sh` issues `GET /_floci/health` and accepts only HTTP 200, and the
+// body carries the version, edition and a per-service registry. That registry is NOT treated as
+// capability evidence -- the image reports `lambda: running` with no Docker socket reachable --
+// so fidelity still comes from the capability registry alone. What health does prove is that the
+// gateway answered, which the previous "any HTTP status" guess did not.
 
 import { CloudSandboxError } from "../errors";
 import type { CloudEmulatorAdapter } from "../adapter-spi";
 import type { CloudCapabilityRegistry } from "../capability-registry";
 import type { DockerControlPort } from "../docker-control/port";
 import { SANDBOX_LABELS } from "../docker-control/port";
-import { planFlociLaunch, flociClientEnvironment, FLOCI_DEFAULT_REGION } from "./floci-config";
+import {
+  FLOCI_HEALTH_PATH,
+  flociClientEnvironment,
+  planFlociLaunch,
+  FLOCI_DEFAULT_REGION,
+} from "./floci-config";
 import type { FlociLaunchPlan } from "./floci-config";
 import type {
   AdapterAvailability,
@@ -46,9 +53,44 @@ export interface FlociAdapterOptions {
   region?: string;
   id?: string;
   /** Injectable so tests never touch a network stack. */
-  probe?: (url: string, signal?: AbortSignal) => Promise<{ status: number }>;
+  probe?: (url: string, signal?: AbortSignal) => Promise<FlociHealthProbe>;
   pollDeadlineMs?: number;
 }
+
+/** `GET /_floci/health` payload, narrowed to what this adapter is allowed to conclude. */
+export interface FlociHealthProbe {
+  status: number;
+  body?: string;
+}
+
+interface FlociHealthReport {
+  version?: string;
+  edition?: string;
+  original_edition?: string;
+  services?: Record<string, string>;
+}
+
+/**
+ * Parse the emulator's own health document.
+ *
+ * `services` maps 121 names to `running` on a healthy instance, and it reports `running` for
+ * Lambda, RDS and EKS even when no Docker socket is reachable. So this answers "is the gateway
+ * up and which services does it register" -- it is NOT evidence that a service works, and no
+ * fidelity decision below is derived from it.
+ */
+function parseHealth(body: string | undefined): FlociHealthReport | null {
+  if (!body) return null;
+  try {
+    return JSON.parse(body) as FlociHealthReport;
+  } catch {
+    return null;
+  }
+}
+
+const defaultProbe = async (url: string, signal?: AbortSignal): Promise<FlociHealthProbe> => {
+  const response = await fetch(url, { method: "GET", signal });
+  return { status: response.status, body: await response.text().catch(() => undefined) };
+};
 
 interface ManagedSandbox {
   plan: FlociLaunchPlan;
@@ -57,11 +99,6 @@ interface ManagedSandbox {
   fidelity: Record<string, ServiceFidelity>;
   startedAt: string;
 }
-
-const defaultProbe = async (url: string, signal?: AbortSignal) => {
-  const response = await fetch(url, { method: "GET", signal });
-  return { status: response.status };
-};
 
 export class FlociAwsAdapter implements CloudEmulatorAdapter {
   readonly id: string;
@@ -72,7 +109,7 @@ export class FlociAwsAdapter implements CloudEmulatorAdapter {
   private readonly stateRoot: string;
   private readonly portBase: number;
   private readonly region: string;
-  private readonly probe: (url: string, signal?: AbortSignal) => Promise<{ status: number }>;
+  private readonly probe: (url: string, signal?: AbortSignal) => Promise<FlociHealthProbe>;
   private readonly pollDeadlineMs: number;
   private readonly sandboxes = new Map<string, ManagedSandbox>();
   private nextPortIndex = 0;
@@ -128,10 +165,9 @@ export class FlociAwsAdapter implements CloudEmulatorAdapter {
 
     while (Date.now() <= deadline) {
       try {
-        // Any HTTP status counts: the gateway answering 403 to an unsigned request is proof it
-        // is up, which is the only thing this probe can legitimately conclude.
-        await this.probe(`${baseUrl}/health`, undefined);
-        return;
+        const probe = await this.probe(`${baseUrl}${FLOCI_HEALTH_PATH}`);
+        if (probe.status === 200 && parseHealth(probe.body)) return;
+        lastError = `status ${probe.status}, body ${probe.body ? "unparseable" : "absent"}`;
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
       }
@@ -140,7 +176,7 @@ export class FlociAwsAdapter implements CloudEmulatorAdapter {
 
     throw new CloudSandboxError(
       "SANDBOX_NOT_READY",
-      `Floci gateway did not answer on ${baseUrl} within ${this.pollDeadlineMs}ms (${lastError}).`,
+      `Floci gateway did not answer ${FLOCI_HEALTH_PATH} on ${baseUrl} within ${this.pollDeadlineMs}ms (${lastError}).`,
       { sandboxId, operation: "floci.waitForGateway" },
     );
   }
@@ -224,8 +260,16 @@ export class FlociAwsAdapter implements CloudEmulatorAdapter {
 
     let endpointReachable = false;
     let detail: string | undefined;
+    let registeredServices: string[] = [];
     try {
-      endpointReachable = (await this.probe(`${managed.plan.baseUrl}/health`)).status > 0;
+      const probe = await this.probe(`${managed.plan.baseUrl}${FLOCI_HEALTH_PATH}`);
+      const report = parseHealth(probe.body);
+      endpointReachable = probe.status === 200 && report !== null;
+      if (endpointReachable) {
+        registeredServices = Object.keys(report?.services ?? {});
+      } else if (probe.body) {
+        detail = `health returned ${probe.status}`;
+      }
     } catch (err) {
       detail = err instanceof Error ? err.message : String(err);
     }
@@ -243,6 +287,7 @@ export class FlociAwsAdapter implements CloudEmulatorAdapter {
       dockerRequired: true,
       checkedAt: new Date().toISOString(),
       detail,
+      registeredServices,
     };
   }
 

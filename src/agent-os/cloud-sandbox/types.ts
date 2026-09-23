@@ -110,6 +110,14 @@ export interface HealthReport {
   dockerRequired: boolean;
   checkedAt: string;
   detail?: string;
+  /**
+   * Every service the emulator registers, from its own health document.
+   *
+   * Reported separately from `readyServices` on purpose: the emulator labels all ~121 services
+   * `running` even with no Docker socket reachable, so this is a registry listing, not a
+   * capability assertion. Fidelity comes from the capability registry, never from here.
+   */
+  registeredServices?: string[];
 }
 
 export interface AdapterAvailability {

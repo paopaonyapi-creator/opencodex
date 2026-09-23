@@ -67,10 +67,10 @@
 
 - Date: 2026-09-23
 - Area: cloud-sandbox
-- Shortcut: Only MockCloudEmulatorAdapter exists; no Floci adapter is wired, and activateCloudSandboxPlane registers the mock.
-- Reason: Every contract the plane depends on (SPI, sidecar store, policy capabilities, trust-zone gates, Docker control port) had to be fixed and tested against a deterministic implementation first, so a real adapter written alongside them would be the thing under test rather than the contracts.
+- Shortcut: FlociAwsAdapter exists and is verified against a live pinned container, but activateCloudSandboxPlane still registers only MockCloudEmulatorAdapter.
+- Reason: Registering the real adapter would change nothing observable until a socket-backed DockerControlPort lands, because FlociAwsAdapter.startSandbox refuses without it. The mock keeps the lifecycle, policy and TTL rules testable and the suite hermetic, including on CI runners with no Docker daemon.
 - Risk: low
-- Trigger to revisit: M2, which replaces this registration with FlociAwsAdapter and keeps the mock for tests.
-- Related files: src/agent-os/cloud-sandbox/index.ts, src/agent-os/cloud-sandbox/adapters/mock.ts
+- Trigger to revisit: M7, which adds SocketDockerControlPort; registration then switches to FlociAwsAdapter with the mock kept for tests.
+- Related files: src/agent-os/cloud-sandbox/index.ts, src/agent-os/cloud-sandbox/adapters/floci-aws.ts, tests/cloud-sandbox-floci-integration.test.ts
 - Owner: Pao-hubPro
 - Status: open

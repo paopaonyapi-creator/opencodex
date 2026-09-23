@@ -478,7 +478,10 @@ Performance note: import-graph walk เคยใช้เวลา 8.8s แล�
 รายงานตัวมันเองว่าพัง `extractSpecs` cache ต่อไฟล์ลดเหลือ 446ms — ถ้าจะแก้ให้
 `core-lab-boundary.test.ts` ด้วย ต้องเพิ่ม cache แบบเดียวกันไม่ใช่เพิ่ม timeout
 
-**ยังไม่ได้ commit** — รออนุญาตตาม `AGENTS.md`
+M1 is recorded in commit `b591a81ea` on `feat/cloud-sandbox-plane`. The PR-ready gate is still
+open: `bun run test:changed` hit its own 900s budget on this host without completing, and the
+full suite has not been run. Both are required before this opens as a review-ready pull request
+against `dev` — see `AGENTS.md` and `MAINTAINERS.md`.
 
 ---
 

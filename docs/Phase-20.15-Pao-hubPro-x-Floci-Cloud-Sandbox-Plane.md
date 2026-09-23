@@ -368,11 +368,34 @@ Source spec §15, §37, §40 สมมติ Linux + Docker daemon + unix socket
    `governance/dependency-guard.ts`
 2. platform เป็น **win32** — Docker Desktop ใช้ named pipe `//./pipe/docker_engine`
    ไม่ใช่ `/var/run/docker.sock` โค้ดที่ hardcode path ตาม §37 จะไม่ทำงานบนเครื่อง dev นี้
-3. Docker Desktop บนเครื่องนี้ **ต้อง start daemon เอง** — CI และ dev container
-   ห้ามสมมติว่ามี Docker
+3. **daemon มีหรือไม่มีเปลี่ยนได้เรื่อย ๆ ใน session เดียว** — ตรวจเมื่อ 2026-09-23 พบว่า
+   ทำงานอยู่ (`Server 29.8.0`) ทั้งที่ก่อนหน้าไม่อยู่ ข้อนี้จึงไม่ใช่ "เครื่องนี้ไม่มี Docker"
+   แต่เป็น "ห้าม *สมมติ* ทางใดทางหนึ่ง" — ทุก path ที่แตะ Docker ต้อง probe ผ่าน
+   `DockerControlPort.isReachable()` ตอน runtime ไม่ใช่ reads from a fixed assumption
+   และ CI container ไม่มี daemon เลยเสมอ
 4. §1.3 ของ source spec เองระบุว่า Lambda / RDS / Neptune / ElastiCache / MSK / ECS /
    EC2 / EKS / OpenSearch / CodeBuild เป็น **Docker-backed** — service เหล่านั้น
    **ส่งมอบไม่ได้** ในสภาพแวดล้อมที่ไม่มี Docker
+
+### 10.1 Upstream distribution reality (verified 2026-09-23)
+
+Source spec §1.1/§34 อ้าง Floci เป็น emulator ที่มี image `floci/floci:latest` ความจริงที่ตรวจแล้ว
+ต่างออกไป และมีผลต่อ §66 โดยตรง:
+
+- **Floci เป็น Java** (`pom.xml`, JAX-RS / Vert.x) ไม่ใช่ TypeScript หรือ Python — รัน native
+  ต้องมี JVM (เครื่องนี้มี Java 22) และ upstream ไม่ได้เผยแพร่ binary asset ใด ๆ ใน GitHub release
+  (`2.1.0` → `assets: (none)`)
+- **ไม่อยู่บน npm และ PyPI** — `registry.npmjs.org/floci` = 404, `pypi.org/pypi/floci` = 404
+  การ install ทำผ่าน CLI ของ upstream เอง หรือ Docker เท่านั้น
+- **Docker Hub `floci/floci` มีแต่ channel ที่ไม่คงที่**: tag ที่มีคือ `latest` กับ
+  `nightly-09202026`, `nightly-09212026`, `nightly-09222026` (+ `-compat` variants)
+  **ไม่มี stable semver tag เลย** ดังนั้น `validatePinnedImage` ซึ่งปฏิเสธ `:latest` จะ
+  เหลือทางเลือกเดียวที่ผ่านคือ **pin ด้วย digest** (`floci/floci@sha256:…`) ไม่ใช่ tag —
+  และต้องทำ reproducibility check เป็นระยะเพราะ digest ที่ pin จะไม่ถูกอัปเดตตาม
+- upstream มี `eval $(floci env)` เป็น quickstart — **ห้ามใช้บน host shell** ตาม §10
+  ข้อห้ามเดิม เพราะมัน inject `AWS_ACCESS_KEY_ID=test` / `AWS_ENDPOINT_URL` เข้า environment
+  จริงของ shell และ process อื่นทั้งหมด ฝั่งเราต้อง inject ต่อเมื่อ inside isolated runner
+  เท่านั้น (ตรงกับ §14 `env.inherit: false`)
 
 **Resolution:**
 

@@ -51,6 +51,18 @@ export {
 } from "./docker-control/port";
 export { NullDockerControlPort, getNullDockerControlPort } from "./docker-control/null-port";
 export { MockCloudEmulatorAdapter, type MockAdapterOptions } from "./adapters/mock";
+export {
+  SandboxManager,
+  type CloudAuthorizer,
+  type ReapResult,
+  type SandboxAccess,
+  type SandboxManagerDeps,
+} from "./sandbox-manager";
+export {
+  cloudPolicyVerdict,
+  createCloudPolicyGate,
+  type CloudGateCapability,
+} from "./policy-gate";
 
 import { CloudEmulatorAdapterRegistry } from "./adapter-spi";
 import { CloudSandboxDbStore } from "./db-store";

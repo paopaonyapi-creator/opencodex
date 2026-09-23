@@ -263,6 +263,32 @@ export type PromotionStatus =
   | "rejected"
   | "blocked";
 
+/** Source spec §18 + §17.1: what the policy engine may say about one request. */
+export type CloudPolicyVerdict =
+  | { allowed: true; decision: "allow" | "allow_with_constraints"; reason: string; constraints?: Record<string, number> }
+  | { allowed: false; decision: "deny" | "approval_required"; code: "CLOUD_POLICY_DENIED" | "CLOUD_APPROVAL_REQUIRED"; reason: string };
+
+/** Input to SandboxManager.request(); one entry per source spec §33 create call. */
+export interface CreateSandboxRequest {
+  id: string;
+  workspaceId: string;
+  actorId: string;
+  taskId?: string | null;
+  runId?: string | null;
+  provider?: CloudProvider;
+  adapter?: string;
+  profile: SandboxProfile;
+  services: string[];
+  ttlMinutes?: number;
+  idempotencyKey?: string | null;
+}
+
+export interface DestroyOutcome {
+  sandboxId: string;
+  report: DestroyReport;
+  resourcesRemoved: number;
+}
+
 export interface CloudPromotionRecord {
   id: string;
   workspaceId: string;

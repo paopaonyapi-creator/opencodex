@@ -72,6 +72,11 @@ export {
   type SandboxManagerDeps,
 } from "./sandbox-manager";
 export {
+  CleanupController,
+  type CleanupCycleReport,
+  type CleanupDeps,
+} from "./cleanup";
+export {
   cloudPolicyVerdict,
   createCloudPolicyGate,
   type CloudGateCapability,
